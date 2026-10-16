@@ -36,7 +36,7 @@ export class GroqLlmProvider implements ILlmProvider {
   private client: Groq;
   private model: string;
 
-  constructor(apiKey: string, model: string = 'llama-3.3-70b-versatile') {
+  constructor(apiKey: string, model: string = 'openai/gpt-oss-120b') {
     this.client = new Groq({ apiKey });
     this.model = model;
   }

@@ -15,7 +15,7 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default('*'),
   AI_PROVIDER: z.enum(['mock', 'groq', 'anthropic', 'openai']).default('groq'),
   GROQ_API_KEY: z.string().optional(),
-  GROQ_MODEL: z.string().default('llama-3.3-70b-versatile'),
+  GROQ_MODEL: z.string().default('openai/gpt-oss-120b'),
   ANTHROPIC_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
   INGESTION_SERVICE_URL: z.string().url().default('http://localhost:8000'),
