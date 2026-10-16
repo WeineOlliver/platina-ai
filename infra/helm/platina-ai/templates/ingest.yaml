@@ -1,0 +1,74 @@
+{{- if .Values.ingest.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-ingest
+  labels:
+    app.kubernetes.io/name: ingest
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.ingest.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ingest
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ingest
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: ingest
+          image: "{{ .Values.ingest.image.repository }}:{{ .Values.ingest.image.tag }}"
+          imagePullPolicy: {{ .Values.ingest.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.ingest.service.port }}
+              name: http
+          env:
+            - name: POSTGRES_HOST
+              value: "{{ .Release.Name }}-postgres"
+            - name: POSTGRES_PORT
+              value: "{{ .Values.postgres.service.port }}"
+            - name: POSTGRES_DB
+              value: {{ .Values.postgres.auth.database | quote }}
+            - name: POSTGRES_USER
+              value: {{ .Values.postgres.auth.username | quote }}
+            - name: POSTGRES_PASSWORD
+              value: {{ .Values.postgres.auth.password | quote }}
+            - name: HOST
+              value: "0.0.0.0"
+            - name: PORT
+              value: "{{ .Values.ingest.service.port }}"
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.ingest.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.ingest.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.ingest.probes.liveness.periodSeconds }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.ingest.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.ingest.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.ingest.probes.readiness.periodSeconds }}
+          resources:
+            {{- toYaml .Values.ingest.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-ingest
+  labels:
+    app.kubernetes.io/name: ingest
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  type: {{ .Values.ingest.service.type }}
+  ports:
+    - port: {{ .Values.ingest.service.port }}
+      targetPort: http
+      name: http
+  selector:
+    app.kubernetes.io/name: ingest
+    app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}

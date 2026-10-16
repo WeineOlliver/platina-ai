@@ -1,0 +1,89 @@
+# Global environment settings
+global:
+  environment: local
+  namespace: platina
+
+# PostgreSQL + pgvector configuration
+postgres:
+  enabled: true
+  image:
+    repository: pgvector/pgvector
+    tag: pg16
+    pullPolicy: IfNotPresent
+  service:
+    port: 5432
+  persistence:
+    enabled: true
+    size: 2Gi
+    storageClass: standard
+  auth:
+    database: platina_rag
+    username: platina
+    password: platina123
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+# Python Ingestion & RAG Microservice
+ingest:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: platina-ingest
+    tag: test
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8000
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  probes:
+    liveness:
+      path: /health
+      initialDelaySeconds: 10
+      periodSeconds: 15
+    readiness:
+      path: /health
+      initialDelaySeconds: 5
+      periodSeconds: 10
+
+# Node.js / Fastify Main API
+api:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: platina-api
+    tag: test
+    pullPolicy: IfNotPresent
+  service:
+    type: NodePort
+    port: 3000
+    nodePort: 30080
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  probes:
+    liveness:
+      path: /health
+      initialDelaySeconds: 10
+      periodSeconds: 15
+    readiness:
+      path: /health
+      initialDelaySeconds: 5
+      periodSeconds: 10
+  env:
+    aiProvider: "groq"
+    groqModel: "openai/gpt-oss-120b"

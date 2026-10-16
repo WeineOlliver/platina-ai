@@ -524,6 +524,20 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"While Docker Compose is ideal for single-machine local stacks, Kubernetes introduces declarative orchestration: the control plane continuously reconciles running pods to match our desired state. By defining our topology in dedicated Namespaces, Deployments, and Services in a local Kind cluster, we mirror production cloud behavior—enabling automated self-healing, rolling deployments, and horizontal auto-scaling."*
 
+---
+
+### Q40: Helm Charts: Templating, Environment Parity & Release Management
+> **"Why use Helm to package the Platina AI microservices instead of raw, static Kubernetes YAML files?"**
+
+- **Core Concept:** Static YAML manifests lead to severe duplication and configuration drift between environments (local `kind` vs cloud `EKS`). Helm acts as the package manager for Kubernetes, parameterizing manifests with Go templating.
+- **Key Architectural Capabilities:**
+  1. **Single Source of Truth (`values.yaml`):** Database credentials, replica counts, probe timings, and resource quotas are decoupled from manifest logic.
+  2. **Release Lifecycle:** Enables versioned rollouts (`helm install`, `helm upgrade`) and atomic rollbacks (`helm rollback`) if a deployment fails smoke tests.
+  3. **Inter-Service Dynamic DNS:** Templates use release-prefixed DNS endpoints (e.g. `http://{{ .Release.Name }}-ingest:8000`), allowing multiple ephemeral review environments to run concurrently in the same cluster without naming collisions.
+- **60-Second Interview Soundbite:**
+  > *"Managing static Kubernetes manifests across environments creates configuration drift and copy-paste errors. We created a modular Helm chart (`platina-ai`) parameterizing our Node.js API, Python ingest service, and PostgreSQL storage. With `values.yaml`, we can deploy to a lightweight local Kind cluster or scale up resource limits on AWS EKS using the exact same underlying templates and one-line atomic releases."*
+
+
 
 
 

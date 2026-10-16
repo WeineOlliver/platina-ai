@@ -1,0 +1,16 @@
+apiVersion: v2
+name: platina-ai
+description: Production-grade Helm chart for Platina AI ecosystem (API, Python Ingest, PostgreSQL with pgvector)
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - playstation
+  - trophy
+  - ai
+  - rag
+  - agent
+  - llm
+maintainers:
+  - name: Weine Oliveira
+    email: weineoliveira@gmail.com

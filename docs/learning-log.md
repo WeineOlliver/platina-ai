@@ -395,6 +395,23 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"I provisioned our local Kubernetes development cluster using Kind, configuring host port forwards and an isolated `platina` namespace. This gives us full parity with cloud-managed Kubernetes (EKS), allowing us to validate manifests, services, and rolling deployments locally before cloud promotion."*
 
+---
+
+### [2026-10-16] — Milestone 4: Helm Chart Packaging (`infra/helm/platina-ai`)
+- **What I built/configured:**
+  - Authored standard Helm v2 Chart structure: `Chart.yaml`, `values.yaml`, and `templates/`.
+  - Templated PostgreSQL Stateful/Deployment (`postgres.yaml`) with PersistentVolumeClaim for durable storage.
+  - Templated Ingestion service (`ingest.yaml`) with internal ClusterIP and automated health probes.
+  - Templated Node.js Fastify API (`api.yaml`) with NodePort mapping to host port `30080` for immediate curl verification.
+  - Verified chart syntax with `helm lint` (0 errors) and validated Kubernetes template generation with `helm template`.
+- **Key concepts learned:**
+  - Helm decoupling: abstracting environment-specific credentials and replica counts into `values.yaml` allows identical templates to deploy in both local Kind and AWS EKS.
+- **Problems faced & how they were solved:**
+  - Validated template indentation and YAML delimiters (`---`) between multi-document resources to ensure valid Kubernetes API schemas.
+- **Interview Soundbite:**
+  - *"I packaged our full ecosystem into a unified Helm chart (`platina-ai`). Decoupling configurations into `values.yaml` guarantees environment parity between local Kind testing and production AWS deployments with versioned release lifecycles."*
+
+
 
 
 
