@@ -13,6 +13,8 @@ const envSchema = z.object({
   HOST: z.string().default('0.0.0.0'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   CORS_ORIGIN: z.string().default('*'),
+  JWT_SECRET: z.string().min(16).default('platina-ai-development-super-secret-key-32chars'),
+  JWT_EXPIRES_IN: z.string().default('7d'),
   AI_PROVIDER: z.enum(['mock', 'groq', 'anthropic', 'openai']).default('groq'),
   GROQ_API_KEY: z.string().optional(),
   GROQ_MODEL: z.string().default('openai/gpt-oss-120b'),

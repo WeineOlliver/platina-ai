@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
+
+// Force mock provider during automated test runs for speed & determinism
+process.env.AI_PROVIDER = 'mock';
+
 import { buildApp } from './app.js';
 
 describe('Platina AI API - App Suite', () => {
@@ -57,7 +61,7 @@ describe('Platina AI API - App Suite', () => {
     expect(response.statusCode).toBe(400);
   });
 
-  it('POST /api/v1/chat streams Server-Sent Events', async () => {
+  it('POST /api/v1/chat streams Server-Sent Events', { timeout: 15000 }, async () => {
     const response = await app.inject({
       method: 'POST',
       url: '/api/v1/chat',
@@ -74,5 +78,74 @@ describe('Platina AI API - App Suite', () => {
     const body = response.body;
     expect(body).toContain('data: {"type":"chunk"');
     expect(body).toContain('data: {"type":"done"');
+  });
+
+  describe('JWT Authentication Suite', () => {
+    it('POST /api/v1/auth/login rejects invalid credentials with 401', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/login',
+        payload: {
+          email: 'hunter@platina.ai',
+          password: 'wrong_password',
+        },
+      });
+
+      expect(response.statusCode).toBe(401);
+    });
+
+    it('POST /api/v1/auth/login succeeds and returns JWT token', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/login',
+        payload: {
+          email: 'hunter@platina.ai',
+          password: 'platina123',
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const data = response.json();
+      expect(typeof data.token).toBe('string');
+      expect(data.user.email).toBe('hunter@platina.ai');
+      expect(data.user.username).toBe('hunter');
+    });
+
+    it('GET /api/v1/auth/me rejects request without Authorization header', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/v1/auth/me',
+      });
+
+      expect(response.statusCode).toBe(401);
+    });
+
+    it('GET /api/v1/auth/me returns authenticated user payload when valid token is supplied', async () => {
+      // 1. Login to get token
+      const loginRes = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/login',
+        payload: {
+          email: 'arthur.morgan@van-der-linde.com',
+          password: 'platina123',
+        },
+      });
+      const { token } = loginRes.json();
+
+      // 2. Call protected route
+      const meRes = await app.inject({
+        method: 'GET',
+        url: '/api/v1/auth/me',
+        headers: {
+          authorization: `Bearer ${token}`,
+        },
+      });
+
+      expect(meRes.statusCode).toBe(200);
+      const meData = meRes.json();
+      expect(meData.authenticated).toBe(true);
+      expect(meData.user.email).toBe('arthur.morgan@van-der-linde.com');
+      expect(meData.user.username).toBe('arthur.morgan');
+    });
   });
 });

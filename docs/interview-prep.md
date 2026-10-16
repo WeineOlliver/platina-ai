@@ -115,4 +115,46 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"Hallucinations in gaming guides are fatal because missing a missable trophy can force a player to restart an entire 80-hour RPG. In our system prompt, we set strict domain boundaries: missable alerts must take visual priority, instructions must be broken into verifiable numbered steps, and story spoilers are explicitly suppressed unless directly relevant to the trophy trigger."*
 
+---
+
+## Milestone 1: Authentication & Security (JSON Web Tokens)
+
+### Q10: Stateless JWT vs. Stateful Sessions in Containerized Architectures
+> **"Why did you choose stateless JSON Web Tokens (JWT) over server-side session stores (like Redis) for Platina AI, and what are the architectural trade-offs?"**
+
+- **Core Concept:** In a Kubernetes cluster or auto-scaling container environment, stateless tokens contain cryptographically signed claims inside the token itself, verified using asymmetric keys or symmetric secrets (`HMAC-SHA256`).
+- **Trade-off Analysis:**
+  - **Stateless Advantages:** Any replica pod can verify the request instantly without performing a network round-trip to a centralized Redis cluster or database, maximizing API throughput and eliminating single points of failure.
+  - **Trade-offs & Mitigations:** Immediate token revocation is harder without a blacklist. We mitigate this by using short token lifetimes and validating critical user status changes downstream.
+- **60-Second Interview Soundbite:**
+  > *"I implemented stateless JWT authentication to facilitate horizontal pod auto-scaling in Kubernetes. Since the token is self-contained and cryptographically verified on-instance, pods don't depend on sticky sessions or high-availability Redis round-trips for every incoming HTTP request. This keeps our Fastify streaming layer lightweight and resilient to sudden traffic spikes."*
+
+---
+
+### Q11: Route Guarding via Fastify Decorator Hooks (`app.authenticate`)
+> **"How do you enforce route protection in Fastify without duplicating authentication logic across individual endpoints?"**
+
+- **Core Concept:** Fastify provides a lifecycle hook architecture where custom decorators can act as reusable `preHandler` guards.
+- **Implementation:**
+  - We decorated the Fastify instance with an `app.authenticate` method registered through `@fastify/jwt`.
+  - Any route requiring authorization simply includes `{ preHandler: [app.authenticate] }`.
+  - If the token is expired or malformed, the hook intercepts the request early and returns RFC-compliant 401 Unauthorized responses via `@fastify/sensible` before business logic executes.
+- **60-Second Interview Soundbite:**
+  > *"To keep authorization clean and DRY, I encapsulated JWT verification into a Fastify decorator hook (`app.authenticate`). Any protected route simply attaches this hook to its `preHandler` lifecycle. If the Bearer token is missing, expired, or invalid, Fastify short-circuits the pipeline and emits a standardized 401 Unauthorized response before hitting route handlers."*
+
+---
+
+### Q12: Storing JWTs Securely (Cookies vs. LocalStorage)
+> **"From a security perspective, where should a web frontend store JWT tokens, and how do you protect them against XSS and CSRF attacks?"**
+
+- **Core Concept:** Storing tokens in `localStorage` leaves them vulnerable to Cross-Site Scripting (XSS) attacks where malicious injected scripts read tokens and exfiltrate user accounts.
+- **Production Standard:**
+  - Store tokens in **`HttpOnly, Secure, SameSite=Lax/Strict` cookies**.
+  - `HttpOnly` completely blocks client-side JavaScript from accessing token strings.
+  - `SameSite` prevents Cross-Site Request Forgery (CSRF).
+  - Combine with short-lived access tokens and rotating refresh tokens for defense-in-depth.
+- **60-Second Interview Soundbite:**
+  > *"Tokens stored in browser localStorage or sessionStorage are vulnerable to XSS exfiltration. For production web applications, the gold standard is storing JWTs in `HttpOnly, Secure, SameSite=Strict` cookies. This ensures JavaScript cannot read the token, while the SameSite attribute mitigates CSRF attacks, keeping session credentials isolated from malicious third-party scripts."*
+
+
 

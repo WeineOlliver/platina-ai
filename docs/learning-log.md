@@ -80,5 +80,23 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"To avoid vendor lock-in, I engineered an abstracted LLM Provider Adapter interface. This allowed us to integrate Groq's LPUs for sub-second, zero-cost inference using 120B open-weights models during development, with the ability to switch to Anthropic Claude or OpenAI in production simply by updating environment variables without refactoring API handlers."*
 
+---
+
+### [2026-10-16] — Milestone 1: Stateless JWT Authentication (`@fastify/jwt`)
+- **What I built/configured:**
+  - Plugin encapsulation for `@fastify/jwt` (`src/plugins/auth.ts`) exposing custom `app.authenticate` guard.
+  - TypeScript declaration merging extending `FastifyInstance` and `FastifyJWT` with typed `UserPayload`.
+  - Public `/api/v1/auth/login` endpoint verifying credentials, signing tokens, and returning user session data.
+  - Protected `/api/v1/auth/me` endpoint verifying Bearer tokens via Fastify `preHandler` hook.
+  - Vitest test suite testing rejection of invalid credentials, token generation, missing auth headers, and valid payload retrieval.
+- **Key concepts learned:**
+  - Fastify decorators coupled with `preHandler` hooks provide a declarative, DRY mechanism for route-level authorization without middleware nesting.
+  - Stateless JWTs eliminate shared session store bottlenecks in distributed Kubernetes environments.
+- **Problems faced & how they were solved:**
+  - Test suites timing out due to real external LLM requests running during unit test execution. Solved by explicitly setting `process.env.AI_PROVIDER = 'mock'` in the test runner, keeping integration tests sub-second.
+- **Interview Soundbite:**
+  - *"I implemented stateless JWT authentication using `@fastify/jwt` wrapped in a reusable decorator hook. This enables horizontal pod scaling without sticky sessions or centralized Redis session round-trips, while enforcing strict TypeScript typing across user payloads and route protection guards."*
+
+
 
 

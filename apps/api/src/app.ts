@@ -1,7 +1,10 @@
+import { readFileSync, existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import { env } from './config/env.js';
 import { corsPlugin } from './plugins/cors.js';
 import { sensiblePlugin } from './plugins/sensible.js';
+import { authPlugin } from './plugins/auth.js';
 import { healthRoutes } from './routes/health.js';
 import { v1Routes } from './routes/v1/index.js';
 
@@ -31,6 +34,22 @@ export const buildApp = async (opts: FastifyServerOptions = {}): Promise<Fastify
   // Core Plugins
   await app.register(sensiblePlugin);
   await app.register(corsPlugin);
+  await app.register(authPlugin);
+
+  // Serve UI test page directly from server (same-origin, zero CORS issues)
+  app.get('/ui', async (request, reply) => {
+    const candidatePaths = [
+      resolve(process.cwd(), '../../test-chat.html'),
+      resolve(process.cwd(), '../test-chat.html'),
+      resolve(process.cwd(), 'test-chat.html'),
+    ];
+    const foundPath = candidatePaths.find((p) => existsSync(p));
+    if (!foundPath) {
+      return reply.notFound('test-chat.html not found');
+    }
+    reply.type('text/html; charset=utf-8');
+    return readFileSync(foundPath, 'utf-8');
+  });
 
   // Routes
   await app.register(healthRoutes);

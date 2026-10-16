@@ -20,9 +20,13 @@ export const chatRoutes: FastifyPluginAsync = async (app) => {
     reply.hijack();
 
     // 3. Set standard SSE HTTP headers
-    // Insight: 'X-Accel-Buffering: no' is critical for reverse proxies (Nginx, AWS ALB, Cloudflare),
-    // disabling intermediate response buffering and ensuring tokens stream in real time.
+    // Insight: When reply.hijack() is used, Fastify's onSend hook is bypassed.
+    // We explicitly attach CORS headers so browsers (including file:// or cross-origin frontends)
+    // do not terminate the streaming connection due to CORS enforcement.
+    const origin = request.headers.origin || '*';
     reply.raw.writeHead(200, {
+      'Access-Control-Allow-Origin': origin,
+      'Access-Control-Allow-Credentials': 'true',
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
       'Connection': 'keep-alive',
