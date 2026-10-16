@@ -166,6 +166,24 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"To prepare gaming guides for RAG, I designed a domain-specific semantic chunker that splits on Markdown headings to keep individual trophy requirements atomic. For long walkthroughs, it uses a 200-character overlapping sliding window breaking on sentence boundaries, and automatically tags chunks with an `is_missable` flag for hybrid SQL/vector querying."*
 
+---
+
+### [2026-10-16] — Milestone 2: PostgreSQL & pgvector Infrastructure (Docker + Migrations)
+- **What I built/configured:**
+  - Root `docker-compose.yml` declaring `pgvector/pgvector:pg16` with health checks, persistent volumes, and auto-init scripts.
+  - SQL migration schema `infra/postgres/init.sql` activating the `vector` extension and defining the `guide_chunks` table with 1536-dimension embeddings.
+  - Performance B-Tree indexes on `game` and `is_missable` for exact filtering.
+  - HNSW (Hierarchical Navigable Small World) index with `vector_cosine_ops` (`m=16, ef_construction=64`) for high-recall sub-second vector similarity retrieval.
+  - Verified local container startup and live PostgreSQL table inspection.
+- **Key concepts learned:**
+  - Keeping embeddings in PostgreSQL with pgvector provides ACID consistency across relational metadata and vector searches in a single database engine.
+  - HNSW indexes outperform IVFFlat on recall and query throughput without requiring an upfront training phase on pre-existing data.
+- **Problems faced & how they were solved:**
+  - Volume initialization ordering in Docker Compose. Solved by mounting `init.sql` into `/docker-entrypoint-initdb.d/` for automatic first-boot database seeding.
+- **Interview Soundbite:**
+  - *"I provisioned PostgreSQL 16 with pgvector in Docker Compose, indexing guide chunk embeddings with an HNSW cosine distance index. This avoids dual-database complexity by unifying relational trophy metadata and vector retrieval under a single ACID engine, enabling sub-second hybrid SQL and vector queries."*
+
+
 
 
 

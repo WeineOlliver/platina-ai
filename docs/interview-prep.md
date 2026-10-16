@@ -259,6 +259,33 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"Relying purely on vector similarity search causes false positives when a user asks for critical missable warnings. By tagging chunks with an `is_missable` boolean during ingestion, we enable hybrid retrieval in PostgreSQL: we can apply hard SQL WHERE filters alongside vector cosine similarity, guaranteeing zero-hallucination missable trophy filtering."*
 
+---
+
+## Milestone 2: Vector Database Architecture (Postgres + pgvector)
+
+### Q21: Dedicated Vector DB (Pinecone/Milvus) vs. PostgreSQL + pgvector
+> **"Why did you choose PostgreSQL with the `pgvector` extension instead of a specialized vector database like Pinecone, Weaviate, or Qdrant for Platina AI?"**
+
+- **Core Concept:** Specialized vector databases introduce operational complexity: maintaining two separate databases, managing distributed transactions, network latency between DBs, and separate billing/auth models.
+- **Why pgvector Wins for Production RAG:**
+  - **Single Source of Truth:** Relational business data (users, player trophies, game catalogues) and high-dimensional vector embeddings live in the exact same database engine.
+  - **Single ACID Transactions:** Ingestion of a guide chunk and its vector embedding happens atomically inside a standard PostgreSQL transaction. If embedding insertion fails, the relational record rolls back cleanly.
+  - **Native Hybrid Querying:** SQL allows joining relational tables (`users`, `user_trophies`) directly against vector similarity distance (`ORDER BY embedding <=> query_vector`) in a single query plan.
+- **60-Second Interview Soundbite:**
+  > *"Choosing PostgreSQL with `pgvector` eliminates multi-database synchronization headaches and extra SaaS costs. Keeping relational metadata and vector embeddings in the same database provides ACID transaction guarantees during guide ingestion and enables native hybrid queries—combining relational SQL filters with vector cosine distance in a single index scan without dual-database network latency."*
+
+---
+
+### Q22: Vector Indexing Trade-offs: HNSW vs. IVFFlat
+> **"Why did you build an HNSW index instead of IVFFlat on the `guide_chunks.embedding` column, and what are the memory vs. speed trade-offs?"**
+
+- **Core Concept:** Approximate Nearest Neighbor (ANN) search in pgvector supports two primary index algorithms:
+  - **IVFFlat (Inverted File Flat):** Groups vectors into clusters (lists). It builds fast and uses less RAM, but query recall drops as dataset size changes, and it requires a dedicated training step with existing data before creation.
+  - **HNSW (Hierarchical Navigable Small World):** Builds a multi-layer graph of vectors. It uses more RAM during build, but provides superior queries-per-second (QPS), high recall (>95%), and requires zero pre-training data—vectors can be added dynamically at any time.
+- **60-Second Interview Soundbite:**
+  > *"For production search quality, I chose HNSW over IVFFlat. While HNSW consumes more memory during index construction, it delivers significantly higher query throughput and better recall without requiring an initial dataset training phase. This allows guide chunks to be continuously indexed incrementally without degrading search accuracy."*
+
+
 
 
 
