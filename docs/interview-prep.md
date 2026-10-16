@@ -453,6 +453,21 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"In Platina AI, our agent runner implements the ReAct paradigm: the model reasons over the user prompt, emits tool calls, and our backend executes them, feeding results back as tool messages for iterative reasoning. To safeguard against infinite execution loops and runaway API costs, the runner enforces a strict max-step recursion boundary (5 steps) and supports mid-stream abort signals."*
 
+---
+
+### Q35: Proactive Agent Advising: Prioritizing Critical Missables over Generic Progression
+> **"How do you design a proactive AI agent endpoint (`/agent/next-step`) that computes tactical advice based on player state rather than waiting for the user to ask the right question?"**
+
+- **Core Concept:** Most players don't know what they don't know (e.g., they don't realize advancing past a boss locks them out of a sidequest forever).
+- **Architecture of the Next Step Advisor:**
+  1. **Telemetry & Progress Ingestion:** Queries the player's live trophy catalog to identify pending trophies.
+  2. **Risk Heuristic:** Filters and prioritizes trophies marked with `is_missable = true`. If missables exist, they immediately override regular story progression in the recommendation queue.
+  3. **Context Grounding (RAG):** Fetches the specific guide paragraphs from `pgvector` for that urgent trophy.
+  4. **Structured Schema Output:** Prompts the model in JSON Mode with a Zod-enforced schema containing an `urgentWarning`, an `actionableStep`, and a short `checklist` designed to fit a single evening gameplay session.
+- **60-Second Interview Soundbite:**
+  > *"A truly valuable AI assistant shouldn't just answer reactive questions; it must proactively guard the user against costly mistakes. In Platina AI's `/agent/next-step` endpoint, we query the player's live PSN trophy state and prioritize pending missable trophies over generic story progression. By pairing risk heuristics with targeted pgvector guide retrieval, we output a concise, structured action plan with urgent warnings and session checklists before the player touches the controller."*
+
+
 
 
 

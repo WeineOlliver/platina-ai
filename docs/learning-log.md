@@ -317,6 +317,22 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"I architected our autonomous agent runner implementing a multi-step ReAct loop with Groq. When queried, the agent inspects the player's live trophy progress, detects pending missable trophies, autonomously searches our pgvector guide database, and synthesizes a tactical step-by-step roadmap streamed in real time via SSE."*
 
+---
+
+### [2026-10-16] — Milestone 3: Proactive Next Step Advisor (`POST /api/v1/agent/next-step`)
+- **What I built/configured:**
+  - `NextStepAdvisor` service (`src/services/agent/nextStep.ts`) analyzing live player progress and prioritizing pending missable trophies.
+  - Integration with `searchGuidesTool` to dynamically pull relevant walkthrough sections from `pgvector`.
+  - JSON schema output validation via Zod (`nextStepAdviceSchema`) containing `urgentWarning`, `targetTrophy`, `actionableStep`, and session `checklist`.
+  - Fastify route `POST /api/v1/agent/next-step` and automated Vitest suite in `app.test.ts`.
+- **Key concepts learned:**
+  - Proactive AI patterns: instead of waiting for a reactive prompt, systems can compare telemetry (player save state) against domain hazards (missables) to compute high-value advice ahead of time.
+- **Problems faced & how they were solved:**
+  - Handling cases where a player has 100% completion or no missables pending. Defaulted to congratulatory and general progression states gracefully.
+- **Interview Soundbite:**
+  - *"I developed the proactive next-step advisor (`/agent/next-step`). By combining telemetry ingestion with missable risk heuristics and pgvector retrieval, it generates structured tactical briefings warning players of irreversible lockouts before they start playing."*
+
+
 
 
 

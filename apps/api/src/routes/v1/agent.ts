@@ -1,6 +1,12 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { platinaAgentRunner } from '../../services/agent/runner.js';
+import { nextStepAdvisor } from '../../services/agent/nextStep.js';
+
+const nextStepQuerySchema = z.object({
+  psnId: z.string().min(2, 'PSN ID é obrigatório'),
+  game: z.string().min(2, 'Nome do jogo é obrigatório'),
+});
 
 const agentQuerySchema = z.object({
   message: z.string().min(2, 'A mensagem deve ter pelo menos 2 caracteres'),
@@ -9,6 +15,23 @@ const agentQuerySchema = z.object({
 });
 
 export const agentRoutes: FastifyPluginAsync = async (app) => {
+  // Proactive Next Step recommendation endpoint
+  app.post('/agent/next-step', async (request, reply) => {
+    const validation = nextStepQuerySchema.safeParse(request.body);
+    if (!validation.success) {
+      return reply.badRequest(validation.error.message);
+    }
+
+    const { psnId, game } = validation.data;
+    try {
+      const advice = await nextStepAdvisor.generateNextStepAdvice(psnId, game);
+      return reply.status(200).send(advice);
+    } catch (err: unknown) {
+      request.log.error({ err }, 'Erro ao gerar recomendação de próximo passo');
+      const msg = err instanceof Error ? err.message : 'Falha interna';
+      return reply.internalServerError(msg);
+    }
+  });
   app.post('/agent/run', async (request, reply) => {
     const validation = agentQuerySchema.safeParse(request.body);
     if (!validation.success) {

@@ -180,6 +180,25 @@ describe('Platina AI API - App Suite', () => {
   });
 
   describe('Agent Loop Suite', () => {
+    it('POST /api/v1/agent/next-step returns structured tactical advice for current player save', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/v1/agent/next-step',
+        payload: {
+          psnId: 'OlliverHunter',
+          game: 'Bloodborne',
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const data = response.json();
+      expect(data.game).toBe('Bloodborne');
+      expect(typeof data.currentProgressPercentage).toBe('number');
+      expect(data.targetTrophy).toBeDefined();
+      expect(Array.isArray(data.checklist)).toBe(true);
+      expect(data.checklist.length).toBeGreaterThan(0);
+    });
+
     it('POST /api/v1/agent/run streams thought and execution steps via SSE', async () => {
       const response = await app.inject({
         method: 'POST',
