@@ -428,6 +428,18 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"To enable reliable function calling, we decouple the tool definition from execution. We provide the LLM with a strict JSON Schema describing parameters and intent, while validating the model's generated arguments with Zod at runtime. This allows our agent to query live PSN player progress and guide vectors without exposing our internal microservices to malformed requests."*
 
+---
+
+### Q33: Agentic Dynamic Tool Selection vs. Static Hardcoded RAG Injection
+> **"What is the architectural difference between static RAG injection and agentic tool use with `search_trophy_guides`?"**
+
+- **Core Concept:** 
+  - **Static RAG:** Every user message triggers a vector database search before invoking the LLM, regardless of whether the query actually needs guide data (e.g., answering "hello" or "who are you?" wastes vector queries).
+  - **Agentic Tool Use:** The LLM inspects the available tools and autonomously decides *if*, *when*, and *with what specific search terms* to query the vector database. It can rewrite the user's messy question into an optimal vector search query or decide to inspect player progress first before searching guides.
+- **60-Second Interview Soundbite:**
+  > *"Static RAG naively queries the vector store on every turn, adding latency and noise even to conversational greetings. Exposing semantic retrieval as a tool (`search_trophy_guides`) transforms the system into an autonomous agent: the model dynamically formulates optimized search queries only when technical guide context is genuinely required, reducing unnecessary vector queries while supporting multi-step reasoning."*
+
+
 
 
 

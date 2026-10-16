@@ -285,6 +285,22 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"I built our first agent tool (`check_player_progress`), exposing player PSN trophy completion to the LLM via standard function calling schemas. Runtime Zod validation protects internal routes against hallucinations, returning structured pending missables directly to the agent's reasoning loop."*
 
+---
+
+### [2026-10-16] — Milestone 3: Guide Retrieval Tool (`search_trophy_guides`)
+- **What I built/configured:**
+  - `SearchGuidesTool` (`src/services/agent/tools/searchGuides.ts`) implementing standard function calling parameters schema.
+  - Zod runtime validation (`searchGuidesParamsSchema`) accepting `query`, `game`, `missableOnly`, and `limit`.
+  - Service execution calling `ingestionClient.searchGuides` to query PostgreSQL pgvector on demand.
+  - Unit tests in Vitest (`searchGuides.test.ts`) testing schema definitions, validation rejection, and retrieval execution.
+- **Key concepts learned:**
+  - Dynamic tool-based RAG allows the LLM to formulate tailored semantic queries rather than injecting blind vector search on every user prompt.
+- **Problems faced & how they were solved:**
+  - TypeScript exact optional properties on Zod schema inputs. Solved using `z.input<typeof schema>` to handle optional defaults cleanly.
+- **Interview Soundbite:**
+  - *"I implemented `search_trophy_guides` as a callable agent tool, allowing the model to autonomously decide when and how to search our pgvector database. This shifts our architecture from static prompt injection to an active agent that searches guides with optimized terms only when required."*
+
+
 
 
 
