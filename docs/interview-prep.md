@@ -537,6 +537,22 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"Managing static Kubernetes manifests across environments creates configuration drift and copy-paste errors. We created a modular Helm chart (`platina-ai`) parameterizing our Node.js API, Python ingest service, and PostgreSQL storage. With `values.yaml`, we can deploy to a lightweight local Kind cluster or scale up resource limits on AWS EKS using the exact same underlying templates and one-line atomic releases."*
 
+---
+
+### Q41: Production Readiness: ConfigMaps, Secrets & Dual Health Probes
+> **"How do you secure environment secrets in Kubernetes and design Liveness vs. Readiness probes for zero-downtime rolling deploys?"**
+
+- **Core Concept:** Secrets and configurations must be decoupled from container images and pod definitions.
+- **ConfigMap vs. Secret Separation:**
+  - Non-sensitive operational configs (`PORT`, `HOST`, `AI_PROVIDER`, `INGESTION_SERVICE_URL`) reside in a versioned `ConfigMap`.
+  - Sensitive credentials (`JWT_SECRET`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `GROQ_API_KEY`) reside in a dedicated `Secret`, referenced via `valueFrom: secretKeyRef`.
+- **Liveness vs. Readiness Probes:**
+  - **Readiness Probe (`/health`):** Verifies that the pod is fully bootstrapped and its internal connections (DB pool, Groq client) are established before the Service routes user traffic to it. Prevents HTTP 502/503 errors during rolling updates.
+  - **Liveness Probe (`/health`):** Continuously monitors process responsiveness. If an unhandled event loop deadlock occurs and the endpoint stops responding, the kubelet terminates and restarts the container automatically.
+- **60-Second Interview Soundbite:**
+  > *"To ensure zero-downtime rolling updates, we separate configuration into ConfigMaps and sensitive credentials into Kubernetes Secrets. We configure distinct Liveness and Readiness probes: Readiness prevents traffic routing to new pods until their database connection pools are verified, while Liveness allows the kubelet to detect deadlocked pods and restart them without manual intervention."*
+
+
 
 
 

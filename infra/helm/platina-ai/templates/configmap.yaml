@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+  labels:
+    app.kubernetes.io/name: platina-ai
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  PORT: "{{ .Values.api.service.port }}"
+  HOST: "0.0.0.0"
+  NODE_ENV: "production"
+  INGESTION_SERVICE_URL: "http://{{ .Release.Name }}-ingest:{{ .Values.ingest.service.port }}"
+  AI_PROVIDER: {{ .Values.api.env.aiProvider | quote }}
+  GROQ_MODEL: {{ .Values.api.env.groqModel | quote }}
+  POSTGRES_HOST: "{{ .Release.Name }}-postgres"
+  POSTGRES_PORT: "{{ .Values.postgres.service.port }}"
+  POSTGRES_DB: {{ .Values.postgres.auth.database | quote }}

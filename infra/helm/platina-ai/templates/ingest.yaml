@@ -26,32 +26,57 @@ spec:
             - containerPort: {{ .Values.ingest.service.port }}
               name: http
           env:
-            - name: POSTGRES_HOST
-              value: "{{ .Release.Name }}-postgres"
-            - name: POSTGRES_PORT
-              value: "{{ .Values.postgres.service.port }}"
-            - name: POSTGRES_DB
-              value: {{ .Values.postgres.auth.database | quote }}
-            - name: POSTGRES_USER
-              value: {{ .Values.postgres.auth.username | quote }}
-            - name: POSTGRES_PASSWORD
-              value: {{ .Values.postgres.auth.password | quote }}
             - name: HOST
-              value: "0.0.0.0"
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Release.Name }}-config
+                  key: HOST
             - name: PORT
-              value: "{{ .Values.ingest.service.port }}"
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Release.Name }}-config
+                  key: POSTGRES_PORT
+            - name: POSTGRES_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Release.Name }}-config
+                  key: POSTGRES_HOST
+            - name: POSTGRES_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Release.Name }}-config
+                  key: POSTGRES_PORT
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Release.Name }}-config
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secret
+                  key: POSTGRES_PASSWORD
           livenessProbe:
             httpGet:
               path: {{ .Values.ingest.probes.liveness.path }}
               port: http
             initialDelaySeconds: {{ .Values.ingest.probes.liveness.initialDelaySeconds }}
             periodSeconds: {{ .Values.ingest.probes.liveness.periodSeconds }}
+            timeoutSeconds: 5
+            failureThreshold: 3
           readinessProbe:
             httpGet:
               path: {{ .Values.ingest.probes.readiness.path }}
               port: http
             initialDelaySeconds: {{ .Values.ingest.probes.readiness.initialDelaySeconds }}
             periodSeconds: {{ .Values.ingest.probes.readiness.periodSeconds }}
+            timeoutSeconds: 3
+            failureThreshold: 2
           resources:
             {{- toYaml .Values.ingest.resources | nindent 12 }}
 ---

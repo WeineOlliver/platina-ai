@@ -27,31 +27,61 @@ spec:
               name: http
           env:
             - name: PORT
-              value: "{{ .Values.api.service.port }}"
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Release.Name }}-config
+                  key: PORT
             - name: HOST
-              value: "0.0.0.0"
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Release.Name }}-config
+                  key: HOST
             - name: NODE_ENV
-              value: "production"
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Release.Name }}-config
+                  key: NODE_ENV
             - name: INGESTION_SERVICE_URL
-              value: "http://{{ .Release.Name }}-ingest:{{ .Values.ingest.service.port }}"
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Release.Name }}-config
+                  key: INGESTION_SERVICE_URL
             - name: AI_PROVIDER
-              value: {{ .Values.api.env.aiProvider | quote }}
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Release.Name }}-config
+                  key: AI_PROVIDER
             - name: GROQ_MODEL
-              value: {{ .Values.api.env.groqModel | quote }}
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Release.Name }}-config
+                  key: GROQ_MODEL
             - name: JWT_SECRET
-              value: "super-secret-jwt-key-minimum-32-characters-platina-ai"
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secret
+                  key: JWT_SECRET
+            - name: GROQ_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secret
+                  key: GROQ_API_KEY
           livenessProbe:
             httpGet:
               path: {{ .Values.api.probes.liveness.path }}
               port: http
             initialDelaySeconds: {{ .Values.api.probes.liveness.initialDelaySeconds }}
             periodSeconds: {{ .Values.api.probes.liveness.periodSeconds }}
+            timeoutSeconds: 5
+            failureThreshold: 3
           readinessProbe:
             httpGet:
               path: {{ .Values.api.probes.readiness.path }}
               port: http
             initialDelaySeconds: {{ .Values.api.probes.readiness.initialDelaySeconds }}
             periodSeconds: {{ .Values.api.probes.readiness.periodSeconds }}
+            timeoutSeconds: 3
+            failureThreshold: 2
           resources:
             {{- toYaml .Values.api.resources | nindent 12 }}
 ---

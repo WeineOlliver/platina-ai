@@ -411,6 +411,25 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"I packaged our full ecosystem into a unified Helm chart (`platina-ai`). Decoupling configurations into `values.yaml` guarantees environment parity between local Kind testing and production AWS deployments with versioned release lifecycles."*
 
+---
+
+### [2026-10-16] — Milestone 4: ConfigMaps, Secrets, and Liveness/Readiness Probes
+- **What I built/configured:**
+  - Templated `ConfigMap` (`configmap.yaml`) centralizing operational variables (`PORT`, `HOST`, `AI_PROVIDER`, `INGESTION_SERVICE_URL`, database endpoints).
+  - Templated `Secret` (`secret.yaml`) securing credentials (`POSTGRES_USER`, `POSTGRES_PASSWORD`, `JWT_SECRET`, `GROQ_API_KEY`).
+  - Updated `postgres.yaml`, `ingest.yaml`, and `api.yaml` Deployments to ingest values safely via `configMapKeyRef` and `secretKeyRef`.
+  - Configured robust dual probes:
+    - **Liveness Probes:** Restart unresponsive or deadlocked containers.
+    - **Readiness Probes:** Shield new pods from traffic until connection pools and internal listeners are fully online.
+  - Verified chart integrity via `helm lint` and `helm template`.
+- **Key concepts learned:**
+  - Distinguishing Liveness vs. Readiness prevents false-positive restarts while protecting users against in-flight connection drops during rolling deployments.
+- **Problems faced & how they were solved:**
+  - Standardized probe `failureThreshold` and `timeoutSeconds` across Node and Python stacks.
+- **Interview Soundbite:**
+  - *"I hardened our Kubernetes manifests with decoupled ConfigMaps, encrypted Secrets, and fine-tuned Liveness and Readiness probes. This guarantees credential safety and enables zero-downtime rolling updates without dropping active player requests."*
+
+
 
 
 
