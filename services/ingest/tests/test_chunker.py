@@ -1,7 +1,6 @@
-from fastapi.testclient import TestClient
+import pytest
+from httpx import AsyncClient, ASGITransport
 from src.main import create_app
-
-client = TestClient(create_app())
 
 SAMPLE_GUIDE = """# Guia de Platina - Bloodborne
 
@@ -18,8 +17,21 @@ Colete todas as armas iniciais antes de avançar para a Grande Catedral.
 """
 
 
-def test_chunker_splits_by_markdown_headings():
-    response = client.post(
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"
+
+
+@pytest.fixture
+async def async_client():
+    app = create_app()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        yield client
+
+
+@pytest.mark.anyio
+async def test_chunker_splits_by_markdown_headings(async_client):
+    response = await async_client.post(
         "/api/v1/ingest/parse",
         json={
             "game": "Bloodborne",
@@ -46,8 +58,9 @@ def test_chunker_splits_by_markdown_headings():
     assert "chunk_index" in chunks[0]["metadata"]
 
 
-def test_chunker_rejects_empty_payload():
-    response = client.post(
+@pytest.mark.anyio
+async def test_chunker_rejects_empty_payload(async_client):
+    response = await async_client.post(
         "/api/v1/ingest/parse",
         json={
             "game": "Bloodborne",
@@ -57,8 +70,9 @@ def test_chunker_rejects_empty_payload():
     assert response.status_code == 422  # Pydantic validation error (min_length=50)
 
 
-def test_index_guide_stores_in_pgvector():
-    response = client.post(
+@pytest.mark.anyio
+async def test_index_guide_stores_in_pgvector(async_client):
+    response = await async_client.post(
         "/api/v1/ingest/index",
         json={
             "game": "Bloodborne",
@@ -71,3 +85,40 @@ def test_index_guide_stores_in_pgvector():
     assert data["status"] == "success"
     assert data["inserted_count"] == 4
     assert data["game"] == "Bloodborne"
+
+
+@pytest.mark.anyio
+async def test_semantic_search_retrieves_relevant_chunk(async_client):
+    # Search specifically for Eileen the Crow
+    response = await async_client.post(
+        "/api/v1/ingest/search",
+        json={
+            "query": "Eileen the Crow corvos perdível",
+            "game": "Bloodborne",
+            "limit": 2,
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_results"] > 0
+    top_result = data["results"][0]
+    assert "Eileen" in top_result["title"]
+    assert top_result["is_missable"] is True
+    assert top_result["similarity_score"] > 0.0
+
+
+@pytest.mark.anyio
+async def test_semantic_search_hybrid_missable_filter(async_client):
+    response = await async_client.post(
+        "/api/v1/ingest/search",
+        json={
+            "query": "troféus",
+            "game": "Bloodborne",
+            "missable_only": True,
+            "limit": 5,
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    for item in data["results"]:
+        assert item["is_missable"] is True

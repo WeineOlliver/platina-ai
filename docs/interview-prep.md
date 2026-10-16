@@ -309,6 +309,35 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"Cosine similarity measures the orientation between vectors regardless of text length. By normalizing all embedding vectors to unit length (L2 norm = 1.0) prior to storage, pgvector's cosine distance calculation reduces to an optimized dot product, taking advantage of CPU vectorization instructions and significantly accelerating nearest neighbor index scans."*
 
+---
+
+## Milestone 2: Semantic Retrieval & Hybrid Search
+
+### Q25: Implementing Hybrid Search with pgvector (`ORDER BY <=>`)
+> **"How do you implement hybrid vector search combining SQL metadata filters with vector cosine distance in PostgreSQL?"**
+
+- **Core Concept:** In RAG architectures, retrieving solely by vector similarity risks returning semantically relevant content from the wrong game or including non-missable content when the user explicitly asked for missables.
+- **Implementation in SQLAlchemy:**
+  - We project the user query vector into embedding space.
+  - In SQL, we build dynamic `WHERE` clauses for relational attributes (`game ILIKE :game`, `is_missable = true`).
+  - We sort using pgvector's cosine distance operator: `ORDER BY embedding <=> :query_vector LIMIT :k`.
+  - The PostgreSQL query planner leverages HNSW vector index acceleration while honoring the relational B-Tree index filters.
+- **60-Second Interview Soundbite:**
+  > *"Hybrid search combines the semantic nuance of embeddings with the deterministic precision of relational SQL. In Platina AI, we construct queries that filter on relational columns (like `game` and `is_missable`) while ordering by pgvector's cosine distance operator (`<=>`). This guarantees that nearest-neighbor vector candidates are strictly scoped to the exact game and trophy criteria the player requested."*
+
+---
+
+### Q26: Managing Connection Pools Across Asynchronous Event Loops
+> **"What concurrency challenges occur when integrating async database drivers (like `asyncpg` / SQLAlchemy AsyncSession) in microservice test suites and event-driven architectures?"**
+
+- **Core Concept:** `asyncpg` connections are strictly bound to the specific Python `asyncio` event loop that created them. If a connection is checked out in one event loop and returned or cancelled when that event loop has already closed (common in test harnesses like `pytest` or `TestClient`), it raises `RuntimeError: Event loop is closed`.
+- **Engineering Solution:**
+  - In microservice test runners, we employ `NullPool` to prevent holding persistent connection handles across distinct test loops.
+  - In production workloads, we use a managed pool (`AsyncAdaptedQueuePool` with `pool_pre_ping=True` and `pool_recycle`), ensuring stale or interrupted sockets are recycled cleanly without leaking connection file descriptors.
+- **60-Second Interview Soundbite:**
+  > *"Because `asyncpg` sockets are bound to the specific asyncio event loop that initialized them, lifecycle mismatches between requests or test runs can trigger `Event loop is closed` errors. In test environments, using `NullPool` ensures connections are torn down cleanly with the test loop, while production clusters use pre-ping connection validation and recycling to guard against broken sockets during network hiccups."*
+
+
 
 
 

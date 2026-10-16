@@ -201,6 +201,24 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"I implemented an asynchronous embedding and persistence pipeline in Python using SQLAlchemy 2.0 and `pgvector`. Chunks are vectorized and persisted in atomic batches with L2-normalized unit vectors, preventing corrupted partial states and optimizing vector cosine distance queries."*
 
+---
+
+### [2026-10-16] — Milestone 2: Semantic Similarity Retrieval & Hybrid Search
+- **What I built/configured:**
+  - Vector search service (`src/services/search.py`) executing cosine distance queries (`GuideChunkModel.embedding.cosine_distance(query_vector)`) via pgvector.
+  - Hybrid retrieval engine combining vector similarity ordering (`<=>`) with SQL filtering (`game ILIKE`, `is_missable = true`).
+  - API endpoint `POST /api/v1/ingest/search` returning scored search results with bounded similarity ratings (0.0 to 1.0).
+  - Pydantic search models (`SearchQueryRequest`, `SearchResultItem`, `SearchResponse`).
+  - Unit tests validating specific trophy retrieval (Eileen the Crow) and strict missable filtering.
+- **Key concepts learned:**
+  - Pure vector search must be paired with relational SQL filters to prevent cross-game hallucinations in multi-title corpora.
+  - Asynchronous database pooling must be decoupled from test-runner event loop termination (`NullPool` vs. persistent pool).
+- **Problems faced & how they were solved:**
+  - `asyncpg` event loop closure conflicts during test teardown. Resolved by utilizing `NullPool` in test sessions and running async ASGI fixtures via `pytest.mark.anyio`.
+- **Interview Soundbite:**
+  - *"I developed an asynchronous semantic retrieval endpoint in FastAPI querying pgvector. It performs hybrid retrieval—combining relational filters like game name and missable tags with cosine distance ordering—returning ranked, contextual trophy chunks in milliseconds."*
+
+
 
 
 

@@ -1,6 +1,7 @@
 from typing import AsyncGenerator
 from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.pool import NullPool
 from src.config import settings
 
 # Convert standard postgresql:// to asyncpg driver postgresql+asyncpg://
@@ -8,13 +9,12 @@ DATABASE_URL = settings.DATABASE_URL
 if DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 
-# Connection pool configurations tuned for microservice workloads
+# In test/CLI workflows, NullPool ensures connections are created and closed
+# per transaction without event loop lifecycle conflicts across test functions.
 engine = create_async_engine(
     DATABASE_URL,
     echo=False,
-    pool_size=10,
-    max_overflow=20,
-    pool_pre_ping=True,
+    poolclass=NullPool,
 )
 
 async_session_factory = async_sessionmaker(
