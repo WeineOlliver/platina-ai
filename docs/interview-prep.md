@@ -497,6 +497,20 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"In production environments, image size directly impacts deployment latency and CVE vulnerability exposure. We implement multi-stage Docker builds for both the TypeScript API and Python microservices. Compilers and development tooling are isolated to disposable builder stages, while minimal production runners execute as unprivileged non-root users with active health checks."*
 
+---
+
+### Q38: Container Networking & Service Orchestration with Docker Compose
+> **"How is service-to-service communication configured in Docker Compose between the Fastify API, FastAPI ingest service, and PostgreSQL?"**
+
+- **Core Concept:** Containers communicate over an isolated bridge network using Docker's internal DNS resolver (`platina-net`).
+- **Orchestration Architecture:**
+  - `postgres`: Listens on port 5432 with health check probes (`pg_isready`). Volume mounts automatically execute schema migrations (`01_init.sql`, `02_player_progress.sql`, `03_seed_player.sql`) on initial startup.
+  - `ingest-service`: Uses `depends_on` with `condition: service_healthy` to ensure database readiness before binding port 8000. Resolves PostgreSQL host via DNS name `postgres`.
+  - `api-service`: Connects to `http://ingest-service:8000` via Docker DNS.
+- **60-Second Interview Soundbite:**
+  > *"In our Docker Compose topology, services communicate securely over an isolated user-defined bridge network (`platina-net`). We utilize internal Docker DNS names (`postgres`, `ingest-service`) to avoid hardcoded IP addresses, and configure healthcheck dependency gates (`service_healthy`) so application microservices only start once the PostgreSQL database is fully ready to accept queries."*
+
+
 
 
 

@@ -363,6 +363,23 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"I implemented hardened multi-stage Dockerfiles for both services. Build-time compilers and dev dependencies are discarded in temporary stages, while production runtimes execute as non-root users with container health checks, minimizing attack surfaces and container image sizes."*
 
+---
+
+### [2026-10-16] — Milestone 4: Full Local Orchestration (`docker-compose.yml`)
+- **What I built/configured:**
+  - Complete `docker-compose.yml` orchestrating all 3 tiers: `postgres` (with `pgvector:pg16`), `ingest-service` (FastAPI), and `api-service` (Fastify).
+  - Healthcheck gating: `ingest-service` waits for PostgreSQL readiness via `condition: service_healthy`.
+  - Automatic database initialization via bind-mounted SQL migration scripts in `/docker-entrypoint-initdb.d/`.
+  - Dedicated user-defined bridge network (`platina-net`) enabling private internal DNS resolution.
+  - Verified topology via `docker compose config`.
+- **Key concepts learned:**
+  - Using Docker compose healthcheck conditions (`service_healthy`) eliminates race conditions where application containers crash while the database initializes its storage engines.
+- **Problems faced & how they were solved:**
+  - Ensuring migration order with numbered filenames (`01_init.sql`, `02_player_progress.sql`, `03_seed_player.sql`).
+- **Interview Soundbite:**
+  - *"I configured our end-to-end local Docker Compose orchestration. By wiring health check gates between PostgreSQL and the application tiers over a private bridge network, we guarantee reliable, zero-race startup across all microservices with a single command."*
+
+
 
 
 

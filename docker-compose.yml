@@ -1,4 +1,5 @@
-version: '3.8'
+# Complete Local Orchestration Compose file for Platina AI
+# Brings up PostgreSQL (pgvector), Ingestion Service (Python), and Main API (Node.js/Fastify)
 
 services:
   postgres:
@@ -6,20 +7,73 @@ services:
     container_name: platina-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: platina
-      POSTGRES_PASSWORD: platina123
-      POSTGRES_DB: platina_rag
+      POSTGRES_USER: ${POSTGRES_USER:-platina}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-platina123}
+      POSTGRES_DB: ${POSTGRES_DB:-platina_rag}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+      - ./infra/postgres/02_player_progress.sql:/docker-entrypoint-initdb.d/02_player_progress.sql:ro
+      - ./infra/postgres/03_seed_player.sql:/docker-entrypoint-initdb.d/03_seed_player.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U platina -d platina_rag"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-platina} -d ${POSTGRES_DB:-platina_rag}"]
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - platina-net
+
+  ingest-service:
+    build:
+      context: ./services/ingest
+      dockerfile: Dockerfile
+    container_name: platina-ingest
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-platina}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-platina123}
+      POSTGRES_DB: ${POSTGRES_DB:-platina_rag}
+      HOST: 0.0.0.0
+      PORT: 8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - platina-net
+
+  api-service:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: platina-api
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      HOST: 0.0.0.0
+      NODE_ENV: production
+      INGESTION_SERVICE_URL: http://ingest-service:8000
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-120b}
+      JWT_SECRET: ${JWT_SECRET:-super-secret-jwt-key-minimum-32-characters-platina-ai}
+      AI_PROVIDER: ${AI_PROVIDER:-groq}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - ingest-service
+    networks:
+      - platina-net
 
 volumes:
   postgres_data:
     name: platina_postgres_data
+
+networks:
+  platina-net:
+    name: platina_network
+    driver: bridge
