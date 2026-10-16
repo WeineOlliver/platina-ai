@@ -270,6 +270,22 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"I implemented an atomic `/reindex` endpoint in FastAPI that executes a transactional purge-and-replace in PostgreSQL. When guides are revised for new game patches, it drops obsolete chunks and inserts fresh embeddings in a single ACID commit, preventing stale advice while guaranteeing zero data loss on failure."*
 
+---
+
+### [2026-10-16] — Milestone 3: Player Progress Tool (`check_player_progress`)
+- **What I built/configured:**
+  - `PlayerProgressTool` (`src/services/agent/tools/playerProgress.ts`) defining OpenAI/Groq function calling JSON schema.
+  - Runtime parameter validation with Zod (`checkPlayerProgressParamsSchema`).
+  - HTTP integration connecting Fastify agent logic to the Python player progress route (`/api/v1/players/{psn_id}/progress`).
+  - Unit test suite (`playerProgress.test.ts`) validating schema contracts, invalid input rejection, and live mock progress queries.
+- **Key concepts learned:**
+  - Separating tool definition (JSON Schema for LLM planning) from tool execution (Zod-validated service calls).
+- **Problems faced & how they were solved:**
+  - Aligning TypeScript property types for optional URL encoding parameters.
+- **Interview Soundbite:**
+  - *"I built our first agent tool (`check_player_progress`), exposing player PSN trophy completion to the LLM via standard function calling schemas. Runtime Zod validation protects internal routes against hallucinations, returning structured pending missables directly to the agent's reasoning loop."*
+
+
 
 
 

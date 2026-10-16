@@ -413,6 +413,22 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"Game guides are living documents that evolve with game patches and DLCs. In Platina AI, our `/reindex` endpoint executes an atomic purge-and-replace transaction in PostgreSQL. It deletes stale chunks for that specific game and inserts newly vectorized chunks in a single ACID transaction, preventing contradictory outdated advice without ever leaving the guide in a zero-chunk downtime state."*
 
+---
+
+## Milestone 3: Agentic Tool Use & Function Calling
+
+### Q32: Agent Tools: Schema Definition & Function Calling Contracts
+> **"How do you design and register tool interfaces so an LLM agent can reliably decide when and how to call external APIs (Function Calling)?"**
+
+- **Core Concept:** LLMs do not execute code directly; they output structured JSON containing the tool name and arguments.
+- **Contract Design:**
+  - Tools are defined via strict JSON Schemas (`type: "function"` with parameter descriptions).
+  - Explicit descriptions inform the model *when* and *why* to invoke the tool (e.g., "Use this tool to check which trophies a player has unlocked on PSN").
+  - On the backend, tool parameters are validated at runtime via Zod before hitting internal microservice routes, isolating the agent against hallucinations.
+- **60-Second Interview Soundbite:**
+  > *"To enable reliable function calling, we decouple the tool definition from execution. We provide the LLM with a strict JSON Schema describing parameters and intent, while validating the model's generated arguments with Zod at runtime. This allows our agent to query live PSN player progress and guide vectors without exposing our internal microservices to malformed requests."*
+
+
 
 
 
