@@ -510,6 +510,21 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"In our Docker Compose topology, services communicate securely over an isolated user-defined bridge network (`platina-net`). We utilize internal Docker DNS names (`postgres`, `ingest-service`) to avoid hardcoded IP addresses, and configure healthcheck dependency gates (`service_healthy`) so application microservices only start once the PostgreSQL database is fully ready to accept queries."*
 
+---
+
+### Q39: Kubernetes Fundamentals: Declarative Orchestration vs. Local Docker
+> **"Why transition from Docker Compose to Kubernetes (Kind/K8s) for Platina AI, and what are the core primitives?"**
+
+- **Core Concept:** Docker Compose is imperative and tightly bound to a single host. Kubernetes provides a declarative control loop reconciling the desired state against the actual state across a distributed cluster.
+- **Core Primitives:**
+  1. **Namespace (`platina`):** Multi-tenant logical isolation boundary for resource quotas and network policies.
+  2. **Pod:** The smallest deployable computing unit, encapsulating one or more co-located containers sharing network namespace (`localhost`) and storage volumes.
+  3. **Deployment:** Manages Pod lifecycle, providing declarative updates, zero-downtime rolling updates, and self-healing (re-scheduling dead pods).
+  4. **Service (ClusterIP/NodePort):** Stable networking abstraction providing persistent DNS names and load balancing over ephemeral pod IPs.
+- **60-Second Interview Soundbite:**
+  > *"While Docker Compose is ideal for single-machine local stacks, Kubernetes introduces declarative orchestration: the control plane continuously reconciles running pods to match our desired state. By defining our topology in dedicated Namespaces, Deployments, and Services in a local Kind cluster, we mirror production cloud behavior—enabling automated self-healing, rolling deployments, and horizontal auto-scaling."*
+
+
 
 
 

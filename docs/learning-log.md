@@ -379,6 +379,23 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"I configured our end-to-end local Docker Compose orchestration. By wiring health check gates between PostgreSQL and the application tiers over a private bridge network, we guarantee reliable, zero-race startup across all microservices with a single command."*
 
+---
+
+### [2026-10-16] — Milestone 4: Local Kubernetes Cluster (`kind`) & Namespaces
+- **What I built/configured:**
+  - Installed DevOps CLI toolchain: `kind`, `kubectl`, and `helm` via Homebrew.
+  - Authored `infra/k8s/kind-config.yaml` with port forwards (`8080`, `8443`, `30080`) and ingress label bindings.
+  - Provisioned local Kubernetes cluster `platina-cluster` using `kind create cluster`.
+  - Created isolated application namespace `platina` (`infra/k8s/namespace.yaml`) verified with `kubectl apply`.
+  - Validated cluster node health (`Ready`) on Kubernetes v1.37.
+- **Key concepts learned:**
+  - Kubernetes declarative model: moving from imperative single-host Docker commands to desired-state manifest orchestration.
+- **Problems faced & how they were solved:**
+  - Initial `NotReady` node state resolved automatically once the CNI and CoreDNS pods finished bootstrapping.
+- **Interview Soundbite:**
+  - *"I provisioned our local Kubernetes development cluster using Kind, configuring host port forwards and an isolated `platina` namespace. This gives us full parity with cloud-managed Kubernetes (EKS), allowing us to validate manifests, services, and rolling deployments locally before cloud promotion."*
+
+
 
 
 
