@@ -467,6 +467,19 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"A truly valuable AI assistant shouldn't just answer reactive questions; it must proactively guard the user against costly mistakes. In Platina AI's `/agent/next-step` endpoint, we query the player's live PSN trophy state and prioritize pending missable trophies over generic story progression. By pairing risk heuristics with targeted pgvector guide retrieval, we output a concise, structured action plan with urgent warnings and session checklists before the player touches the controller."*
 
+---
+
+### Q36: Model Context Protocol (MCP): Architecture & Extensibility
+> **"Why did you build an MCP (Model Context Protocol) server (`@platina-ai/mcp-server`), and how does MCP differ from custom proprietary APIs?"**
+
+- **Core Concept:** Standard HTTP/REST APIs require custom SDK integrations for every LLM interface. MCP is an open, standardized RPC protocol over `stdio` and `SSE` backed by Anthropic and the open-source community that allows any compliant host (Claude Desktop, Claude Code, Cursor) to discover and invoke tools without glue code.
+- **MCP Primitives Implemented:**
+  1. **Resources (`platina://guides/{game}`):** Exposes read-only trophy walkthroughs directly into the client's context window.
+  2. **Tools (`get_player_trophies`, `search_trophy_guide`, `get_next_step_briefing`):** Exposes executable functions with standard JSON Schemas that external agents can invoke seamlessly.
+- **60-Second Interview Soundbite:**
+  > *"Rather than forcing users to use our proprietary UI, we built an MCP server using `@modelcontextprotocol/sdk`. This instantly exposes Platina AI's trophy tracking and vector retrieval to any standard MCP client like Claude Desktop or Claude Code via stdio JSON-RPC. It decouples our core domain logic from front-end interfaces and adheres to the emerging open standard for agent interoperability."*
+
+
 
 
 

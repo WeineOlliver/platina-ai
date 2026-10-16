@@ -332,6 +332,23 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"I developed the proactive next-step advisor (`/agent/next-step`). By combining telemetry ingestion with missable risk heuristics and pgvector retrieval, it generates structured tactical briefings warning players of irreversible lockouts before they start playing."*
 
+---
+
+### [2026-10-16] — Milestone 3: Model Context Protocol (MCP) Server (`packages/mcp-server`)
+- **What I built/configured:**
+  - Independent package `@platina-ai/mcp-server` leveraging official `@modelcontextprotocol/sdk`.
+  - Registered MCP Resources (`platina://guides/bloodborne`, `platina://guides/elden-ring`) for contextual doc ingestion.
+  - Registered MCP Tools: `get_player_trophies`, `search_trophy_guide`, and `get_next_step_briefing`.
+  - Configured `StdioServerTransport` for compatibility with Claude Desktop and Claude Code CLI.
+  - Verified JSON-RPC handshake (`initialize` -> response) over sub-process pipe.
+- **Key concepts learned:**
+  - MCP acts as a universal bridge, decoupling domain intelligence and tools from proprietary chat surfaces.
+- **Problems faced & how they were solved:**
+  - Resolving TypeScript DOM/Node types in MCP packages by tuning `tsconfig.json` `lib` and `types`.
+- **Interview Soundbite:**
+  - *"I packaged our trophy guidance tools into a dedicated Model Context Protocol (MCP) server. Any MCP-compliant client can now inspect player progress and retrieve missable warnings via standard stdio JSON-RPC without custom integration code."*
+
+
 
 
 
