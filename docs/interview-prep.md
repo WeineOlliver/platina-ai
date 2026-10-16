@@ -207,6 +207,33 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"Blindly retrying every failed request degrades system performance. We classify errors via `isRetryableError`: only transient faults like 429 rate limits, 503 upstream overloads, and network drops are retried. Deterministic client errors—like 400 invalid schemas or 401 bad credentials—fail immediately, preventing wasted compute and avoiding unnecessary latency penalties."*
 
+---
+
+## Milestone 2: Python Ingestion Microservice & Architecture (FastAPI + uv)
+
+### Q17: Polyglot Architecture: Why Decouple API (Node/TS) and Ingestion (Python)?
+> **"Why did you architect Platina AI as a polyglot system with Node.js/TypeScript for the web-facing API and Python/FastAPI for ingestion and vectorization, rather than writing everything in TypeScript or Python?"**
+
+- **Core Concept:** Different components in generative AI applications have fundamentally different workload characteristics and ecosystem strengths.
+- **Node.js / TypeScript API:** Excels at handling thousands of concurrent client connections, low-overhead SSE streaming, WebSocket lifecycles, and rapid I/O switching with minimal per-socket memory footprint.
+- **Python / FastAPI Ingestion:** The undisputed leader in data science and AI tooling (LangChain, LlamaIndex, PyPDF, Beautiful Soup, NumPy, pgvector drivers). CPU-bound text chunking, document parsing, and batch embedding matrix calculations run natively in Python without forcing artificial TS wrappers.
+- **60-Second Interview Soundbite:**
+  > *"I decoupled Platina AI into a polyglot architecture because user-facing streaming and batch document ingestion have opposing scaling profiles. Node.js with Fastify provides optimal asynchronous I/O and low memory footprint for thousands of concurrent SSE chat streams, while Python with FastAPI gives us direct access to the rich AI ecosystem for document chunking, matrix math, and vector embeddings without awkward JavaScript bridges."*
+
+---
+
+### Q18: Modern Python Package Management (uv vs. Poetry vs. Pip)
+> **"Why did you choose Astral's `uv` for dependency management in the Python microservice over traditional tools like Poetry or pip?"**
+
+- **Core Concept:** Python dependency resolution historically suffers from slow execution, lack of unified toolchains, and multi-tool fragmentation (pip + virtualenv + pyenv + pip-tools).
+- **Engineering Advantages of `uv`:**
+  - Written in Rust, `uv` installs packages and resolves dependencies 10-100x faster than pip/Poetry, reducing Docker build times and CI/CD pipeline runs from minutes to seconds.
+  - Native Python version management (`uv python install`) and automated workspace virtualenv isolation.
+  - Fully standardized with PEP 517/518 and PEP 621 `pyproject.toml` metadata.
+- **60-Second Interview Soundbite:**
+  > *"For modern Python microservices, Astral's `uv` replaces fragmented legacy tools like pip, Poetry, and virtualenv with a single Rust-powered binary. In CI/CD pipelines and Docker container builds, `uv` reduces dependency installation times by up to 10-50x through aggressive caching and parallel wheel resolution, dramatically speeding up deployment velocity and local iteration."*
+
+
 
 
 

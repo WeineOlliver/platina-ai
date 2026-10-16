@@ -131,6 +131,24 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"To ensure high availability against third-party AI provider instability, I implemented an exponential backoff retry mechanism with randomized jitter for transient faults (429/503), preventing thundering herds. Deterministic 4xx errors fail immediately to avoid artificial latency, while incoming traffic is protected via Fastify rate-limiting."*
 
+---
+
+### [2026-10-16] — Milestone 2: services/ingest Scaffold (FastAPI + uv)
+- **What I built/configured:**
+  - Initialized Python microservice under `services/ingest/` managed with Astral's `uv` (Rust-based package manager).
+  - FastAPI application following factory architecture (`create_app`) with modern async lifespan hooks (`@asynccontextmanager`).
+  - Runtime configuration validation with `pydantic-settings` (`SettingsConfigDict`).
+  - Container-ready `/health` endpoint for Kubernetes probes and service-to-service checks.
+  - Automated test suite using `pytest` and `httpx` (TestClient) executing in 0.2s.
+- **Key concepts learned:**
+  - `uv` speeds up Python package installs by an order of magnitude compared to legacy pip/Poetry, accelerating Docker CI workflows.
+  - Polyglot separation isolates CPU-heavy text extraction/embedding pipelines from the lightweight I/O chat gateway.
+- **Problems faced & how they were solved:**
+  - Python module path discovery during pytest runs. Solved cleanly by configuring `[tool.pytest.ini_options] pythonpath = ["."]` in `pyproject.toml`.
+- **Interview Soundbite:**
+  - *"I scaffolded the ingestion service in Python using FastAPI and Astral's `uv`. Using `uv` provides 10-50x faster container builds and dependency resolution compared to Poetry, while Pydantic Settings enforces strict configuration boundaries before our vector pipeline boots."*
+
+
 
 
 

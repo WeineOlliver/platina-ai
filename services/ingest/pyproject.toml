@@ -1,0 +1,28 @@
+[project]
+name = "platina-ingest"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Weine Oliveira", email = "weineolliver@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.143.3",
+    "httpx>=0.28.1",
+    "pydantic>=2.14.1",
+    "pydantic-settings>=2.16.0",
+    "pytest>=9.1.1",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[project.scripts]
+platina-ingest = "platina_ingest:main"
+
+[build-system]
+requires = ["uv_build>=0.13.1,<0.14.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
