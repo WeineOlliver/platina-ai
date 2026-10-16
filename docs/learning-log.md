@@ -46,3 +46,22 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"For the Platina AI API, I chose Fastify over Express due to its lower overhead, native schema compilation, and built-in support for streaming responses. I structured the server with an application factory pattern, which decoupled socket binding from route definitions, allowing zero-port in-memory integration testing via Fastify's inject API."*
 
+---
+
+### [2026-10-16] — Milestone 1: Server-Sent Events (SSE) Streaming (`POST /api/v1/chat`)
+- **What I built/configured:**
+  - Input contract with Zod validation for `/api/v1/chat`.
+  - Asynchronous streaming pipeline with TypeScript AsyncGenerators (`async function*`).
+  - Native SSE delivery via Fastify hijacked response pipeline with real-time chunk flushing.
+  - Reverse-proxy protection headers (`X-Accel-Buffering: no`, `Cache-Control: no-cache, no-transform`).
+  - Client disconnection lifecycle handling via `reply.raw.on('close')` and `AbortController` cancellation signal to prevent runaway compute and token wastage.
+  - Automated integration test suite validating SSE chunk formats and validation error responses.
+- **Key concepts learned:**
+  - SSE is unidirectional and operates natively over standard HTTP, eliminating WebSocket connection upgrade complexity for generative AI chat.
+  - Reverse proxies buffer TCP packets by default unless explicitly instructed with `X-Accel-Buffering: no`.
+- **Problems faced & how they were solved:**
+  - Node.js POST readable streams (`request.raw`) emit `'close'` when the request body has finished reading, not when the client socket disconnects. Solved by monitoring `reply.raw.on('close')` against `writableFinished` for true client socket drops.
+- **Interview Soundbite:**
+  - *"For streaming LLM responses, I implemented Server-Sent Events rather than WebSockets because LLM inference is unidirectional and benefits from standard HTTP routing, caching, and auth. I included `X-Accel-Buffering: no` to bypass reverse-proxy buffering, and tied client socket termination directly to an AbortSignal to immediately cancel token generation if a user abandons the request."*
+
+

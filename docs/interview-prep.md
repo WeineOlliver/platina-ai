@@ -38,3 +38,41 @@ This document contains real-world technical interview questions, key engineering
   - **Vs. NestJS:** While NestJS provides enterprise structure, its heavy decorator-based dependency injection adds runtime bloat and increases cold-start times in serverless or auto-scaled containers. Fastify provides a clean, modular plugin architecture without unnecessary abstractions.
 - **60-Second Interview Soundbite:**
   > *"For an AI product heavily focused on streaming (SSE) and low latency, Fastify was the best fit over Express and NestJS. Compared to Express, Fastify provides significantly lower overhead, first-class TypeScript support, and optimized JSON serialization. Compared to NestJS, it avoids unnecessary architectural bloat and heavy dependency injection wrappers, keeping the container lightweight with very fast cold-start times."*
+
+---
+
+## Milestone 1: Server-Sent Events (SSE) Streaming Endpoint (`POST /api/v1/chat`)
+
+### Q4: Streaming Protocol Trade-offs (SSE vs. WebSockets vs. gRPC Web)
+> **"Why did you choose Server-Sent Events (SSE) instead of WebSockets or gRPC-Web for streaming LLM responses in Platina AI?"**
+
+- **Core Concept:** LLM text generation is fundamentally unidirectional: the client sends one prompt message, and the server replies with a sequence of tokens over time.
+- **Why SSE Wins for LLM Chat:**
+  - **Unidirectional Fit:** WebSockets are designed for full-duplex, bidirectional communication (e.g., multiplayer games, collaborative whiteboards). LLM chat doesn't need client-to-server messaging mid-stream.
+  - **HTTP/1.1 & HTTP/2 Compatibility:** SSE operates over standard HTTP requests. It works effortlessly through firewalls, standard API gateways, and corporate proxies without WebSocket upgrade negotiation.
+  - **Native Client Support:** Modern browsers and clients consume SSE natively via `EventSource` or `ReadableStream` (`fetch`).
+  - **Automatic Reconnection & Standard Headers:** Carries standard HTTP authentication (Bearer tokens, cookies), whereas WebSockets do not support custom authorization headers in standard browser APIs.
+- **60-Second Interview Soundbite:**
+  > *"For streaming LLM responses, Server-Sent Events (SSE) is technically superior to WebSockets. LLM generation is inherently unidirectional: one prompt produces a stream of tokens. SSE operates over standard HTTP, avoiding WebSocket connection upgrade handshakes, and natively supports standard HTTP headers for authentication and tracing. It eliminates stateful WebSocket gateway complexity while giving clients immediate real-time token rendering."*
+
+---
+
+### Q5: Reverse Proxy Buffering & Zero-Latency Streaming (`X-Accel-Buffering`)
+> **"What is the significance of the `X-Accel-Buffering: no` header in an SSE streaming response when deploying behind reverse proxies like Nginx, Cloudflare, or AWS Application Load Balancers?"**
+
+- **Core Concept:** By default, reverse proxies (like Nginx) buffer upstream responses in chunks (e.g., 4KB or 8KB buffers) to optimize network packet efficiency before sending them to the client.
+- **The Failure Mode:** If buffering is active on an SSE route, the client sees nothing for several seconds while tokens accumulate in the proxy's buffer, then receives a sudden burst of text. This completely destroys the perceived low-latency user experience of LLM streaming.
+- **How We Solve It:** Sending `X-Accel-Buffering: no` instructs reverse proxies to disable response buffering and immediately flush each SSE frame (`data: ...\n\n`) over the wire the microsecond it is written.
+- **60-Second Interview Soundbite:**
+  > *"Reverse proxies like Nginx and API Gateways buffer responses by default to maximize TCP packet efficiency. In an SSE streaming context, this creates latency lag because the proxy holds tokens until its buffer fills up before sending them to the user. By sending `X-Accel-Buffering: no` alongside `Cache-Control: no-cache, no-transform`, we explicitly instruct proxies and CDNs to disable buffering and immediately flush each generated token to the client."*
+
+---
+
+### Q6: Client Disconnection & Resource Leak Prevention
+> **"How do you handle client disconnections during an active LLM streaming response, and why is this critical for cost and compute optimization?"**
+
+- **Core Concept:** If a user closes their browser tab or navigates away while an LLM is generating a 500-token response, continuing generation wastes API credits (Anthropic/OpenAI token costs) and consumes server memory/CPU.
+- **How We Solve It:** We intercept socket closure events (`reply.raw.on('close')`) and check `!reply.raw.writableFinished`. If the socket closed before the stream naturally completed, we signal an `AbortController`. The async generator intercepts `signal.aborted`, halts further processing, breaks the loop, and releases server resources immediately.
+- **60-Second Interview Soundbite:**
+  > *"When a user closes their tab mid-generation, continuing inference wastes expensive API tokens and keeps Node.js event loop handles open. In Platina AI, we listen for socket termination on the raw HTTP response. If the client disconnects before `writableFinished`, we trigger an `AbortController`. The streaming async generator detects the abort signal, immediately stops pulling tokens, and tears down resources, preventing phantom compute and wasted token costs."*
+

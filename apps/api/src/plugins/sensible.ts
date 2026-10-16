@@ -1,9 +1,14 @@
 import type { FastifyPluginAsync } from 'fastify';
+import fp from 'fastify-plugin';
 import fastifySensible from '@fastify/sensible';
 
-// Insight: @fastify/sensible decorates Fastify with standard HTTP error constructors
-// (e.g., `reply.notFound()`, `reply.badRequest()`). This standardizes RFC 7807 compliant
-// error payloads without polluting business logic with repetitive manual status codes.
-export const sensiblePlugin: FastifyPluginAsync = async (app) => {
+// Insight: By default, Fastify encapsulates plugins in child contexts.
+// Wrapping with `fastify-plugin` (fp) breaks encapsulation, making decorators
+// like `reply.badRequest()` or `reply.notFound()` globally available across all routes and child contexts.
+const plugin: FastifyPluginAsync = async (app) => {
   await app.register(fastifySensible);
 };
+
+export const sensiblePlugin = fp(plugin, {
+  name: 'sensible-plugin',
+});

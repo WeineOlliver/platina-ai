@@ -46,4 +46,33 @@ describe('Platina AI API - App Suite', () => {
 
     expect(response.statusCode).toBe(404);
   });
+
+  it('POST /api/v1/chat fails validation with empty body', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/chat',
+      payload: {},
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('POST /api/v1/chat streams Server-Sent Events', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/chat',
+      payload: {
+        message: 'Quais troféus perdíveis existem no capítulo 3 de Red Dead Redemption?',
+        game: 'Red Dead Redemption',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['content-type']).toContain('text/event-stream');
+    expect(response.headers['cache-control']).toContain('no-cache');
+
+    const body = response.body;
+    expect(body).toContain('data: {"type":"chunk"');
+    expect(body).toContain('data: {"type":"done"');
+  });
 });
