@@ -253,6 +253,24 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"I developed an automated RAG evaluation test suite in pytest that continuously asserts Context Precision, Recall, and metadata classification accuracy against golden guide datasets, ensuring our hybrid retrieval pipeline maintains sub-second precision and never regresses on missable trophy warnings."*
 
+---
+
+### [2026-10-16] — Milestone 2: Atomic Guide Reindexing & Lifecycle
+- **What I built/configured:**
+  - `reindex_game` method in `IngestionRepository` implementing an atomic purge-and-replace transaction in PostgreSQL.
+  - Delete query purges previous stale chunks scoped to the target game (`GuideChunkModel.game.ilike(game)`).
+  - Inserts fresh chunks and computed embeddings within the same ACID transaction, guaranteeing zero partial-state downtime if indexing fails.
+  - API endpoint `POST /api/v1/ingest/reindex` receiving revised guide content and returning deleted vs. reindexed chunk metrics.
+  - Integration tests in pytest asserting that previous chunks are pruned and replaced without data loss.
+- **Key concepts learned:**
+  - Game guides evolve with patches; append-only vector storage leads to contradictory or duplicate advice.
+  - Wrapping purge + bulk insert in a single SQL transaction guarantees rollback safety.
+- **Problems faced & how they were solved:**
+  - Ensuring game name matches in delete queries are case-insensitive and whitespace-trimmed.
+- **Interview Soundbite:**
+  - *"I implemented an atomic `/reindex` endpoint in FastAPI that executes a transactional purge-and-replace in PostgreSQL. When guides are revised for new game patches, it drops obsolete chunks and inserts fresh embeddings in a single ACID commit, preventing stale advice while guaranteeing zero data loss on failure."*
+
+
 
 
 

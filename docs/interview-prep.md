@@ -398,6 +398,22 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"Vector embeddings from different models are mathematically incompatible. When upgrading models, we execute a zero-downtime blue/green re-indexing strategy: we add a new vector column with the new dimensionality, backfill embeddings asynchronously from stored raw text chunks, build the HNSW index in the background, and flip the query pipeline atomically via configuration flags."*
 
+---
+
+## Milestone 2: Lifecycle & Reindexing Strategy
+
+### Q31: Atomic Guide Reindexing & Stale Chunk Eviction
+> **"Why is atomic reindexing necessary when community trophy guides receive patches or DLC revisions, and how does your architecture prevent orphaned chunks?"**
+
+- **Core Concept:** When games release balance patches (e.g., Elden Ring DLC or quest trigger adjustments), game guides are updated. If new chunks are simply appended without purging previous revisions, obsolete or contradictory advice pollutes the vector store.
+- **Implementation in `reindex_game`:**
+  - In a single PostgreSQL transaction (`DELETE + INSERT`), we purge existing chunks scoped to the target game (`GuideChunkModel.game.ilike(game)`).
+  - The newly parsed and embedded chunks are committed in the same database transaction.
+  - If embedding generation or storage fails, the deletion is rolled back, guaranteeing players never experience an empty or corrupted guide state during updates.
+- **60-Second Interview Soundbite:**
+  > *"Game guides are living documents that evolve with game patches and DLCs. In Platina AI, our `/reindex` endpoint executes an atomic purge-and-replace transaction in PostgreSQL. It deletes stale chunks for that specific game and inserts newly vectorized chunks in a single ACID transaction, preventing contradictory outdated advice without ever leaving the guide in a zero-chunk downtime state."*
+
+
 
 
 

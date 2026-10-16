@@ -55,3 +55,21 @@ async def semantic_search(request: SearchQueryRequest):
         return await vector_search_service.search(request)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro na busca semântica: {str(e)}")
+
+
+@router.post("/reindex", response_model=Dict[str, Any])
+async def reindex_guide(request: IngestGuideRequest):
+    """
+    Atomically purges any existing guide chunks for the game
+    and replaces them with fresh chunks and vector embeddings.
+    """
+    try:
+        chunks = chunker.chunk_guide(request)
+        if not chunks:
+            raise HTTPException(status_code=400, detail="Conteúdo insuficiente para reindexação.")
+
+        return await ingestion_repo.reindex_game(request.game, chunks)
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=f"Erro na reindexação do guia: {str(e)}")

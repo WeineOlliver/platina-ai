@@ -122,3 +122,26 @@ async def test_semantic_search_hybrid_missable_filter(async_client):
     data = response.json()
     for item in data["results"]:
         assert item["is_missable"] is True
+
+
+@pytest.mark.anyio
+async def test_reindex_purges_stale_chunks_and_updates(async_client):
+    updated_guide = """# Guia Atualizado - Bloodborne
+
+## Troféu: Padre Gascoigne (Estratégia Otimizada)
+Use a caixa de música para atordoar Gascoigne três vezes antes de sua transformação em fera.
+"""
+    response = await async_client.post(
+        "/api/v1/ingest/reindex",
+        json={
+            "game": "Bloodborne",
+            "source_url": "https://powerpyx.com/bloodborne-v2",
+            "content": updated_guide,
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "reindexed"
+    assert data["game"] == "Bloodborne"
+    assert data["deleted_count"] >= 1
+    assert data["reindexed_count"] == 2
