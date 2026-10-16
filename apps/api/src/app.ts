@@ -5,6 +5,7 @@ import { env } from './config/env.js';
 import { corsPlugin } from './plugins/cors.js';
 import { sensiblePlugin } from './plugins/sensible.js';
 import { authPlugin } from './plugins/auth.js';
+import { rateLimitPlugin } from './plugins/rateLimit.js';
 import { healthRoutes } from './routes/health.js';
 import { v1Routes } from './routes/v1/index.js';
 
@@ -34,6 +35,7 @@ export const buildApp = async (opts: FastifyServerOptions = {}): Promise<Fastify
   // Core Plugins
   await app.register(sensiblePlugin);
   await app.register(corsPlugin);
+  await app.register(rateLimitPlugin);
   await app.register(authPlugin);
 
   // Serve UI test page directly from server (same-origin, zero CORS issues)

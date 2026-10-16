@@ -114,6 +114,24 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"For trophy roadmaps and checklist generation, free-form text is insufficient for frontend rendering. I implemented structured outputs by coupling Groq's JSON mode with runtime Zod schema parsing. This ensures deterministic typings—such as numeric difficulty scores and typed missable objects—failing fast if an LLM hallucinates an unexpected format."*
 
+---
+
+### [2026-10-16] — Milestone 1: Resiliency, Retries & Rate Limiting
+- **What I built/configured:**
+  - Robust `withRetry` utility featuring exponential backoff with randomized jitter (±20%) and maximum delay caps.
+  - Granular error classification (`isRetryableError`) retrying only transient errors (429, 502, 503, network disconnects) while failing fast on client errors (400, 401, 403, 404).
+  - Wrapped `StructuredLlmService` with automatic retry resilience.
+  - Fastify rate limiting plugin (`@fastify/rate-limit`) protecting API event loops and upstream token quotas (100 req/min).
+  - Comprehensive unit test suite mocking transient 429 recoveries and fatal error terminations.
+- **Key concepts learned:**
+  - Jitter prevents the "Thundering Herd" problem by desynchronizing retry attempts.
+  - Distinguishing between transient (recoverable) and deterministic (unrecoverable) errors is crucial for minimizing unnecessary request latency.
+- **Problems faced & how they were solved:**
+  - Rate limit plugins blocking local test suites. Solved by whitelisting `127.0.0.1` and configuring isolated mock scenarios.
+- **Interview Soundbite:**
+  - *"To ensure high availability against third-party AI provider instability, I implemented an exponential backoff retry mechanism with randomized jitter for transient faults (429/503), preventing thundering herds. Deterministic 4xx errors fail immediately to avoid artificial latency, while incoming traffic is protected via Fastify rate-limiting."*
+
+
 
 
 

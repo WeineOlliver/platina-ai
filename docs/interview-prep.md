@@ -182,6 +182,32 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"JSON Mode on the LLM provider ensures syntactic validity—preventing `SyntaxError` on `JSON.parse`—but it doesn't guarantee semantic schema adherence. The model could still emit strings instead of numbers or omit required keys. Secondary validation with Zod enforces domain invariants like numerical ranges and non-empty arrays, ensuring our TypeScript service contracts remain 100% type-safe."*
 
+---
+
+## Milestone 1: Resiliency, Rate Limiting & Retries
+
+### Q15: Exponential Backoff with Jitter vs. Thundering Herd
+> **"Why is adding randomized 'jitter' essential when implementing exponential backoff for third-party LLM API rate-limits?"**
+
+- **Core Concept:** When an external AI provider (like Groq or OpenAI) returns `HTTP 429 Too Many Requests`, retrying with fixed intervals (e.g. exactly 1s, 2s, 4s) causes all concurrent requests to retry at the exact same millisecond.
+- **The Failure Mode (Thundering Herd):** Synchronized retries create massive spike waves that repeatedly hit the upstream API, re-triggering the rate limiter in an endless loop.
+- **How We Solve It:** We multiply backoff delays by a random factor between 0.8 and 1.2 (jitter). This desynchronizes concurrent retries across time, smoothly distributing load and maximizing recovery success rates.
+- **60-Second Interview Soundbite:**
+  > *"When downstream consumers encounter an HTTP 429 rate limit, simple exponential backoff causes all clients to retry in lockstep, creating a 'thundering herd' that re-trips the upstream rate limiter. By introducing randomized jitter (±20% delay variance), we desynchronize retry spikes across the timeline, allowing the upstream provider's token bucket to refill and dramatically increasing request recovery rates."*
+
+---
+
+### Q16: Differentiating Transient vs. Fatal Failures
+> **"How do you distinguish between retryable and non-retryable errors in an AI pipeline, and what happens if non-retryable errors are retried?"**
+
+- **Core Concept:** Not all HTTP errors should trigger retries:
+  - **Retryable (Transient):** `429 Too Many Requests`, `502 Bad Gateway`, `503 Service Unavailable`, `504 Gateway Timeout`, and network socket resets (`ECONNRESET`).
+  - **Non-retryable (Fatal/Client):** `400 Bad Request` (schema invalid), `401 Unauthorized` (bad API key), `403 Forbidden`, `404 Not Found` (model does not exist).
+- **The Risk:** Retrying a 400 or 401 error burns server CPU, creates artificial latency (wasting 10-15 seconds before failing), and exhausts rate-limit quotas needlessly.
+- **60-Second Interview Soundbite:**
+  > *"Blindly retrying every failed request degrades system performance. We classify errors via `isRetryableError`: only transient faults like 429 rate limits, 503 upstream overloads, and network drops are retried. Deterministic client errors—like 400 invalid schemas or 401 bad credentials—fail immediately, preventing wasted compute and avoiding unnecessary latency penalties."*
+
+
 
 
 

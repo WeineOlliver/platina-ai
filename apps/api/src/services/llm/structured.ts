@@ -1,6 +1,7 @@
 import Groq from 'groq-sdk';
 import { env } from '../../config/env.js';
 import { trophyRoadmapSchema, type TrophyRoadmap } from '../../schemas/roadmap.js';
+import { withRetry } from '../../utils/retry.js';
 
 export class StructuredLlmService {
   private client: Groq | null = null;
@@ -63,13 +64,24 @@ Responda exclusivamente com um objeto JSON contendo exatamente as seguintes prop
     * "missableReason": string explicando o que o jogador não pode fazer para não perdê-lo.
 - "recommendedRoute": array de strings com as etapas recomendadas na ordem ideal de execução.`;
 
-    const response = await this.client.chat.completions.create({
-      model: this.model,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
+    // Insight: Chamadas a LLMs são sujeitas a falhas temporárias (rate limit 429 ou 503).
+    // Envolvemos a requisição com `withRetry` (exponential backoff com jitter)
+    // para recuperar transientes automaticamente sem expor erros ao usuário.
+    const client = this.client;
+    const model = this.model;
+
+    const response = await withRetry(async () => {
+      return await client.chat.completions.create({
+        model,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+      });
+    }, {
+      maxRetries: 3,
+      initialDelayMs: 600,
     });
 
     const content = response.choices[0]?.message?.content;
