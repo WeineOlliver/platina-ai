@@ -479,6 +479,25 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"Rather than forcing users to use our proprietary UI, we built an MCP server using `@modelcontextprotocol/sdk`. This instantly exposes Platina AI's trophy tracking and vector retrieval to any standard MCP client like Claude Desktop or Claude Code via stdio JSON-RPC. It decouples our core domain logic from front-end interfaces and adheres to the emerging open standard for agent interoperability."*
 
+---
+
+## Milestone 4: Docker & Kubernetes Infrastructure
+
+### Q37: Multi-Stage Docker Builds: Security & Footprint Optimization
+> **"Why do we use multi-stage Docker builds for the Node.js API and Python ingestion microservices, and what security practices were applied?"**
+
+- **Core Concept:** Single-stage builds leave compiler toolchains, package managers, test files, and development dependencies in the production image, increasing vulnerability attack surfaces and image transfer times.
+- **Key Architectural Choices:**
+  1. **Builder vs. Runner Stages:**
+     - **Node.js (`apps/api`):** TypeScript compilation and `npm ci` run in a temporary builder stage. The final stage copies only compiled JavaScript (`dist/`) and runs `npm prune --production`, reducing image size by ~70%.
+     - **Python (`services/ingest`):** Astral's `uv` compiles bytecode into an isolated virtual environment (`/opt/venv`), which is copied cleanly into a slim `python:3.12-slim-bookworm` runtime.
+  2. **Security Hardening:**
+     - Both containers enforce unprivileged non-root users (`USER node` and `USER platina`).
+     - Added native `HEALTHCHECK` commands to allow container runtimes (Docker/K8s) to verify process liveness and readiness automatically.
+- **60-Second Interview Soundbite:**
+  > *"In production environments, image size directly impacts deployment latency and CVE vulnerability exposure. We implement multi-stage Docker builds for both the TypeScript API and Python microservices. Compilers and development tooling are isolated to disposable builder stages, while minimal production runners execute as unprivileged non-root users with active health checks."*
+
+
 
 
 

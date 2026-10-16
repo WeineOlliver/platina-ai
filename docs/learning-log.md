@@ -348,6 +348,22 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"I packaged our trophy guidance tools into a dedicated Model Context Protocol (MCP) server. Any MCP-compliant client can now inspect player progress and retrieve missable warnings via standard stdio JSON-RPC without custom integration code."*
 
+---
+
+### [2026-10-16] — Milestone 4: Multi-Stage Docker Builds (`apps/api` and `services/ingest`)
+- **What I built/configured:**
+  - `apps/api/Dockerfile`: Multi-stage build with `node:22-alpine`, TypeScript compilation in builder stage, production pruning, non-root execution (`USER node`), and container `HEALTHCHECK`.
+  - `services/ingest/Dockerfile`: Multi-stage build utilizing Astral's `uv` image for bytecode compilation and virtual environment synchronization, copied cleanly into `python:3.12-slim-bookworm` with unprivileged user `platina`.
+  - `.dockerignore` files for both services preventing build contexts from leaking test caches and local secrets.
+  - Successfully built and validated both Docker images locally via `docker build`.
+- **Key concepts learned:**
+  - Multi-stage builds dramatically reduce surface attack area by dropping build-time tools (like gcc, npm dev packages) before shipping runtime images.
+- **Problems faced & how they were solved:**
+  - Tailored uv package installation flags (`uv pip install -r pyproject.toml`) for standalone virtual environment building inside container stages.
+- **Interview Soundbite:**
+  - *"I implemented hardened multi-stage Dockerfiles for both services. Build-time compilers and dev dependencies are discarded in temporary stages, while production runtimes execute as non-root users with container health checks, minimizing attack surfaces and container image sizes."*
+
+
 
 
 
