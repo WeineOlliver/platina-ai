@@ -64,4 +64,21 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"For streaming LLM responses, I implemented Server-Sent Events rather than WebSockets because LLM inference is unidirectional and benefits from standard HTTP routing, caching, and auth. I included `X-Accel-Buffering: no` to bypass reverse-proxy buffering, and tied client socket termination directly to an AbortSignal to immediately cancel token generation if a user abandons the request."*
 
+---
+
+### [2026-10-16] — Milestone 1: Multi-Provider LLM Integration (Groq & LPU Architecture)
+- **What I built/configured:**
+  - Decoupled `ILlmProvider` adapter architecture with implementations for `GroqLlmProvider` and `MockLlmProvider`.
+  - Configured zero-cost open-weights inference on Groq using the high-parameter `openai/gpt-oss-120b` model.
+  - Specialized domain prompt engineering (`PLATINA_SYSTEM_PROMPT`) tailored for PlayStation trophy hunting, missable warnings, and structured progression roadmaps.
+  - End-to-end integration with the existing Server-Sent Events (SSE) pipeline, validated with real multi-token responses streaming in real time.
+- **Key concepts learned:**
+  - The Provider Adapter pattern insulates applications against model deprecation and vendor pricing changes.
+  - Groq LPUs achieve significantly lower Time-to-First-Token (TTFT) and throughput compared to traditional cloud GPU endpoints.
+- **Problems faced & how they were solved:**
+  - Model catalog differences between generic OpenAI models and Groq's active endpoints. Diagnosed by querying the Groq models endpoint directly and binding the fast 120B parameter open model.
+- **Interview Soundbite:**
+  - *"To avoid vendor lock-in, I engineered an abstracted LLM Provider Adapter interface. This allowed us to integrate Groq's LPUs for sub-second, zero-cost inference using 120B open-weights models during development, with the ability to switch to Anthropic Claude or OpenAI in production simply by updating environment variables without refactoring API handlers."*
+
+
 

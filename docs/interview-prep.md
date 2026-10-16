@@ -76,3 +76,43 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"When a user closes their tab mid-generation, continuing inference wastes expensive API tokens and keeps Node.js event loop handles open. In Platina AI, we listen for socket termination on the raw HTTP response. If the client disconnects before `writableFinished`, we trigger an `AbortController`. The streaming async generator detects the abort signal, immediately stops pulling tokens, and tears down resources, preventing phantom compute and wasted token costs."*
 
+---
+
+## Milestone 1: Multi-Provider LLM Architecture & Adapter Pattern
+
+### Q7: Architecture & Vendor Lock-In (The Provider Adapter Pattern)
+> **"How did you design the LLM integration layer in Platina AI to avoid vendor lock-in and allow seamless switching between different model providers?"**
+
+- **Core Concept:** Instead of coupling Fastify route handlers directly to a proprietary vendor SDK (like Anthropic or OpenAI), we designed an `ILlmProvider` interface utilizing the Strategy / Adapter design pattern.
+- **Why It Matters in Production:**
+  - **Zero Code Refactoring:** Changing from Groq (for zero-cost open models) to Anthropic Claude or OpenAI in production only requires switching an environment variable (`AI_PROVIDER=groq`), not rewriting business logic.
+  - **Local Development & CI Reliability:** The presence of a `MockLlmProvider` allows automated unit tests and local frontend developers to run the entire stack without burning paid API credits or failing on unconfigured API keys.
+- **60-Second Interview Soundbite:**
+  > *"To prevent vendor lock-in, I abstracted the LLM integration behind a Provider Adapter interface (`ILlmProvider`). Our core chat service depends only on this contract, which yields async token streams. We can swap between Groq for blazing-fast open models, Anthropic Claude, or OpenAI purely through environment configuration without modifying route handlers. It also enables a mock provider for zero-cost local development and CI testing."*
+
+---
+
+### Q8: Inference Performance & Groq LPUs vs. GPU Cloud Providers
+> **"Why use Groq and open-weight models (like Llama / GPT-OSS) for real-time generative assistants, and how do Language Processing Units (LPUs) alter latency profiles?"**
+
+- **Core Concept:** Traditional cloud inference runs on general-purpose GPUs (Nvidia H100/A100), where memory bandwidth bottlenecks sequential autoregressive token generation. Groq created dedicated LPUs (Language Processing Units) with ultra-high SRAM bandwidth.
+- **Engineering Advantage:**
+  - Groq delivers token generation speeds of 300 to 500+ tokens per second with minimal Time-To-First-Token (TTFT < 200ms).
+  - In conversational gaming assistants where players are actively playing a PlayStation game, immediate, non-lagging feedback on missable trophies is crucial for user retention.
+- **60-Second Interview Soundbite:**
+  > *"For an interactive gaming companion, Time-To-First-Token and generation speed directly impact user engagement. Groq's LPU architecture achieves 300+ tokens per second by eliminating traditional GPU memory bandwidth bottlenecks. Combining Groq's high throughput with open-weight models allows us to achieve sub-second conversational latency while keeping operational costs virtually zero during initial development."*
+
+---
+
+### Q9: Prompt Engineering for Anti-Hallucination in Trophy Guides
+> **"How did you structure the system prompt for Platina AI to prevent hallucinations regarding trophy unlock criteria and story spoilers?"**
+
+- **Core Concept:** General-purpose LLMs tend to invent fictional quest steps or spoil future narrative beats if unconstrained. In platinum hunting, a false instruction can ruin a 60-hour playthrough.
+- **Prompt Architecture:**
+  - **Role & Boundary:** Explicitly binds the agent to the PlayStation trophy domain.
+  - **Missable Priority:** Mandates upfront warnings whenever a trophy is tied to a specific chapter, decision, or point of no return.
+  - **Format Constraints:** Requires structured markdown tables, bullet points, and roadmap metrics (difficulty rating 1-10, playthrough counts) while instructing the model to refrain from unrequested story spoilers.
+- **60-Second Interview Soundbite:**
+  > *"Hallucinations in gaming guides are fatal because missing a missable trophy can force a player to restart an entire 80-hour RPG. In our system prompt, we set strict domain boundaries: missable alerts must take visual priority, instructions must be broken into verifiable numbered steps, and story spoilers are explicitly suppressed unless directly relevant to the trophy trigger."*
+
+
