@@ -55,3 +55,19 @@ def test_chunker_rejects_empty_payload():
         },
     )
     assert response.status_code == 422  # Pydantic validation error (min_length=50)
+
+
+def test_index_guide_stores_in_pgvector():
+    response = client.post(
+        "/api/v1/ingest/index",
+        json={
+            "game": "Bloodborne",
+            "source_url": "https://powerpyx.com/bloodborne",
+            "content": SAMPLE_GUIDE,
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert data["inserted_count"] == 4
+    assert data["game"] == "Bloodborne"

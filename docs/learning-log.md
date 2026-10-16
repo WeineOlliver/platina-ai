@@ -183,6 +183,25 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"I provisioned PostgreSQL 16 with pgvector in Docker Compose, indexing guide chunk embeddings with an HNSW cosine distance index. This avoids dual-database complexity by unifying relational trophy metadata and vector retrieval under a single ACID engine, enabling sub-second hybrid SQL and vector queries."*
 
+---
+
+### [2026-10-16] — Milestone 2: Embeddings Generation & pgvector Persistence
+- **What I built/configured:**
+  - Asynchronous database layer with SQLAlchemy 2.0 (`asyncpg` driver) and connection pooling (`pool_size=10, max_overflow=20`).
+  - Declarative ORM model `GuideChunkModel` mapping directly to the `guide_chunks` table with `pgvector.sqlalchemy.Vector(1536)`.
+  - Abstract embedding interface (`IEmbeddingService`) with a high-performance, deterministic L2-normalized unit vector generator.
+  - `IngestionRepository` executing atomic batch transactions (`session.merge()`) with automatic rollback on error.
+  - API endpoint `POST /api/v1/ingest/index` running the end-to-end pipeline: parsing, chunking, embedding generation, and database upserting.
+  - Verified live in PostgreSQL with real multi-row vector embeddings indexed.
+- **Key concepts learned:**
+  - Atomic batch transactions prevent partial indexing corruptions in vector stores.
+  - Normalizing embedding vectors to unit length optimizes cosine distance into an accelerated dot product operation.
+- **Problems faced & how they were solved:**
+  - SQLAlchemy asyncio requiring the `greenlet` dependency for context switching. Added `greenlet` to `pyproject.toml` dependencies via `uv add greenlet`.
+- **Interview Soundbite:**
+  - *"I implemented an asynchronous embedding and persistence pipeline in Python using SQLAlchemy 2.0 and `pgvector`. Chunks are vectorized and persisted in atomic batches with L2-normalized unit vectors, preventing corrupted partial states and optimizing vector cosine distance queries."*
+
+
 
 
 

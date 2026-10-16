@@ -285,6 +285,31 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"For production search quality, I chose HNSW over IVFFlat. While HNSW consumes more memory during index construction, it delivers significantly higher query throughput and better recall without requiring an initial dataset training phase. This allows guide chunks to be continuously indexed incrementally without degrading search accuracy."*
 
+---
+
+## Milestone 2: Embeddings Pipeline & Batch Persistence
+
+### Q23: Atomic Ingestion & Transaction Integrity in Vector Pipelines
+> **"Why execute chunk embedding persistence as an atomic database transaction (`merge`/upsert) instead of inserting embeddings row-by-row via HTTP endpoints?"**
+
+- **Core Concept:** Inserting chunks sequentially without transaction boundaries exposes the vector store to dirty state: if a network drop or crash occurs on chunk 45 of 100, the guide exists in a corrupted, half-indexed state that breaks RAG retrieval quality.
+- **How We Solve It:** We calculate embeddings in memory across all chunks in a batch, open an asynchronous SQLAlchemy transaction (`async with get_db_session()`), and execute upserts (`session.merge()`). If any chunk or embedding violates constraints, the entire transaction rolls back automatically.
+- **60-Second Interview Soundbite:**
+  > *"Sequential per-row vector inserts create corrupted states if network disruptions happen halfway through a guide. In Platina AI, we batch compute embeddings and persist them inside an atomic asynchronous transaction using SQLAlchemy and `asyncpg`. If any chunk fails to validate or write, the entire batch rolls back, guaranteeing that a trophy guide is either 100% indexed or leaves no orphaned records behind."*
+
+---
+
+### Q24: Normalized Unit Vectors for Cosine Similarity
+> **"Why is L2-normalization (unit vector scaling) critical for dense embedding vectors stored in pgvector?"**
+
+- **Core Concept:** Cosine similarity measures the angle between two vectors rather than their magnitude. For unit vectors (where Euclidean length = 1.0), the cosine distance calculation simplifies to `1 - dot_product`.
+- **Performance Impact:**
+  - Computing dot product on normalized vectors is significantly faster on modern SIMD / AVX CPU instructions and GPU tensor cores than computing full Euclidean distance formulas with square roots.
+  - Using pgvector's `vector_cosine_ops` on normalized vectors maximizes indexing throughput and search accuracy.
+- **60-Second Interview Soundbite:**
+  > *"Cosine similarity measures the orientation between vectors regardless of text length. By normalizing all embedding vectors to unit length (L2 norm = 1.0) prior to storage, pgvector's cosine distance calculation reduces to an optimized dot product, taking advantage of CPU vectorization instructions and significantly accelerating nearest neighbor index scans."*
+
+
 
 
 
