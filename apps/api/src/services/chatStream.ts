@@ -1,51 +1,55 @@
 import { randomUUID } from 'node:crypto';
 import type { ChatRequest, ChatStreamChunk } from '../schemas/chat.js';
+import { getLlmProvider } from './llm/provider.js';
 
-// Insight: Using AsyncGenerators (`async function*`) is the modern TypeScript paradigm
-// for asynchronous data streams. It cleanly separates the data production logic (whether from
-// Anthropic, OpenAI, or a local pipeline) from the HTTP transport layer (SSE in Fastify).
 export interface StreamOptions {
   signal?: AbortSignal | undefined;
 }
 
+// Insight: Decoupling stream chunk formatting from LLM execution allows swapping
+// the underlying provider seamlessly without breaking SSE streaming contracts.
 export async function* createChatStream(
   request: ChatRequest,
   options: StreamOptions = {}
 ): AsyncGenerator<ChatStreamChunk> {
   const conversationId = request.conversationId ?? randomUUID();
 
-  // If client aborted before starting, exit early
   if (options.signal?.aborted) {
     return;
   }
 
-  // Insight: Until the Anthropic API client is wired in the next task,
-  // we provide a realistic token stream answering trophy/platinum questions.
-  // This allows frontend/client developers to immediately build against the SSE contract.
-  const sampleResponse = `[Platina AI] Analisando sua dúvida sobre troféus de ${request.game ?? 'PlayStation'}...
+  const provider = getLlmProvider();
+  const prompt = request.game
+    ? `Jogo: ${request.game}\nPergunta do jogador: ${request.message}`
+    : request.message;
 
-Para otimizar sua rota rumo à platina, preste atenção aos troféus perdíveis (missables) antes de avançar nos capítulos principais. Em breve trarei os dados indexados diretamente dos guias!`;
+  try {
+    for await (const token of provider.streamChat(prompt, { signal: options.signal })) {
+      if (options.signal?.aborted) {
+        break;
+      }
 
-  const words = sampleResponse.split(' ');
-
-  for (const word of words) {
-    if (options.signal?.aborted) {
-      break;
+      yield {
+        type: 'chunk',
+        content: token,
+        conversationId,
+      };
     }
 
     yield {
-      type: 'chunk',
-      content: `${word} `,
+      type: 'done',
       conversationId,
     };
+  } catch (err: unknown) {
+    if (options.signal?.aborted) {
+      return;
+    }
 
-    // Small delay to simulate LLM token generation rate (~30ms)
-    await new Promise((resolve) => setTimeout(resolve, 25));
+    const errorMessage = err instanceof Error ? err.message : 'Unknown LLM stream error';
+    yield {
+      type: 'error',
+      error: errorMessage,
+      conversationId,
+    };
   }
-
-  // Terminal done event
-  yield {
-    type: 'done',
-    conversationId,
-  };
 }
