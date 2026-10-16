@@ -233,6 +233,33 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"For modern Python microservices, Astral's `uv` replaces fragmented legacy tools like pip, Poetry, and virtualenv with a single Rust-powered binary. In CI/CD pipelines and Docker container builds, `uv` reduces dependency installation times by up to 10-50x through aggressive caching and parallel wheel resolution, dramatically speeding up deployment velocity and local iteration."*
 
+---
+
+## Milestone 2: RAG Pipeline — Parsing & Semantic Chunking
+
+### Q19: Chunking Strategy: Heading-Based Semantic vs. Fixed-Size Token Chunking
+> **"Why did you implement Markdown heading-based chunking with fallback overlap rather than simple fixed-size character/token chunking for gaming guides?"**
+
+- **Core Concept:** Fixed-size chunking (e.g., cutting blindly every 500 characters) frequently severs critical instructions directly in half (e.g. separating the trophy name from its missable condition or pre-requisite boss fight).
+- **Domain-Specific Solution:**
+  - **Structure Awareness:** PlayStation guides are authored hierarchically by troféu or chapter (`## Troféu`, `### Requisitos`). Splitting along Markdown headings preserves atomic semantic boundaries.
+  - **Sliding Overlap Fallback:** When a narrative walkthrough section exceeds the maximum token window (1,200 chars), we apply a sliding window with 200-character overlap breaking at paragraph or sentence boundaries, guaranteeing continuous context without fragmentation.
+- **60-Second Interview Soundbite:**
+  > *"Naïve fixed-token chunking breaks semantic cohesion by slicing trophy names away from their prerequisite steps. In Platina AI, I implemented a hierarchical Markdown chunker that preserves section boundaries around individual trophies. For long walkthroughs exceeding the chunk budget, we fall back to a sentence-aware sliding window with a 200-character overlap, ensuring our vector embeddings encode complete, uninterrupted context."*
+
+---
+
+### Q20: Metadata Enrichment & Heuristic Tagging (`is_missable`)
+> **"Why enrich chunks with metadata flags like `is_missable` during the ingestion phase rather than relying solely on pure vector similarity search?"**
+
+- **Core Concept:** Pure dense vector search calculates semantic similarity, but it lacks strict filtering capabilities (e.g. "show me ONLY missable trophies in Chapter 3").
+- **Hybrid Search Architecture:**
+  - During chunking, we run deterministic heuristic scans for high-stakes gaming keywords (*missable*, *perdível*, *ponto de não retorno*).
+  - Storing `is_missable: bool` and `game: str` as metadata columns in PostgreSQL enables **hybrid search**: filtering via SQL `WHERE is_missable = true` combined with cosine distance ordering (`<=>`).
+- **60-Second Interview Soundbite:**
+  > *"Relying purely on vector similarity search causes false positives when a user asks for critical missable warnings. By tagging chunks with an `is_missable` boolean during ingestion, we enable hybrid retrieval in PostgreSQL: we can apply hard SQL WHERE filters alongside vector cosine similarity, guaranteeing zero-hallucination missable trophy filtering."*
+
+
 
 
 

@@ -148,6 +148,25 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"I scaffolded the ingestion service in Python using FastAPI and Astral's `uv`. Using `uv` provides 10-50x faster container builds and dependency resolution compared to Poetry, while Pydantic Settings enforces strict configuration boundaries before our vector pipeline boots."*
 
+---
+
+### [2026-10-16] — Milestone 2: Semantic Trophy Guide Parser & Chunking
+- **What I built/configured:**
+  - `TrophyGuideChunker` (`src/services/chunker.py`) with Markdown heading-aware semantic splitting (`#`, `##`, `###`).
+  - Sliding character window with configurable overlap (200 chars) for lengthy narrative sections, breaking at sentence/paragraph boundaries.
+  - Deterministic SHA-256 chunk IDs for deduplication and repeatable indexing.
+  - Heuristic detection of missable trophies (`is_missable` flag) scanning for critical gaming keywords (*missable*, *perdível*, *ponto de não retorno*).
+  - API endpoint `POST /api/v1/ingest/parse` accepting raw guide markdown and returning structured, tagged chunks.
+  - Unit test suite (`tests/test_chunker.py`) validating heading splits, missable detection, and Pydantic validation rules.
+- **Key concepts learned:**
+  - Headings in gaming guides represent natural semantic boundaries for individual trophies; blind character chunking destroys context.
+  - Metadata enrichment at ingestion time enables hybrid retrieval (SQL WHERE filters + vector similarity).
+- **Problems faced & how they were solved:**
+  - Ensuring sub-chunks from oversized sections maintain parent heading hierarchy in their metadata titles.
+- **Interview Soundbite:**
+  - *"To prepare gaming guides for RAG, I designed a domain-specific semantic chunker that splits on Markdown headings to keep individual trophy requirements atomic. For long walkthroughs, it uses a 200-character overlapping sliding window breaking on sentence boundaries, and automatically tags chunks with an `is_missable` flag for hybrid SQL/vector querying."*
+
+
 
 
 
