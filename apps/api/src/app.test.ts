@@ -178,4 +178,24 @@ describe('Platina AI API - App Suite', () => {
       expect(data.recommendedRoute.length).toBeGreaterThan(0);
     });
   });
+
+  describe('Agent Loop Suite', () => {
+    it('POST /api/v1/agent/run streams thought and execution steps via SSE', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/v1/agent/run',
+        payload: {
+          message: 'O que devo fazer agora em Bloodborne?',
+          psnId: 'OlliverHunter',
+          game: 'Bloodborne',
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.headers['content-type']).toContain('text/event-stream');
+      const body = response.body;
+      expect(body).toContain('data: {"type":');
+      expect(body).toContain('"done"');
+    });
+  });
 });

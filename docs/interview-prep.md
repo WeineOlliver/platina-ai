@@ -439,6 +439,21 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"Static RAG naively queries the vector store on every turn, adding latency and noise even to conversational greetings. Exposing semantic retrieval as a tool (`search_trophy_guides`) transforms the system into an autonomous agent: the model dynamically formulates optimized search queries only when technical guide context is genuinely required, reducing unnecessary vector queries while supporting multi-step reasoning."*
 
+---
+
+### Q34: ReAct Loop Lifecycle & Multi-Step Reasoning Orchestration
+> **"How does the ReAct (Reasoning + Acting) execution loop operate in Platina AI, and how do you guard against infinite recursion?"**
+
+- **Core Concept:** When an agent receives a multi-faceted question, a single tool call is often insufficient.
+- **The Execution Cycle:**
+  1. **Reason:** Model analyzes the conversation history and generates `tool_calls`.
+  2. **Act:** The engine intercepts tool requests, executes local functions (`check_player_progress`, `search_trophy_guides`), and streams `tool_call` and `tool_result` events over SSE.
+  3. **Observe:** Tool outputs are appended as `{ role: "tool" }` messages and fed back into the model context.
+  4. **Conclude or Iterate:** The loop repeats until the model produces a direct answer without tool calls or reaches a hard safety threshold (`maxSteps: 5`).
+- **60-Second Interview Soundbite:**
+  > *"In Platina AI, our agent runner implements the ReAct paradigm: the model reasons over the user prompt, emits tool calls, and our backend executes them, feeding results back as tool messages for iterative reasoning. To safeguard against infinite execution loops and runaway API costs, the runner enforces a strict max-step recursion boundary (5 steps) and supports mid-stream abort signals."*
+
+
 
 
 

@@ -300,6 +300,24 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"I implemented `search_trophy_guides` as a callable agent tool, allowing the model to autonomously decide when and how to search our pgvector database. This shifts our architecture from static prompt injection to an active agent that searches guides with optimized terms only when required."*
 
+---
+
+### [2026-10-16] — Milestone 3: Autonomous Agent Loop & Tool Calling (`POST /api/v1/agent/run`)
+- **What I built/configured:**
+  - `PlatinaAgentRunner` (`src/services/agent/runner.ts`) implementing an iterative ReAct execution loop with Groq function calling.
+  - Multi-turn tool execution: model autonomously calls `check_player_progress`, receives live PSN status, identifies pending missable trophies, queries `search_trophy_guides` for exact steps, and synthesizes a comprehensive final response.
+  - Streaming SSE endpoint `POST /api/v1/agent/run` streaming real-time event frames (`tool_call`, `tool_result`, `chunk`, `done`).
+  - Strict recursion ceiling (`maxSteps: 5`) and `AbortSignal` propagation preventing infinite loops and runaway compute.
+  - Vitest test suite (`app.test.ts`) validating end-to-end multi-step SSE agent streaming.
+- **Key concepts learned:**
+  - The ReAct pattern enables complex multi-hop reasoning by pairing LLM inference with intermediate tool observation.
+  - Steaming intermediate tool events keeps users engaged during multi-second agent workflows.
+- **Problems faced & how they were solved:**
+  - Synchronizing Python progress route availability with Node agent runner tests. Ensured local microservice auto-reloading and clear error reporting.
+- **Interview Soundbite:**
+  - *"I architected our autonomous agent runner implementing a multi-step ReAct loop with Groq. When queried, the agent inspects the player's live trophy progress, detects pending missable trophies, autonomously searches our pgvector guide database, and synthesizes a tactical step-by-step roadmap streamed in real time via SSE."*
+
+
 
 
 
