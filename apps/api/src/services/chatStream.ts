@@ -1,13 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import type { ChatRequest, ChatStreamChunk } from '../schemas/chat.js';
 import { getLlmProvider } from './llm/provider.js';
+import { buildRAGPrompt } from './llm/prompts.js';
+import { ingestionClient } from './ingestionClient.js';
 
 export interface StreamOptions {
   signal?: AbortSignal | undefined;
 }
 
-// Insight: Decoupling stream chunk formatting from LLM execution allows swapping
-// the underlying provider seamlessly without breaking SSE streaming contracts.
+// Insight: RAG (Retrieval-Augmented Generation) Orchestration:
+// 1. In parallel or before LLM invocation, query the vector store for verified guide chunks.
+// 2. Format chunks into context tags (<fontes_verificadas>).
+// 3. Instruct the LLM to ground its answer in the retrieved text and cite the source URLs.
 export async function* createChatStream(
   request: ChatRequest,
   options: StreamOptions = {}
@@ -18,10 +22,17 @@ export async function* createChatStream(
     return;
   }
 
+  // 1. Retrieve relevant guide chunks from pgvector via ingestion microservice
+  const relevantChunks = await ingestionClient.searchGuides(request.message, {
+    game: request.game,
+    limit: 3,
+    signal: options.signal,
+  });
+
+  // 2. Construct grounded RAG prompt
+  const prompt = buildRAGPrompt(request.message, request.game, relevantChunks);
+
   const provider = getLlmProvider();
-  const prompt = request.game
-    ? `Jogo: ${request.game}\nPergunta do jogador: ${request.message}`
-    : request.message;
 
   try {
     for await (const token of provider.streamChat(prompt, { signal: options.signal })) {

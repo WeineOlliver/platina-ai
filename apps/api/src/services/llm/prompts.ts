@@ -10,5 +10,30 @@ Diretrizes obrigatórias:
 2. ESTRUTURA E ROADMAP:
    - Divida orientações complexas em passos numerados ou tópicos diretos.
    - Indique tempo estimado, dificuldade da platina (1 a 10) e número mínimo de jogadas (playthroughs) necessárias quando relevante.
-3. PRECISÃO E CITAÇÃO: Quando estiver respondendo com base em guias indexados, seja fiel às condições de desbloqueio descritas.
-4. TOM DE VOZ: Tom gamer, encorajador, objetivo, técnico e amigável (como um verdadeiro companheiro de caça aos troféus).`;
+3. CITAÇÃO OBRIGATÓRIA DE FONTES: Quando trechos de guias indexados forem fornecidos no bloco <fontes_verificadas>, baseie sua resposta prioritariamente neles e cite explicitamente a fonte (título e URL do guia) ao final da explicação.
+4. ANTI-ALUCINAÇÃO: Se a informação exata não estiver nas fontes fornecidas ou você não tiver certeza de um requisito de troféu, avise claramente o jogador para não arriscar a perda do troféu.
+5. TOM DE VOZ: Tom gamer, encorajador, objetivo, técnico e amigável (como um verdadeiro companheiro de caça aos troféus).`;
+
+export function buildRAGPrompt(
+  userQuery: string,
+  game?: string,
+  contextChunks: Array<{ title: string; content: string; source_url?: string | null }> = []
+): string {
+  let prompt = '';
+
+  if (game) {
+    prompt += `Jogo: ${game}\n`;
+  }
+
+  if (contextChunks.length > 0) {
+    prompt += `\n<fontes_verificadas>\n`;
+    contextChunks.forEach((chunk, index) => {
+      prompt += `[Fonte ${index + 1}: ${chunk.title}]${chunk.source_url ? ` (${chunk.source_url})` : ''}\n${chunk.content}\n\n`;
+    });
+    prompt += `</fontes_verificadas>\n`;
+    prompt += `\nInstrução: Responda à dúvida do jogador utilizando as informações acima e cite as fontes consultadas ao final.\n`;
+  }
+
+  prompt += `\nDúvida do jogador: ${userQuery}`;
+  return prompt;
+}

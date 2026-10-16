@@ -218,6 +218,24 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"I developed an asynchronous semantic retrieval endpoint in FastAPI querying pgvector. It performs hybrid retrieval—combining relational filters like game name and missable tags with cosine distance ordering—returning ranked, contextual trophy chunks in milliseconds."*
 
+---
+
+### [2026-10-16] — Milestone 2: RAG Pipeline Integration & Verifiable Citations
+- **What I built/configured:**
+  - `IngestionClient` (`apps/api/src/services/ingestionClient.ts`) connecting the Node.js Fastify API to the Python FastAPI vector retrieval service.
+  - Implemented graceful degradation: if the vector microservice is unavailable or times out, the chat pipeline logs the incident and safely degrades to base LLM reasoning without raising 500 errors.
+  - Structured prompt builder `buildRAGPrompt` isolating retrieved guide context inside explicit `<fontes_verificadas>` delimiters.
+  - Updated `PLATINA_SYSTEM_PROMPT` mandating explicit source citations and strict anti-hallucination warnings.
+  - Verified live in end-to-end SSE streaming: the model accurately retrieves the Bloodborne Eileen the Crow guide chunk from pgvector and cites `PowerPyx (https://powerpyx.com/bloodborne)` at the end of its response.
+- **Key concepts learned:**
+  - Isolating RAG chunks in structured XML tags prevents prompt-bleeding between user queries and external guide data.
+  - Inter-service communication between Node.js and Python microservices must be resilient with timeouts and graceful degradation.
+- **Problems faced & how they were solved:**
+  - TypeScript `exactOptionalPropertyTypes` disallowing `signal: undefined` in `fetch()`. Solved by conditionally assigning the signal property only when present.
+- **Interview Soundbite:**
+  - *"I completed our end-to-end RAG architecture by bridging the Fastify chat gateway to our Python vector service. The API queries pgvector for relevant chunks, isolates them within `<fontes_verificadas>` tags, and instructs the model to anchor its advice in the retrieved context and cite source URLs, eliminating hallucinations while degrading gracefully if the vector service drops."*
+
+
 
 
 

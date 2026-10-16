@@ -337,6 +337,36 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"Because `asyncpg` sockets are bound to the specific asyncio event loop that initialized them, lifecycle mismatches between requests or test runs can trigger `Event loop is closed` errors. In test environments, using `NullPool` ensures connections are torn down cleanly with the test loop, while production clusters use pre-ping connection validation and recycling to guard against broken sockets during network hiccups."*
 
+---
+
+## Milestone 2: RAG Orchestration & Source Citations
+
+### Q27: RAG Grounding & Prompt Formatting for Verifiable Citations
+> **"How did you engineer the RAG context injection pipeline to guarantee that the LLM grounds its claims in retrieved chunks and reliably cites external URLs?"**
+
+- **Core Concept:** LLMs often blend retrieved knowledge with their own internal pre-trained biases. Without clear contextual boundaries, models hallucinate fake URLs or misattribute trophy criteria.
+- **Prompt Structure & Isolation:**
+  - We isolate retrieved vector chunks inside explicit XML-like delimiters (`<fontes_verificadas>`).
+  - Each chunk carries an explicit identifier: `[Fonte N: Title] (URL)`.
+  - The system prompt enforces strict anti-hallucination rules: if information is missing or uncertain, the model must explicitly warn the player rather than guess.
+  - The model is instructed to output citations and references at the conclusion of each advice section.
+- **60-Second Interview Soundbite:**
+  > *"To ensure verifiable RAG responses without hallucinated URLs, I structured the context injection using isolated `<fontes_verificadas>` delimiters. Each retrieved chunk carries its verified title and origin URL. Combined with system prompt anti-hallucination rules, the LLM is constrained to base its tactical advice on the injected context and cite the exact source guide, building player trust."*
+
+---
+
+### Q28: Microservice Resilience & Graceful RAG Degradation
+> **"What happens to the user-facing chat API if the Python vector ingestion service experiences an outage or high latency?"**
+
+- **Core Concept:** In a distributed microservice topology, downstream failures in auxiliary services (like vector retrieval) should not cascade into complete system outages for user-facing streaming gateways.
+- **Implementation (Graceful Degradation):**
+  - The `IngestionClient` in Fastify wraps HTTP retrieval calls with timeouts and error handling.
+  - If the Python service fails or times out, the client logs a warning and returns an empty context array rather than throwing a 500 Internal Server Error.
+  - The chat pipeline falls back seamlessly to base LLM reasoning, allowing the conversation to continue without dropping active SSE sockets.
+- **60-Second Interview Soundbite:**
+  > *"In production systems, microservice outages must not cascade to users. In Platina AI, our Node.js IngestionClient implements graceful degradation: if the Python vector service drops or times out, the API falls back to base LLM inference with an ungrounded disclaimer rather than crashing the user's chat session with a 500 error."*
+
+
 
 
 
