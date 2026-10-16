@@ -148,4 +148,34 @@ describe('Platina AI API - App Suite', () => {
       expect(meData.user.username).toBe('arthur.morgan');
     });
   });
+
+  describe('Structured Output - Roadmap Suite', () => {
+    it('POST /api/v1/trophies/roadmap fails validation when game is missing or too short', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/v1/trophies/roadmap',
+        payload: { game: 'A' },
+      });
+
+      expect(response.statusCode).toBe(400);
+    });
+
+    it('POST /api/v1/trophies/roadmap returns valid structured roadmap schema', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/v1/trophies/roadmap',
+        payload: { game: 'Bloodborne' },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const data = response.json();
+      expect(data.game).toBe('Bloodborne');
+      expect(typeof data.difficulty).toBe('number');
+      expect(typeof data.estimatedHours).toBe('number');
+      expect(typeof data.hasOnlineTrophies).toBe('boolean');
+      expect(Array.isArray(data.missables)).toBe(true);
+      expect(Array.isArray(data.recommendedRoute)).toBe(true);
+      expect(data.recommendedRoute.length).toBeGreaterThan(0);
+    });
+  });
 });

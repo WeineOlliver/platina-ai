@@ -97,6 +97,24 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"I implemented stateless JWT authentication using `@fastify/jwt` wrapped in a reusable decorator hook. This enables horizontal pod scaling without sticky sessions or centralized Redis session round-trips, while enforcing strict TypeScript typing across user payloads and route protection guards."*
 
+---
+
+### [2026-10-16] — Milestone 1: Structured Outputs (`POST /api/v1/trophies/roadmap`)
+- **What I built/configured:**
+  - Zod schemas defining structured input (`roadmapRequestSchema`) and roadmap output (`trophyRoadmapSchema`).
+  - `StructuredLlmService` calling Groq with `response_format: { type: 'json_object' }` for syntactically guaranteed JSON.
+  - Runtime validation pipeline verifying data types, required fields, and range invariants with Zod before responding to clients.
+  - Fastify route `POST /api/v1/trophies/roadmap` returning machine-readable JSON roadmaps for frontend cards and trackers.
+  - Automated Vitest integration tests validating rejection of invalid inputs and successful roadmap schema deserialization.
+- **Key concepts learned:**
+  - Free-form text is for chat, but UI dashboards require deterministic structured JSON.
+  - JSON mode guarantees valid JSON syntax, while Zod guarantees semantic schema correctness.
+- **Problems faced & how they were solved:**
+  - Preventing LLM preamble/markdown wrappers (` ```json `) by explicitly instructing the model to reply strictly with JSON keys matching our domain schema.
+- **Interview Soundbite:**
+  - *"For trophy roadmaps and checklist generation, free-form text is insufficient for frontend rendering. I implemented structured outputs by coupling Groq's JSON mode with runtime Zod schema parsing. This ensures deterministic typings—such as numeric difficulty scores and typed missable objects—failing fast if an LLM hallucinates an unexpected format."*
+
+
 
 
 
