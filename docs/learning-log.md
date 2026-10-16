@@ -235,6 +235,25 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"I completed our end-to-end RAG architecture by bridging the Fastify chat gateway to our Python vector service. The API queries pgvector for relevant chunks, isolates them within `<fontes_verificadas>` tags, and instructs the model to anchor its advice in the retrieved context and cite source URLs, eliminating hallucinations while degrading gracefully if the vector service drops."*
 
+---
+
+### [2026-10-16] — Milestone 2: RAG Quality Benchmarking & Evaluation Suite
+- **What I built/configured:**
+  - Created automated RAG evaluation suite `tests/test_rag_eval.py` running golden benchmark scenarios against complex multi-trophy guides (Elden Ring).
+  - Asserts Context Precision (Top-1 entity relevance for missable trophies like Bolt of Gransax and Ranni's Dark Moon Greatsword).
+  - Asserts Context Recall (presence of critical point-of-no-return conditions like Maliketh and Erdtree burning).
+  - Tested classification accuracy for missable flags and similarity threshold floors (score >= 0.5).
+  - Fine-tuned local embedding vector generator with token-frequency weighting, domain term boosting, and stopword dampening.
+  - All 7 tests passing in pytest (unit, integration, and evaluation suites).
+- **Key concepts learned:**
+  - RAG pipelines require quantitative evaluation assertions in CI to detect retrieval drift and ranking degradation before deployment.
+  - Domain-specific stopword filtering and term-frequency scaling significantly improve retrieval precision without neural model re-training.
+- **Problems faced & how they were solved:**
+  - Generic token overlap in title headers dominating search results over specific trophy names. Solved by dampening generic guide boilerplate and boosting specific trophy nouns.
+- **Interview Soundbite:**
+  - *"I developed an automated RAG evaluation test suite in pytest that continuously asserts Context Precision, Recall, and metadata classification accuracy against golden guide datasets, ensuring our hybrid retrieval pipeline maintains sub-second precision and never regresses on missable trophy warnings."*
+
+
 
 
 

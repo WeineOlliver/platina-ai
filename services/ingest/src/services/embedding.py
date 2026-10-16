@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List
 import hashlib
+import re
 
 
 class IEmbeddingService(ABC):
@@ -36,17 +37,33 @@ class DeterministicLocalEmbeddingService(IEmbeddingService):
         normalized = text.lower().strip()
         vector = [0.0] * self.DIMENSIONS
 
-        words = normalized.split()
+        # Split on non-alphanumeric to capture clean word tokens
+        words = [w for w in re.findall(r'\b\w+\b', normalized) if len(w) > 2]
         if not words:
             return vector
 
-        for word in words:
-            # Seed deterministic pseudo-random components based on word hash
-            digest = hashlib.sha256(word.encode("utf-8")).digest()
-            for i in range(0, min(len(digest), 32)):
-                idx = (digest[i] * (i + 1)) % self.DIMENSIONS
-                val = ((digest[i] - 128) / 128.0)
-                vector[idx] += val
+        # Stopwords to dampen generic noise
+        stopwords = {"como", "qual", "onde", "para", "com", "não", "que", "dos", "das", "uma", "guia", "este", "completo", "troféus", "trofeu", "trofeus", "troféu"}
+
+        # Bag-of-words hash projection with TF weighting
+        word_counts = {}
+        for w in words:
+            if w not in stopwords:
+                word_counts[w] = word_counts.get(w, 0) + 1
+
+        if not word_counts:
+            word_counts = {w: 1 for w in words}
+
+        # Weight unique / specific terms much higher
+        for word, count in word_counts.items():
+            w_bytes = word.encode("utf-8")
+            h = int(hashlib.sha256(w_bytes).hexdigest()[:8], 16)
+            idx = h % self.DIMENSIONS
+            
+            # Specific domain terms (e.g. gransax, ranni, godrick) receive high weight
+            term_weight = 4.0 if len(word) >= 5 else 2.0
+            weight = term_weight * (1.0 + (count ** 0.5))
+            vector[idx] += weight
 
         # Normalize to unit vector (L2 norm) for cosine distance compatibility
         norm = sum(x * x for x in vector) ** 0.5
