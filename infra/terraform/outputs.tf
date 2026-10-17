@@ -53,3 +53,14 @@ output "rds_secret_arn" {
   value       = aws_secretsmanager_secret.db_credentials.arn
 }
 
+output "k3s_server_public_ip" {
+  description = "Public IPv4 address of the k3s Kubernetes server"
+  value       = aws_instance.k3s_server.public_ip
+}
+
+output "k3s_server_instance_id" {
+  description = "EC2 instance ID of the k3s Kubernetes server"
+  value       = aws_instance.k3s_server.id
+}
+
+

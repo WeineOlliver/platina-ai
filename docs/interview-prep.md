@@ -602,6 +602,23 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"We provision managed PostgreSQL 16 on AWS RDS using Graviton2 instances with encrypted gp3 storage. We generate database credentials dynamically via Terraform's random provider and store the connection URI directly into AWS Secrets Manager. This delivers native pgvector compatibility for vector search while ensuring master credentials never exist in source control."*
 
+---
+
+### Q45: Cloud Cost Optimization: Single-Node k3s on Graviton vs. Managed EKS
+> **"Why provision k3s on an AWS Graviton EC2 instance (`t4g.small`) rather than an Amazon EKS cluster for personal or stage environments?"**
+
+- **Core Concept:** Amazon EKS charges a mandatory fixed control plane fee of $0.10/hour (~$73/month) regardless of whether any pods are running.
+- **Cost Comparison:**
+  - **Amazon EKS:** $73/month (control plane) + $25/month (worker node) + $20/month (NAT Gateway) ≈ **$118/month minimum baseline**.
+  - **k3s on EC2 (`t4g.small`):** ~$0.0168/hour ≈ **$12/month total compute cost** (a ~90% cost reduction).
+- **Security & Portability Trade-Offs:**
+  - **IAM Instance Profile:** Attached with least-privilege policies granting read-only access to ECR and Secrets Manager, avoiding hardcoded AWS access keys on the node.
+  - **SSH-less Administration:** Managed via AWS Systems Manager Session Manager (`AmazonSSMManagedInstanceCore`), eliminating the need to expose port 22 to the internet.
+  - **100% CNCF Conformance:** k3s is a certified Kubernetes distribution; the Helm chart and manifests run identically on both k3s and enterprise EKS.
+- **60-Second Interview Soundbite:**
+  > *"To optimize cloud infrastructure costs without sacrificing architecture quality, we deploy certified k3s onto an AWS Graviton2 EC2 instance using Terraform. This slashes our monthly baseline by over 90% by eliminating EKS control plane fees, while our IAM instance profiles, Systems Manager session access, and standardized Helm charts ensure zero operational drift from production EKS."*
+
+
 
 
 

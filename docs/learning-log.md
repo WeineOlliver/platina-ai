@@ -484,6 +484,23 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"I provisioned our production relational vector database using AWS RDS PostgreSQL 16 on Graviton. By generating credentials dynamically and depositing connection strings directly into AWS Secrets Manager, we deliver native pgvector capabilities while strictly adhering to cloud security best practices."*
 
+---
+
+### [2026-10-16] — Milestone 5: Kubernetes Cluster on AWS (k3s on EC2 Graviton) (`k3s.tf`)
+- **What I built/configured:**
+  - `aws_iam_role` and `aws_iam_instance_profile` granting the node access to AWS ECR, Secrets Manager, and AWS Systems Manager (`AmazonSSMManagedInstanceCore`).
+  - Automated cloud-init `user_data` script installing certified k3s on boot with TLS SAN support and Traefik disabled in favor of our Helm-managed ingress.
+  - Cost-efficient `aws_instance` running Amazon Linux 2023 on ARM64 Graviton (`t4g.small`, ~$12/month) with encrypted 30GB gp3 EBS storage.
+  - Output definitions exporting public IPv4 and EC2 instance ID in `outputs.tf`.
+  - Validated syntax and schemas via `tofu validate`.
+- **Key concepts learned:**
+  - Balancing production fidelity with cloud expenditure: running certified k3s on Graviton enables 100% Kubernetes API compatibility without the fixed $73/month EKS control plane cost.
+- **Problems faced & how they were solved:**
+  - Corrected Terraform EC2 resource argument (`instance_type` vs `instance_class`).
+- **Interview Soundbite:**
+  - *"I architected our cloud Kubernetes cluster using Terraform, deploying certified k3s to an AWS Graviton2 EC2 instance with IAM instance profiles and SSM Session Manager access. This delivers enterprise Kubernetes capabilities while saving over 90% in monthly cloud infrastructure expenses."*
+
+
 
 
 
