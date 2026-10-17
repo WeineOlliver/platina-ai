@@ -552,6 +552,24 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"To ensure zero-downtime rolling updates, we separate configuration into ConfigMaps and sensitive credentials into Kubernetes Secrets. We configure distinct Liveness and Readiness probes: Readiness prevents traffic routing to new pods until their database connection pools are verified, while Liveness allows the kubelet to detect deadlocked pods and restart them without manual intervention."*
 
+---
+
+## Milestone 5: Terraform & AWS Cloud Infrastructure
+
+### Q42: Infrastructure as Code (IaC): Remote State & Concurrency Locking
+> **"Why store Terraform/OpenTofu state in Amazon S3 with DynamoDB locking instead of committing state files to git?"**
+
+- **Core Concept:** Terraform state tracks the mapping between declared HCL resources and real-world cloud APIs.
+- **Why Git is Dangerous for State:**
+  1. **Race Conditions:** If two CI pipelines or developers run `terraform apply` concurrently without locking, state corruption and resource collisions occur.
+  2. **Secret Leaks:** State files contain plaintext outputs (passwords, private keys, connection strings) even if marked sensitive in code. Committing state to git exposes sensitive infrastructure secrets.
+- **S3 + DynamoDB Solution:**
+  - **Amazon S3:** Provides durable, encrypted-at-rest (`AES256` or KMS), versioned object storage for `terraform.tfstate`.
+  - **Amazon DynamoDB:** Acquires an atomic distributed lock via `LockID` before executing `plan`/`apply`, immediately rejecting concurrent pipeline runs until the lock releases.
+- **60-Second Interview Soundbite:**
+  > *"Storing Terraform state in git leaks plaintext database credentials and creates catastrophic race conditions when multiple engineers apply changes. We isolate our state in an encrypted Amazon S3 bucket with versioning enabled, backed by a DynamoDB state lock table to ensure atomic executions and prevent concurrent state corruption."*
+
+
 
 
 

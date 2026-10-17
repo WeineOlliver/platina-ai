@@ -429,6 +429,25 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"I hardened our Kubernetes manifests with decoupled ConfigMaps, encrypted Secrets, and fine-tuned Liveness and Readiness probes. This guarantees credential safety and enables zero-downtime rolling updates without dropping active player requests."*
 
+---
+
+### [2026-10-16] — Milestone 5: Terraform Setup (Providers, Remote S3 Backend, Variables)
+- **What I built/configured:**
+  - Installed `opentofu` (v1.13.1, open-source Linux Foundation drop-in engine for Terraform) via Homebrew.
+  - Authored `versions.tf` requiring AWS provider `~> 5.40`, `random`, and `tls`.
+  - Authored `backend.tf` configuring remote state persistence in Amazon S3 with server-side encryption and DynamoDB distributed locking (`platina-ai-terraform-locks`).
+  - Authored `main.tf` with AWS provider default tagging (`Project: platina-ai`, `ManagedBy: terraform`).
+  - Authored `variables.tf` and `terraform.tfvars.example` for regional and network parameterization.
+  - Validated syntax and downloaded provider binaries via `tofu init -backend=false` and `tofu validate` (0 errors).
+  - Created `infra/terraform/.gitignore` preventing local state and credential files from git versioning.
+- **Key concepts learned:**
+  - Remote state management: pairing encrypted S3 buckets with DynamoDB mutex locks prevents concurrent apply collisions and leaks of sensitive state variables.
+- **Problems faced & how they were solved:**
+  - Seamlessly leveraged OpenTofu to preserve 100% Terraform HCL compatibility without commercial licensing constraints.
+- **Interview Soundbite:**
+  - *"I set up our cloud infrastructure-as-code foundation using Terraform/OpenTofu. By configuring remote state storage in encrypted S3 with DynamoDB distributed mutex locks and standardized default tagging, we ensure team concurrency safety and eliminate credential leakage."*
+
+
 
 
 
