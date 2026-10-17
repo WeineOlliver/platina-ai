@@ -1,0 +1,84 @@
+name: CD - Deploy to Kubernetes (AWS / Cloud)
+
+on:
+  workflow_run:
+    workflows: ["Build & Push to Amazon ECR"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: 'Target deployment environment'
+        required: true
+        default: 'prod'
+        type: choice
+        options:
+          - prod
+          - staging
+
+jobs:
+  deploy:
+    name: Continuous Deployment via Helm
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Setup Kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.30.0
+
+      - name: Configure Kubeconfig from GitHub Secret
+        run: |
+          mkdir -p ~/.kube
+          if [ -n "${{ secrets.KUBECONFIG_DATA }}" ]; then
+            echo "${{ secrets.KUBECONFIG_DATA }}" | base64 -d > ~/.kube/config
+            chmod 600 ~/.kube/config
+            echo "kubeconfig_configured=true" >> "$GITHUB_ENV"
+          else
+            echo "⚠️ KUBECONFIG_DATA secret is not configured; running in validation dry-run mode."
+            echo "kubeconfig_configured=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Calculate Release Metadata
+        id: meta
+        run: |
+          SHA_SHORT=$(git rev-parse --short HEAD)
+          echo "tag=sha-${SHA_SHORT}" >> "$GITHUB_OUTPUT"
+
+      # Execute Declarative Helm Upgrade
+      - name: Deploy Platina AI via Helm
+        run: |
+          if [ "${{ env.kubeconfig_configured }}" = "true" ]; then
+            echo "Executing live Helm upgrade on Kubernetes cluster..."
+            helm upgrade --install platina-ai infra/helm/platina-ai \
+              -f infra/helm/platina-ai/values.aws.yaml \
+              --set api.image.tag="${{ steps.meta.outputs.tag }}" \
+              --set ingest.image.tag="${{ steps.meta.outputs.tag }}" \
+              --namespace platina --create-namespace \
+              --wait --timeout 5m
+          else
+            echo "Dry-running Helm upgrade template..."
+            helm template platina-ai infra/helm/platina-ai \
+              -f infra/helm/platina-ai/values.aws.yaml \
+              --set api.image.tag="${{ steps.meta.outputs.tag }}" \
+              --set ingest.image.tag="${{ steps.meta.outputs.tag }}" \
+              --namespace platina
+          fi
+
+      # Automated Post-Deploy Smoke Checks
+      - name: Run Post-Deploy Health Check
+        if: env.kubeconfig_configured == 'true'
+        run: |
+          echo "Verifying deployment rollouts..."
+          kubectl rollout status deployment/platina-ai-api -n platina --timeout=120s
+          kubectl rollout status deployment/platina-ai-ingest -n platina --timeout=120s
+          echo "✅ All Platina AI pods are healthy and serving traffic."

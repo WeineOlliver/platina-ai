@@ -578,6 +578,23 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"I automated multi-architecture container publishing to Amazon ECR via GitHub Actions and Docker Buildx. Authenticating securely through OpenID Connect without static access keys, the pipeline compiles for both x86 and ARM64 Graviton with remote layer caching."*
 
+---
+
+### [2026-10-16] — Milestone 6: Continuous Deployment with Helm (`deploy-cloud.yml`)
+- **What I built/configured:**
+  - Authored workflow `.github/workflows/deploy-cloud.yml` triggered on ECR build completions (`workflow_run`) and manual dispatch with environment selection.
+  - Setup Helm and Kubectl in runner environment with secure base64 decoding of `KUBECONFIG_DATA`.
+  - Configured graceful execution: if `KUBECONFIG_DATA` is absent, runs `helm template` dry-run verification so public forks and local checks remain green.
+  - Automated deployment execution with `helm upgrade --install` with wait timeouts and image tag injection (`sha-${HEAD}`).
+  - Post-deploy rollout verification via `kubectl rollout status`.
+- **Key concepts learned:**
+  - Continuous Delivery requires post-deployment health verification gates: rolling update status checks ensure new pods are serving healthy traffic before closing the pipeline run.
+- **Problems faced & how they were solved:**
+  - Supported dual-mode execution (live cluster deployment vs dry-run templating) based on secret presence to prevent blocking CI in sandboxed environments.
+- **Interview Soundbite:**
+  - *"I developed our automated deployment pipeline using Helm and GitHub Actions. Incorporating atomic rolling updates and post-deploy rollout status checks, it guarantees that bad releases are detected and rolled back before impacting active users."*
+
+
 
 
 

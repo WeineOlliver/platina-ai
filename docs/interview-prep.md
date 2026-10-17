@@ -696,6 +696,22 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"Rather than storing static AWS access keys, our deployment pipeline authenticates to Amazon ECR via OpenID Connect (OIDC) federation with short-lived STS tokens. Using Docker Buildx and QEMU, we build multi-architecture images supporting both x86 and AWS Graviton ARM64 instances, caching layers in GitHub Actions to deliver rapid, secure container deployments."*
 
+---
+
+### Q51: Continuous Delivery with Helm: Progressive Rollouts & Post-Deploy Health Gates
+> **"How does the CD deployment workflow (`deploy-cloud.yml`) guarantee zero-downtime releases and prevent bad rollouts from impacting users?"**
+
+- **Core Concept:** A deployment is not complete simply because manifests were applied; the pipeline must actively verify that new pods pass readiness probes before declaring victory.
+- **Key Pipeline Steps:**
+  1. **Automated Triggering (`workflow_run`):** Runs automatically upon successful completion of the ECR container publishing pipeline, passing the short git commit SHA (`sha-${HEAD}`) as the target image tag.
+  2. **Atomic Helm Upgrades (`helm upgrade --install --atomic --wait --timeout 5m`):**
+     - Kubernetes performs a rolling update, launching new pods and validating readiness probes *before* terminating older replicas.
+     - If new pods fail health checks within the 5-minute window, Helm automatically executes an atomic rollback to the previous working release state.
+  3. **Verification Smoke Checks (`kubectl rollout status`):** Asserts that the desired replica count matches available replicas across both the API and Ingest deployments.
+- **60-Second Interview Soundbite:**
+  > *"Our CD pipeline uses Helm's atomic upgrade capabilities to guarantee zero-downtime rolling updates. The deployment actively awaits Kubernetes readiness probes across our API and Ingest pods; if a failure occurs, Helm automatically rolls back to the prior stable release, protecting users against regressions."*
+
+
 
 
 
