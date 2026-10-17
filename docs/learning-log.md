@@ -447,6 +447,27 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"I set up our cloud infrastructure-as-code foundation using Terraform/OpenTofu. By configuring remote state storage in encrypted S3 with DynamoDB distributed mutex locks and standardized default tagging, we ensure team concurrency safety and eliminate credential leakage."*
 
+---
+
+### [2026-10-16] — Milestone 5: VPC Networking, Subnets, and Security Groups (`network.tf`)
+- **What I built/configured:**
+  - `aws_vpc` with DNS hostnames and resolution enabled across CIDR `10.0.0.0/16`.
+  - 3-tier multi-AZ subnet architecture across dynamic AZ data sources:
+    - 2 Public Subnets tagged with `kubernetes.io/role/elb = 1` for public ingress.
+    - 2 Private App Subnets tagged with `kubernetes.io/role/internal-elb = 1` for Kubernetes worker nodes.
+    - 2 Private Database Subnets consolidated into an `aws_db_subnet_group` for RDS.
+  - Internet Gateway and public Route Table associations.
+  - Security group chaining (`alb` -> `app` -> `db`) enforcing strict network isolation: database port 5432 is strictly accessible only to application compute instances.
+  - Output definitions in `outputs.tf` and verified with `tofu validate`.
+- **Key concepts learned:**
+  - Security group chaining provides declarative least privilege without brittle static IP whitelists.
+  - Subnet tagging conventions for AWS Load Balancer Controller discovery.
+- **Problems faced & how they were solved:**
+  - Used `cidrsubnet` with dynamic bit offsets to cleanly segment the VPC CIDR into non-overlapping `/20` subnets.
+- **Interview Soundbite:**
+  - *"I provisioned our cloud network topology with a 3-tier multi-AZ VPC in Terraform. By chaining security groups from the public load balancer down to our isolated RDS database subnets, we enforce defense-in-depth where storage is completely shielded from public ingress."*
+
+
 
 
 

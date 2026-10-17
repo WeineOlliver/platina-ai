@@ -569,6 +569,25 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"Storing Terraform state in git leaks plaintext database credentials and creates catastrophic race conditions when multiple engineers apply changes. We isolate our state in an encrypted Amazon S3 bucket with versioning enabled, backed by a DynamoDB state lock table to ensure atomic executions and prevent concurrent state corruption."*
 
+---
+
+### Q43: Enterprise Cloud Networking: 3-Tier Multi-AZ VPC & Security Group Chaining
+> **"How do you design a defense-in-depth VPC architecture for containerized microservices and an isolated vector database?"**
+
+- **Core Concept:** A secure cloud deployment never exposes application databases or compute instances directly to the public internet.
+- **3-Tier Subnet Topology (Multi-AZ):**
+  1. **Public Subnets (`10.0.0.0/20`, `10.0.16.0/20`):** Attached to an Internet Gateway (IGW). Houses only the Application Load Balancers (ALB) and public ingress points. Tagged with `kubernetes.io/role/elb = 1`.
+  2. **Private Application Subnets (`10.0.32.0/20`, `10.0.48.0/20`):** Hosts the Kubernetes worker nodes and microservice pods. Tagged with `kubernetes.io/role/internal-elb = 1`.
+  3. **Private Database Subnets (`10.0.64.0/20`, `10.0.80.0/20`):** Grouped in an `aws_db_subnet_group` strictly for PostgreSQL/pgvector RDS instances. No internet routes exist.
+- **Security Group Chaining (Least Privilege):**
+  - Rather than opening CIDR ranges, ingress rules reference upstream Security Group IDs:
+    - `ALB SG`: Ingress 80/443 from `0.0.0.0/0`.
+    - `App SG`: Ingress ports 3000–8000 allowed *only* from `sg-alb`.
+    - `Database SG`: Ingress port 5432 allowed *only* from `sg-app`.
+- **60-Second Interview Soundbite:**
+  > *"We architect a 3-tier multi-AZ VPC segregating public ingress, application compute, and database storage. By chaining security group IDs rather than static CIDR blocks, the PostgreSQL database only accepts TCP 5432 traffic originating directly from our application pod security group, completely eliminating unauthorized network access."*
+
+
 
 
 
