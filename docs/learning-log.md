@@ -531,6 +531,23 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"I unified our application deployment into our Terraform pipeline using the Helm provider. By dynamically wiring live RDS endpoints, generated database secrets, and ECR URLs into our Helm release, we guarantee seamless cloud configuration and zero-friction teardowns."*
 
+---
+
+### [2026-10-16] — Milestone 5: Cost Guardrails (AWS Budgets & Automated Teardown) (`budget.tf` & `destroy.sh`)
+- **What I built/configured:**
+  - Added variables `monthly_budget_usd` ($15) and `alert_email` in `variables.tf`.
+  - Authored `aws_budgets_budget` (`budget.tf`) tagged to `user:Project$platina-ai` with dual alert thresholds: 80% actual spend and 100% forecasted spend.
+  - Authored automated teardown script `infra/terraform/destroy.sh` with confirmation prompt, provider initialization, and non-interactive `tofu destroy -auto-approve`.
+  - Validated syntax with `tofu validate`.
+- **Key concepts learned:**
+  - Cost visibility as code: incorporating AWS Budgets directly into Terraform manifests ensures cost guardrails are created alongside the infrastructure itself.
+  - Designing for destruction: setting `skip_final_snapshot` and zero-day recovery windows enables instantaneous environment teardowns.
+- **Problems faced & how they were solved:**
+  - Configured tag-based budget filters to isolate Platina AI expenditures from other workloads in the AWS account.
+- **Interview Soundbite:**
+  - *"I implemented cloud FinOps controls by declaring tag-scoped AWS Budgets with proactive actual and forecasted alarms in Terraform. Combined with our automated teardown script, we guarantee zero unexpected billing and enable rapid on-demand environment destruction."*
+
+
 
 
 

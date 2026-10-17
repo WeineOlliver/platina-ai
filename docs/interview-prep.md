@@ -647,6 +647,23 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"Deploying Helm charts through Terraform bridges the gap between cloud infrastructure and application runtimes. Terraform dynamically feeds live RDS endpoints, ECR repository URLs, and generated database secrets directly into our Helm values. This eliminates brittle glue scripts, guarantees application pods always target the correct cloud endpoints, and ensures single-command destruction during environment teardown."*
 
+---
+
+### Q48: Cloud FinOps: AWS Budgets, Cost Guardrails & Automated Teardowns
+> **"How do you implement cost guardrails (FinOps) and guarantee zero runaway billing in AWS cloud environments?"**
+
+- **Core Concept:** Cloud infrastructure without automated cost ceilings can incur unexpected billing spikes due to zombie instances, orphaned snapshots, or untracked egress.
+- **FinOps Safeguards in Platina AI:**
+  1. **Tag-Scoped AWS Budgets (`aws_budgets_budget`):**
+     - Filters expenditures scoped to `Project: platina-ai`.
+     - Dual-threshold alert system: triggers an automated SNS/Email alert when real spend exceeds **80%** of the monthly ceiling, and a proactive alert if the ML cost model projects a **100% forecasted overrun**.
+  2. **Single-Action Teardown Automation (`destroy.sh`):**
+     - Bundles teardown sequence into an idempotent script: uninstalls the Helm release, tears down compute, drops the RDS instance without final snapshot retention (`skip_final_snapshot = true`), and cleans up Secrets Manager containers immediately (`recovery_window_in_days = 0`).
+  3. **Result:** Allows full-stack cloud demos to be spun up on demand and completely destroyed in minutes, resetting ongoing idle cloud costs to **$0.00**.
+- **60-Second Interview Soundbite:**
+  > *"Cloud engineering requires strict financial accountability. In Platina AI, we enforce tag-scoped AWS Budgets with dual actual and forecasted threshold alerts. We pair this with automated teardown scripts that destroy all compute, RDS storage, and Helm releases with zero recovery windows, allowing us to spin up production cloud environments for demonstrations and reset ongoing idle costs to exactly $0.00."*
+
+
 
 
 

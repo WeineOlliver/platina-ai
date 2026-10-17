@@ -27,3 +27,16 @@ variable "db_username" {
   type        = string
   default     = "platina_admin"
 }
+
+variable "monthly_budget_usd" {
+  description = "Monthly spending ceiling in USD before triggering budget alerts"
+  type        = string
+  default     = "15"
+}
+
+variable "alert_email" {
+  description = "Email address to receive AWS budget threshold alarms"
+  type        = string
+  default     = "weineoliveira@gmail.com"
+}
+
