@@ -31,7 +31,7 @@ variable "db_username" {
 variable "monthly_budget_usd" {
   description = "Monthly spending ceiling in USD before triggering budget alerts"
   type        = string
-  default     = "15"
+  default     = "1.00"
 }
 
 variable "alert_email" {

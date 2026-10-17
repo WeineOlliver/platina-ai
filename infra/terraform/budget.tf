@@ -9,7 +9,7 @@ resource "aws_budgets_budget" "monthly" {
   time_period_start = "2026-10-01_00:00"
   time_unit         = "MONTHLY"
 
-  # Alert 1: Triggered when actual spend exceeds 80% of budget ($12.00)
+  # Alert 1: Triggered when actual spend exceeds 80% of budget ($0.80)
   notification {
     comparison_operator        = "GREATER_THAN"
     notification_type          = "ACTUAL"
@@ -18,7 +18,7 @@ resource "aws_budgets_budget" "monthly" {
     subscriber_email_addresses = [var.alert_email]
   }
 
-  # Alert 2: Triggered when forecasted spend is projected to exceed 100% ($15.00)
+  # Alert 2: Triggered when forecasted spend is projected to exceed 100% ($1.00)
   notification {
     comparison_operator        = "GREATER_THAN"
     notification_type          = "FORECASTED"
