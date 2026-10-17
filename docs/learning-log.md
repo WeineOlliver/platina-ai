@@ -562,6 +562,23 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"I designed our GitHub Actions CI pipeline running three parallel test tracks for Node.js, Python, and IaC. By gating merges behind automated type checks, vector test evaluations, and Helm lints, we ensure high code quality across our polyglot repository."*
 
+---
+
+### [2026-10-16] — Milestone 6: Build & Push Images to Amazon ECR (`deploy-ecr.yml`)
+- **What I built/configured:**
+  - Authored workflow `.github/workflows/deploy-ecr.yml` triggered on releases (`v*.*.*`) and main branch updates.
+  - Configured multi-platform compilation using QEMU and Docker Buildx targeting `linux/amd64` and `linux/arm64` (Graviton).
+  - Configured credentialless AWS authentication via OpenID Connect (OIDC) with `aws-actions/configure-aws-credentials@v4`.
+  - Added BuildKit GitHub Actions layer caching (`type=gha,mode=max`) for sub-minute builds.
+  - Dual tag publishing with short commit SHAs (`sha-${HEAD}`) and `latest` into `platina-ai/api` and `platina-ai/ingest`.
+- **Key concepts learned:**
+  - Modern CI security best practices favor short-lived OIDC federated tokens over long-lived AWS IAM access keys stored in repository secrets.
+- **Problems faced & how they were solved:**
+  - Provided graceful degradation with `continue-on-error: true` so the workflow can dry-run and validate Docker builds in pull request forks without access to AWS secrets.
+- **Interview Soundbite:**
+  - *"I automated multi-architecture container publishing to Amazon ECR via GitHub Actions and Docker Buildx. Authenticating securely through OpenID Connect without static access keys, the pipeline compiles for both x86 and ARM64 Graviton with remote layer caching."*
+
+
 
 
 

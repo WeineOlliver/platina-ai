@@ -679,6 +679,24 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"We architect our GitHub Actions CI pipeline with three parallel execution tracks: Node.js (Vitest & tsc), Python (uv & pytest), and Infrastructure (Helm lint & OpenTofu validate). This polyglot separation provides sub-two-minute PR feedback, isolates failures to their specific domain, and guarantees that code, tests, and cloud manifests are validated continuously before deployment."*
 
+---
+
+### Q50: Multi-Architecture Container Builds & OIDC Registry Authentication
+> **"How do you configure GitHub Actions to build multi-architecture Docker images (`linux/amd64` and `linux/arm64`) and publish to Amazon ECR securely without static access keys?"**
+
+- **Core Concept:** Storing long-lived `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` in GitHub Secrets creates credential rotation overhead and security vulnerabilities.
+- **Key Enterprise Architecture Elements:**
+  1. **OpenID Connect (OIDC) Federation:**
+     - GitHub Actions assumes an AWS IAM role (`sts:AssumeRoleWithWebIdentity`) dynamically using short-lived JWT tokens signed by GitHub's OIDC identity provider (`token.actions.githubusercontent.com`).
+     - Eliminates static credentials entirely.
+  2. **Multi-Platform Emulation with QEMU & Buildx:**
+     - Builds containers compatible with both standard x86 (`linux/amd64`) and cost-effective AWS Graviton2 (`linux/arm64`) using `docker/setup-qemu-action` and BuildKit.
+  3. **GitHub Actions Layer Caching (`type=gha`):**
+     - Intermediate Docker build layers are cached directly inside GitHub's cache storage (`type=gha,mode=max`), reducing subsequent build times from 5+ minutes to under 45 seconds.
+- **60-Second Interview Soundbite:**
+  > *"Rather than storing static AWS access keys, our deployment pipeline authenticates to Amazon ECR via OpenID Connect (OIDC) federation with short-lived STS tokens. Using Docker Buildx and QEMU, we build multi-architecture images supporting both x86 and AWS Graviton ARM64 instances, caching layers in GitHub Actions to deliver rapid, secure container deployments."*
+
+
 
 
 

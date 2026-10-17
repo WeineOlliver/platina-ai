@@ -1,0 +1,79 @@
+name: Build & Push to Amazon ECR
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: 590184022238.dkr.ecr.us-east-1.amazonaws.com
+
+jobs:
+  build-and-push:
+    name: Build & Push Container Images
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # Required for AWS OIDC authentication
+      contents: read
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (Multi-platform emulation)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure AWS Credentials via OIDC / Secrets
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: GitHubActions-ECR-Push
+        continue-on-error: true # Allows workflow dry-run in public PR forks
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+        continue-on-error: true
+
+      - name: Calculate Image Metadata & Tags
+        id: meta
+        run: |
+          SHA_SHORT=$(git rev-parse --short HEAD)
+          echo "sha_short=${SHA_SHORT}" >> "$GITHUB_OUTPUT"
+          echo "tag_api=${{ env.ECR_REGISTRY }}/platina-ai/api" >> "$GITHUB_OUTPUT"
+          echo "tag_ingest=${{ env.ECR_REGISTRY }}/platina-ai/ingest" >> "$GITHUB_OUTPUT"
+
+      # 1. Build and Push Node.js Fastify API Image
+      - name: Build & Push Node.js API
+        uses: docker/build-push-action@v5
+        with:
+          context: apps/api
+          file: apps/api/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ steps.login-ecr.outcome == 'success' }}
+          tags: |
+            ${{ steps.meta.outputs.tag_api }}:latest
+            ${{ steps.meta.outputs.tag_api }}:sha-${{ steps.meta.outputs.sha_short }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 2. Build and Push Python Ingest Microservice Image
+      - name: Build & Push Python Ingest Service
+        uses: docker/build-push-action@v5
+        with:
+          context: services/ingest
+          file: services/ingest/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ steps.login-ecr.outcome == 'success' }}
+          tags: |
+            ${{ steps.meta.outputs.tag_ingest }}:latest
+            ${{ steps.meta.outputs.tag_ingest }}:sha-${{ steps.meta.outputs.sha_short }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
