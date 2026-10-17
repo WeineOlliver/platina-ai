@@ -467,6 +467,24 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"I provisioned our cloud network topology with a 3-tier multi-AZ VPC in Terraform. By chaining security groups from the public load balancer down to our isolated RDS database subnets, we enforce defense-in-depth where storage is completely shielded from public ingress."*
 
+---
+
+### [2026-10-16] — Milestone 5: RDS PostgreSQL with pgvector & Secrets Manager (`rds.tf`)
+- **What I built/configured:**
+  - `aws_db_parameter_group` for PostgreSQL 16 configured with `shared_preload_libraries`.
+  - `random_password` generating secure 24-character master credentials.
+  - `aws_db_instance` provisioning PostgreSQL 16 on cost-effective `db.t4g.micro` Graviton2 instances with encrypted `gp3` storage (20GB autoscaling to 50GB).
+  - Private database placement (`aws_db_subnet_group.main`) bound to least-privilege security group (`aws_security_group.db`).
+  - `aws_secretsmanager_secret` storing structured connection metadata (`engine`, `host`, `port`, `database`, `username`, `password`, `url`) with `recovery_window_in_days = 0` for clean portfolio destruction.
+  - Exported database connection outputs in `outputs.tf` and verified with `tofu validate`.
+- **Key concepts learned:**
+  - Injecting database credentials directly into Secrets Manager decouples application runtimes from IaC pipelines and avoids hardcoded secrets in source control.
+- **Problems faced & how they were solved:**
+  - Parameter group family matching: specified `family = "postgres16"` for native compatibility with the AWS RDS PostgreSQL 16 engine.
+- **Interview Soundbite:**
+  - *"I provisioned our production relational vector database using AWS RDS PostgreSQL 16 on Graviton. By generating credentials dynamically and depositing connection strings directly into AWS Secrets Manager, we deliver native pgvector capabilities while strictly adhering to cloud security best practices."*
+
+
 
 
 

@@ -587,6 +587,22 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"We architect a 3-tier multi-AZ VPC segregating public ingress, application compute, and database storage. By chaining security group IDs rather than static CIDR blocks, the PostgreSQL database only accepts TCP 5432 traffic originating directly from our application pod security group, completely eliminating unauthorized network access."*
 
+---
+
+### Q44: Managed Relational Storage: RDS PostgreSQL, pgvector & Secrets Manager
+> **"How do you provision a secure PostgreSQL instance with vector extensions on AWS using Terraform without exposing credentials in code?"**
+
+- **Core Concept:** Self-hosting databases on EC2 requires manual patching, backup scripting, and failover management. AWS RDS provides an automated, managed engine with automated snapshots, multi-AZ support, and KMS encryption.
+- **pgvector Compatibility:**
+  - Modern AWS RDS PostgreSQL (engines 15.3+ and 16+) supports `pgvector` natively. We declare a custom `aws_db_parameter_group` enabling `shared_preload_libraries`.
+- **Zero-Credential Code Security:**
+  1. `random_password` generates a high-entropy 24-character secret with special characters.
+  2. The password is passed to `aws_db_instance` without hardcoding strings in git.
+  3. The full connection string and connection attributes (`host`, `port`, `database`, `username`, `password`) are deposited directly into **AWS Secrets Manager** (`aws_secretsmanager_secret_version`), allowing application pods and CI pipelines to resolve secrets at runtime via IAM.
+- **60-Second Interview Soundbite:**
+  > *"We provision managed PostgreSQL 16 on AWS RDS using Graviton2 instances with encrypted gp3 storage. We generate database credentials dynamically via Terraform's random provider and store the connection URI directly into AWS Secrets Manager. This delivers native pgvector compatibility for vector search while ensuring master credentials never exist in source control."*
+
+
 
 
 
