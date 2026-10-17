@@ -547,6 +547,22 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"I implemented cloud FinOps controls by declaring tag-scoped AWS Budgets with proactive actual and forecasted alarms in Terraform. Combined with our automated teardown script, we guarantee zero unexpected billing and enable rapid on-demand environment destruction."*
 
+---
+
+### [2026-10-16] — Milestone 6: Polyglot CI Pipeline (`.github/workflows/ci.yml`)
+- **What I built/configured:**
+  - GitHub Actions CI workflow (`.github/workflows/ci.yml`) triggered on pushes and pull requests to `main`.
+  - Parallel Job 1 (`test-node`): Node.js 22 with npm cache, TypeScript build (`tsc`), and Vitest test execution across 23 unit and integration tests.
+  - Parallel Job 2 (`test-python`): `astral-sh/setup-uv`, Python 3.12, dependency syncing, and pytest evaluation suite covering chunking, embeddings, and RAG precision.
+  - Parallel Job 3 (`test-iac`): Helm chart linting against both standard and AWS production values, plus OpenTofu syntax validation.
+- **Key concepts learned:**
+  - Parallelizing independent test tracks in GitHub Actions slashes pipeline duration and delivers isolated feedback per tech stack.
+- **Problems faced & how they were solved:**
+  - Mock environment decoupling: configured `AI_PROVIDER=mock` and test database credentials so CI jobs execute deterministically without external API tokens or running database servers.
+- **Interview Soundbite:**
+  - *"I designed our GitHub Actions CI pipeline running three parallel test tracks for Node.js, Python, and IaC. By gating merges behind automated type checks, vector test evaluations, and Helm lints, we ensure high code quality across our polyglot repository."*
+
+
 
 
 

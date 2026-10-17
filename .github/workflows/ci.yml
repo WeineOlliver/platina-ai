@@ -1,0 +1,98 @@
+name: CI - Lint, Test & Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-node:
+    name: Node.js Fastify API (Lint & Tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/api/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: TypeScript Typecheck & Build
+        run: npm run build
+
+      - name: Run Vitest Suite
+        run: npm test
+        env:
+          AI_PROVIDER: mock
+          JWT_SECRET: super-secret-jwt-key-minimum-32-characters-platina-ai
+
+  test-python:
+    name: Python Ingest Microservice (Lint & Tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/ingest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Setup Python 3.12
+        run: uv python install 3.12
+
+      - name: Install Dependencies
+        run: uv sync
+
+      - name: Run Pytest Suite
+        run: uv run pytest tests/ -vv
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_DB: platina_rag
+          POSTGRES_USER: platina
+          POSTGRES_PASSWORD: platina123
+
+  test-iac:
+    name: Infrastructure as Code (Helm & Terraform)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Lint Helm Chart (Local & AWS values)
+        run: |
+          helm lint infra/helm/platina-ai
+          helm lint infra/helm/platina-ai -f infra/helm/platina-ai/values.aws.yaml
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: 1.8.0
+
+      - name: Validate Terraform Manifests
+        working-directory: infra/terraform
+        run: |
+          tofu init -backend=false
+          tofu validate

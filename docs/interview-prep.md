@@ -663,6 +663,23 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"Cloud engineering requires strict financial accountability. In Platina AI, we enforce tag-scoped AWS Budgets with dual actual and forecasted threshold alerts. We pair this with automated teardown scripts that destroy all compute, RDS storage, and Helm releases with zero recovery windows, allowing us to spin up production cloud environments for demonstrations and reset ongoing idle costs to exactly $0.00."*
 
+---
+
+## Milestone 6: CI/CD Pipeline & Portfolio Presentation
+
+### Q49: Polyglot CI Pipelines: Parallel Workflows for Node, Python, and IaC
+> **"How do you design a GitHub Actions CI pipeline for a monorepo-style polyglot application (TypeScript + Python + Helm/Terraform)?"**
+
+- **Core Concept:** Running polyglot test suites sequentially in a single monolithic job creates slow build bottlenecks and obscures root-cause test failures.
+- **Three-Pillar Parallel Job Architecture:**
+  1. **`test-node`:** Pins Node 22, restores cached `npm` modules via package lock hashes, compiles TypeScript (`npm run build`), and runs 23 Vitest tests (auth, SSE chat streams, ReAct agent loop).
+  2. **`test-python`:** Uses `astral-sh/setup-uv` for sub-second dependency hydration, installing Python 3.12, running pytest suites across the semantic chunker, vector retrieval, and RAG evaluation benchmarks.
+  3. **`test-iac`:** Uses `azure/setup-helm` and `opentofu/setup-opentofu` to validate Kubernetes charts (`helm lint` against local and AWS overlay values) and check HCL syntax with `tofu validate`.
+- **Concurrency & Blast Radius:** All three jobs execute in parallel on separate GitHub runners. If a Python chunking test fails, it does not delay TypeScript feedback, and PR merges are strictly gated against regressions across all three layers.
+- **60-Second Interview Soundbite:**
+  > *"We architect our GitHub Actions CI pipeline with three parallel execution tracks: Node.js (Vitest & tsc), Python (uv & pytest), and Infrastructure (Helm lint & OpenTofu validate). This polyglot separation provides sub-two-minute PR feedback, isolates failures to their specific domain, and guarantees that code, tests, and cloud manifests are validated continuously before deployment."*
+
+
 
 
 
