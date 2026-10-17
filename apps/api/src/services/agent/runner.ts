@@ -69,8 +69,8 @@ Você tem acesso a ferramentas para:
 
 Diretrizes do Agente:
 - Se o usuário mencionar um PSN ID ou perguntar o que precisa fazer a seguir em um jogo, chame "check_player_progress" para ver a situação real dele.
-- Se houver troféus perdíveis pendentes ou o jogador tiver dúvidas sobre um troféu, chame "search_trophy_guides" para consultar a estratégia exata no guia.
-- Seja amigável, direto, focado em evitar troféus perdíveis (missables) e cite as fontes consultadas.`;
+- Se houver troféus perdíveis pendentes ou o jogador tiver dúvidas sobre um troféu, chame "search_trophy_guides" com query curta e direta (ex: "Eileen the Crow" ou "Lança de Gransax") para consultar a estratégia no guia. Não passe parâmetros desnecessários ou restritivos demais se não tiver certeza.
+- Após receber o resultado das ferramentas, NÃO chame ferramentas repetidas em loop. Responda imediatamente com as instruções claras para o jogador, destacando o que fazer para não perder o troféu e citando a fonte.`;
 
     const messages: Groq.Chat.ChatCompletionMessageParam[] = [
       { role: 'system', content: systemPrompt },
@@ -155,9 +155,24 @@ Diretrizes do Agente:
       }
     }
 
+    // If max steps reached without final text, generate a direct answer from collected messages
+    const fallbackCompletion = await this.client.chat.completions.create(
+      {
+        model: this.model,
+        messages: [
+          ...messages,
+          {
+            role: 'user',
+            content: 'Sintetize agora a sua resposta final com base em todas as ferramentas que você executou acima.',
+          },
+        ],
+      },
+      { signal: options.signal }
+    );
+    const finalContent = fallbackCompletion.choices[0]?.message?.content ?? '';
     yield {
       type: 'chunk',
-      content: '\n[Aviso: O agente atingiu o limite máximo de etapas de raciocínio.]',
+      content: finalContent || '\n[Aviso: O agente concluiu a coleta de dados das ferramentas.]',
     };
     yield { type: 'done' };
   }

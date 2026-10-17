@@ -3,184 +3,362 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Platina AI — Teste Local de Streaming</title>
+  <title>Platina AI — Assistente de Platinas</title>
   <style>
     :root {
-      --bg: #0d1117;
-      --card: #161b22;
+      --bg: #0b0f17;
+      --card: #151b23;
+      --card-alt: #1c2330;
       --border: #30363d;
       --accent: #58a6ff;
-      --text: #c9d1d9;
+      --text: #e6edf3;
       --text-muted: #8b949e;
       --trophy: #e3b341;
+      --danger: #f85149;
+      --success: #3fb950;
     }
+    * { box-sizing: border-box; }
     body {
       background: var(--bg);
       color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
       margin: 0;
-      padding: 24px;
+      padding: 16px 20px;
       display: flex;
       justify-content: center;
     }
     .container {
       width: 100%;
-      max-width: 760px;
+      max-width: 900px;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 12px;
+      height: 96vh;
     }
     header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
       border-bottom: 1px solid var(--border);
-      padding-bottom: 12px;
+      padding-bottom: 10px;
+      flex-shrink: 0;
     }
-    h1 {
+    .header-left h1 {
       color: var(--trophy);
-      margin: 0 0 6px 0;
-      font-size: 24px;
+      margin: 0 0 2px 0;
+      font-size: 20px;
       display: flex;
       align-items: center;
       gap: 8px;
     }
-    p {
+    .header-left p {
       color: var(--text-muted);
       margin: 0;
-      font-size: 14px;
+      font-size: 13px;
     }
-    .form-group {
+    .player-pill {
+      background: var(--card-alt);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 13px;
       display: flex;
-      flex-direction: column;
+      align-items: center;
       gap: 8px;
     }
-    label {
-      font-size: 13px;
-      color: var(--text-muted);
-      font-weight: 600;
-    }
-    input, textarea {
-      background: var(--card);
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 10px 14px;
-      border-radius: 6px;
-      font-size: 14px;
-      outline: none;
-    }
-    input:focus, textarea:focus {
-      border-color: var(--accent);
-    }
-    button {
-      background: #238636;
-      color: #ffffff;
-      border: none;
-      padding: 10px 18px;
-      border-radius: 6px;
-      font-weight: 600;
-      font-size: 14px;
-      cursor: pointer;
-      align-self: flex-start;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    button:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-    .response-box {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 18px;
-      min-height: 180px;
-      white-space: pre-wrap;
-      font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace;
-      font-size: 13px;
-      line-height: 1.6;
-    }
-    .status {
-      font-size: 12px;
-      color: var(--text-muted);
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .dot {
+    .status-dot {
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: #3fb950;
+      background: var(--success);
     }
-    .dot.streaming {
-      background: #e3b341;
+    .status-dot.active {
+      background: var(--trophy);
       animation: pulse 1s infinite alternate;
     }
-    @keyframes pulse {
-      from { opacity: 0.3; }
-      to { opacity: 1; }
+    @keyframes pulse { from { opacity: 0.3; } to { opacity: 1; } }
+
+    /* CHAT PRINCIPAL */
+    .chat-box {
+      flex: 1;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .msg {
+      max-width: 85%;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+    .msg.user {
+      align-self: flex-end;
+      background: #1f3b5c;
+      color: #ffffff;
+      border: 1px solid #2f5480;
+    }
+    .msg.assistant {
+      align-self: flex-start;
+      background: var(--card-alt);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .msg-author {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    .msg.user .msg-author { color: #8ec2ff; }
+    .msg.assistant .msg-author { color: var(--trophy); }
+
+    /* INPUT ROW */
+    .input-container {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .input-row {
+      display: flex;
+      gap: 10px;
+    }
+    .input-row textarea {
+      flex: 1;
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 12px 14px;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+      resize: none;
+      height: 50px;
+    }
+    .input-row textarea:focus { border-color: var(--accent); }
+    .btn-send {
+      background: #238636;
+      color: #ffffff;
+      border: none;
+      padding: 0 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-send:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .quick-prompts {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
+    .quick-btn {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      border-radius: 14px;
+      padding: 4px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .quick-btn:hover {
+      color: var(--text);
+      border-color: var(--accent);
+    }
+
+    /* PAINEL INFERIOR: O QUE O AGENTE CHAMOU (TOOLS) */
+    .details-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .details-header {
+      background: var(--card-alt);
+      padding: 9px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      user-select: none;
+    }
+    .details-header:hover { color: var(--text); }
+    .details-content {
+      display: none;
+      max-height: 180px;
+      overflow-y: auto;
+      padding: 12px;
+      background: #0d1117;
+      font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .details-content.open { display: block; }
+    .tool-entry {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px dashed #21262d;
+    }
+    .tool-title {
+      color: var(--accent);
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .tool-body {
+      color: #8b949e;
+      white-space: pre-wrap;
     }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>🏆 Platina AI — Chat Streaming Test</h1>
-      <p>Testando endpoint <code>POST /api/v1/chat</code> com Server-Sent Events (SSE) via Groq (120B Model)</p>
+      <div class="header-left">
+        <h1>🏆 Platina AI</h1>
+        <p>Assistente especialista em troféus PlayStation com RAG & ReAct Agent</p>
+      </div>
+      <div class="player-pill">
+        <span class="status-dot" id="statusDot"></span>
+        <span>Conta PSN: <strong>OlliverHunter</strong></span>
+      </div>
     </header>
 
-    <div class="form-group">
-      <label for="game">Jogo (Opcional):</label>
-      <input type="text" id="game" value="Red Dead Redemption 2" placeholder="Ex: Bloodborne, Elden Ring, RDR2">
-    </div>
-
-    <div class="form-group">
-      <label for="message">Sua dúvida sobre a platina:</label>
-      <textarea id="message" rows="3" placeholder="Digite sua pergunta...">Quais troféus posso perder se não fizer as missões de honra antes do final?</textarea>
-    </div>
-
-    <div style="display: flex; justify-content: space-between; align-items: center;">
-      <button id="sendBtn" onclick="sendMessage()">🚀 Enviar Pergunta</button>
-      <div class="status">
-        <span class="dot" id="statusDot"></span>
-        <span id="statusText">Pronto</span>
+    <!-- CHAT REAL COM O AGENTE -->
+    <div class="chat-box" id="chatBox">
+      <div class="msg assistant">
+        <div class="msg-author">Platina AI Agent</div>
+        Olá, OlliverHunter! 👋 Estou monitorando seu progresso de troféus na PSN. Você está atualmente em <strong>Bloodborne (50%)</strong> e <strong>Elden Ring (83%)</strong>.<br><br>
+        Como posso te ajudar na sua sessão de jogo hoje? Pode me perguntar o que fazer a seguir, tirar dúvidas sobre um chefe ou pedir alertas sobre troféus perdíveis (missables)!
       </div>
     </div>
 
-    <div class="response-box" id="output">Aguardando envio...</div>
+    <!-- BOTÕES DE SUGESTÃO -->
+    <div class="quick-prompts">
+      <button class="quick-btn" onclick="setPrompt('Qual o meu próximo passo urgente em Bloodborne pra não perder nenhum troféu?')">⚠️ Próximo passo urgente em Bloodborne</button>
+      <button class="quick-btn" onclick="setPrompt('Como não perder a Lança de Gransax em Elden Ring?')">⚔️ Lança de Gransax em Elden Ring</button>
+      <button class="quick-btn" onclick="setPrompt('Quais troféus ainda faltam eu desbloquear em Bloodborne?')">📋 Troféus pendentes</button>
+    </div>
+
+    <!-- CAMPO DE DIGITAÇÃO -->
+    <div class="input-container">
+      <div class="input-row">
+        <textarea id="userInput" placeholder="Digite sua mensagem para o Platina AI (pressione Enter para enviar)..." onkeydown="handleKey(event)"></textarea>
+        <button class="btn-send" id="sendBtn" onclick="sendChatMessage()">Enviar</button>
+      </div>
+    </div>
+
+    <!-- PAINEL INFERIOR: O QUE O AGENTE CHAMOU (TOOLS, ARGS, OBSERVATIONS) -->
+    <div class="details-box">
+      <div class="details-header" onclick="toggleDetails()">
+        <span id="logSummary">⚙️ Execução Interna do Agente (0 chamadas nesta mensagem)</span>
+        <span id="toggleIcon">▼ Ver chamadas de ferramentas (Tools)</span>
+      </div>
+      <div class="details-content" id="detailsContent">
+        <div style="color: #6e7681;">Nenhuma ferramenta executada ainda. Envie uma mensagem acima para ver o agente chamando a PSN e o banco vetorial em segundo plano.</div>
+      </div>
+    </div>
   </div>
 
   <script>
-    async function sendMessage() {
-      const game = document.getElementById('game').value.trim();
-      const message = document.getElementById('message').value.trim();
-      const output = document.getElementById('output');
+    let isDetailsOpen = false;
+
+    function toggleDetails() {
+      isDetailsOpen = !isDetailsOpen;
+      const content = document.getElementById('detailsContent');
+      const icon = document.getElementById('toggleIcon');
+      if (isDetailsOpen) {
+        content.classList.add('open');
+        icon.textContent = '▲ Ocultar chamadas de ferramentas';
+      } else {
+        content.classList.remove('open');
+        icon.textContent = '▼ Ver chamadas de ferramentas (Tools)';
+      }
+    }
+
+    function setPrompt(text) {
+      const input = document.getElementById('userInput');
+      input.value = text;
+      input.focus();
+    }
+
+    function handleKey(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendChatMessage();
+      }
+    }
+
+    async function sendChatMessage() {
+      const input = document.getElementById('userInput');
+      const text = input.value.trim();
+      if (!text) return;
+
+      const chatBox = document.getElementById('chatBox');
       const sendBtn = document.getElementById('sendBtn');
       const statusDot = document.getElementById('statusDot');
-      const statusText = document.getElementById('statusText');
+      const detailsContent = document.getElementById('detailsContent');
+      const logSummary = document.getElementById('logSummary');
 
-      if (!message) return;
+      // 1. Renderiza mensagem do usuário no chat
+      const userMsgDiv = document.createElement('div');
+      userMsgDiv.className = 'msg user';
+      userMsgDiv.innerHTML = `<div class="msg-author">Você</div>${escapeHtml(text)}`;
+      chatBox.appendChild(userMsgDiv);
+      input.value = '';
+      chatBox.scrollTop = chatBox.scrollHeight;
+
+      // 2. Cria balão de resposta do agente
+      const assistantMsgDiv = document.createElement('div');
+      assistantMsgDiv.className = 'msg assistant';
+      assistantMsgDiv.innerHTML = `<div class="msg-author">Platina AI Agent</div><span class="content">Pensando...</span>`;
+      chatBox.appendChild(assistantMsgDiv);
+      const contentSpan = assistantMsgDiv.querySelector('.content');
+
+      // Limpa os logs técnicos inferiores da mensagem anterior
+      detailsContent.innerHTML = '';
+      let toolCallCount = 0;
+      logSummary.textContent = '⚙️ Executando raciocínio do Agente...';
 
       sendBtn.disabled = true;
-      output.textContent = '';
-      statusDot.className = 'dot streaming';
-      statusText.textContent = 'Recebendo streaming...';
+      statusDot.className = 'status-dot active';
 
       try {
-        const apiUrl = window.location.origin.startsWith('http') ? '/api/v1/chat' : 'http://localhost:3000/api/v1/chat';
-        const response = await fetch(apiUrl, {
+        const response = await fetch('/api/v1/agent/run', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message, game: game || undefined })
+          body: JSON.stringify({
+            message: text,
+            psnId: 'OlliverHunter',
+            game: text.toLowerCase().includes('elden') ? 'Elden Ring' : 'Bloodborne'
+          })
         });
 
-        if (!response.ok) {
-          const errText = await response.text();
-          throw new Error(`HTTP ${response.status} (${response.statusText}): ${errText}`);
-        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder('utf-8');
         let buffer = '';
+        let assistantFullText = '';
 
         while (true) {
           const { done, value } = await reader.read();
@@ -188,31 +366,59 @@
 
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n\n');
-          buffer = lines.pop(); // guarda parte incompleta
+          buffer = lines.pop();
 
           for (const line of lines) {
             if (line.startsWith('data: ')) {
               try {
-                const data = JSON.parse(line.slice(6));
-                if (data.type === 'chunk' && data.content) {
-                  output.textContent += data.content;
-                } else if (data.type === 'error') {
-                  output.textContent += '\n[Erro: ' + data.error + ']';
+                const event = JSON.parse(line.slice(6));
+
+                // A) Logs técnicos de ferramentas vão para a seção inferior
+                if (event.type === 'tool_call') {
+                  toolCallCount++;
+                  logSummary.textContent = `⚙️ Agente chamou: "${event.toolName}" (${toolCallCount} ferramenta(s) executada(s))`;
+                  appendLogEntry(`🔧 Chamada de Ferramenta: ${event.toolName}`, JSON.stringify(event.toolArgs, null, 2));
+                } else if (event.type === 'tool_result') {
+                  appendLogEntry(`📥 Resultado de: ${event.toolName}`, JSON.stringify(event.toolResult, null, 2));
+                } 
+                // B) O texto conversacional vai direto para o balão de chat
+                else if (event.type === 'chunk' && event.content) {
+                  if (contentSpan.textContent === 'Pensando...') {
+                    contentSpan.textContent = '';
+                  }
+                  assistantFullText += event.content;
+                  contentSpan.textContent = assistantFullText;
+                  chatBox.scrollTop = chatBox.scrollHeight;
+                } else if (event.type === 'error') {
+                  contentSpan.textContent += `\n[Erro: ${event.error}]`;
                 }
-              } catch (e) {
-                // não é json válido de evento
-              }
+              } catch (e) {}
             }
           }
         }
-        statusText.textContent = 'Concluído';
+
+        logSummary.textContent = `⚙️ Execução concluída (${toolCallCount} ferramenta(s) executada(s))`;
       } catch (err) {
-        output.textContent += '\n❌ Erro: ' + err.message;
-        statusText.textContent = 'Erro';
+        contentSpan.textContent = `❌ Ocorreu um erro: ${err.message}`;
       } finally {
         sendBtn.disabled = false;
-        statusDot.className = 'dot';
+        statusDot.className = 'status-dot';
+        chatBox.scrollTop = chatBox.scrollHeight;
       }
+    }
+
+    function appendLogEntry(title, body) {
+      const detailsContent = document.getElementById('detailsContent');
+      const entry = document.createElement('div');
+      entry.className = 'tool-entry';
+      entry.innerHTML = `<div class="tool-title">${escapeHtml(title)}</div><div class="tool-body">${escapeHtml(body)}</div>`;
+      detailsContent.appendChild(entry);
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/[&<>'"]/g, 
+        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+      );
     }
   </script>
 </body>
