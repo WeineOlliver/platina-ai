@@ -295,7 +295,7 @@
       </div>
       <div class="player-pill">
         <span class="status-dot" id="statusDot"></span>
-        <span>Conta PSN: <strong>OlliverHunter</strong></span>
+        <span>Conta PSN: <strong>OlliverW9</strong></span>
       </div>
     </header>
 
@@ -304,18 +304,18 @@
       <div class="msg assistant">
         <div class="msg-author">Platina AI Agent</div>
         <div class="content">
-          <p>Olá, <strong>OlliverHunter</strong>! 👋</p>
-          <p>Estou monitorando seu progresso de troféus na PSN. Você está atualmente em <strong>Bloodborne (50%)</strong> e <strong>Elden Ring (83%)</strong>.</p>
-          <p>Como posso te ajudar na sua sessão de jogo hoje? Pode me perguntar o que fazer a seguir, tirar dúvidas sobre um chefe ou pedir alertas sobre troféus perdíveis (<em>missables</em>)!</p>
+          <p>Olá, <strong>OlliverW9</strong>! 🎮</p>
+          <p>Consultei sua conta oficial na <strong>PlayStation Network</strong> em tempo real! Detectei que você já tem <strong>100% no GTA III, Vice City e San Andreas</strong>, e está atualmente com <strong>71% no Grand Theft Auto V (PS5)</strong> com a Platina base já conquistada (57 de 78 troféus)!</p>
+          <p>Você tem 21 troféus pendentes focados nas DLCs de <strong>Golpes (Heists)</strong>, <strong>Doomsday Heist (O Golpe do Juízo Final)</strong> e <strong>Modo Diretor</strong>. Como posso te orientar na sua rota rumo aos 100%?</p>
         </div>
       </div>
     </div>
 
     <!-- BOTÕES DE SUGESTÃO -->
     <div class="quick-prompts">
-      <button class="quick-btn" onclick="setPrompt('Qual o meu próximo passo urgente em Bloodborne pra não perder nenhum troféu?')">⚠️ Próximo passo urgente em Bloodborne</button>
-      <button class="quick-btn" onclick="setPrompt('Como não perder a Lança de Gransax em Elden Ring?')">⚔️ Lança de Gransax em Elden Ring</button>
-      <button class="quick-btn" onclick="setPrompt('Quais troféus ainda faltam eu desbloquear em Bloodborne?')">📋 Troféus pendentes</button>
+      <button class="quick-btn" onclick="setPrompt('Como faço para completar o troféu Masterminds (Gênio do Crime) no Doomsday Heist sem resetar o progresso?')">💀 Masterminds no Doomsday Heist</button>
+      <button class="quick-btn" onclick="setPrompt('Quais troféus de Golpes do GTA V ainda faltam eu desbloquear?')">🏦 Golpes Pendentes</button>
+      <button class="quick-btn" onclick="setPrompt('Como desbloquear o troféu Cryptozoologist no Modo Diretor?')">🦁 Troféu Criptozoologista</button>
     </div>
 
     <!-- CAMPO DE DIGITAÇÃO -->
@@ -413,8 +413,8 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             message: text,
-            psnId: 'OlliverHunter',
-            game: text.toLowerCase().includes('elden') ? 'Elden Ring' : 'Bloodborne'
+            psnId: 'OlliverW9',
+            game: 'Grand Theft Auto V'
           })
         });
 
