@@ -594,6 +594,23 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"I developed our automated deployment pipeline using Helm and GitHub Actions. Incorporating atomic rolling updates and post-deploy rollout status checks, it guarantees that bad releases are detected and rolled back before impacting active users."*
 
+---
+
+### [2026-10-16] — Milestone 6: System Architecture Diagram & Technical Design (`docs/architecture.md`)
+- **What I built/configured:**
+  - Authored comprehensive architecture document `docs/architecture.md` containing three detailed Mermaid diagrams:
+    1. **High-Level System Topology:** Client tier, Ingress, Kubernetes pods (API, Ingest, MCP), external Groq LLM inference, and private AWS RDS pgvector storage.
+    2. **ReAct Agent Execution Sequence Diagram:** Step-by-step trace showing user prompt, tool selection, player progress lookup, vector retrieval, and final SSE stream.
+    3. **Defense-in-Depth Security Diagram:** Security group chaining across public, private compute, and database subnets.
+  - Documented core technical design takeaways directly relevant for Senior Software Engineer interviews.
+- **Key concepts learned:**
+  - Visualizing sequence flows and security group boundaries clarifies complex distributed interactions for code reviews and architecture walkthroughs.
+- **Problems faced & how they were solved:**
+  - Standardized Mermaid syntax and clear color styling classes for dark and light background readability on GitHub.
+- **Interview Soundbite:**
+  - *"I authored our complete architecture documentation featuring high-level system, ReAct sequence, and network isolation diagrams. This provides technical interviewers with an immediate visual roadmap of our polyglot services, agent loops, and AWS cloud topology."*
+
+
 
 
 

@@ -711,6 +711,22 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"Our CD pipeline uses Helm's atomic upgrade capabilities to guarantee zero-downtime rolling updates. The deployment actively awaits Kubernetes readiness probes across our API and Ingest pods; if a failure occurs, Helm automatically rolls back to the prior stable release, protecting users against regressions."*
 
+---
+
+### Q52: System Design: Explaining the End-to-End Platina AI Architecture in Interviews
+> **"Walk me through the end-to-end architecture of Platina AI from the client request to the vector database and LLM inference."**
+
+- **Core Concept:** A senior system design answer follows a clear, structured progression: Client Tier -> Ingress/Security -> Application Services -> AI/RAG Pipeline -> Storage & FinOps.
+- **Narrative Structure:**
+  1. **Clients & Protocols:** Web clients connect via HTTP POST receiving real-time SSE event frames; developer tools (Claude Desktop) connect via Model Context Protocol (MCP) over stdio JSON-RPC.
+  2. **Ingress & Defense-in-Depth:** Requests hit an Application Load Balancer in public subnets, routed through security-group-chained private subnets to Kubernetes pods (NodePort/ClusterIP).
+  3. **Application & Agent Reasoning:** The Node.js Fastify API runs an asynchronous ReAct agent loop. It evaluates user queries and dynamically invokes tools (`check_player_progress` and `search_trophy_guides`) rather than naively stuffing prompts.
+  4. **Semantic RAG & Storage:** The Python FastAPI microservice receives tool queries, converts text to 1536-dimensional L2-normalized embeddings, and performs cosine distance searches (`<=>`) over PostgreSQL `pgvector` accelerated by an HNSW index.
+  5. **Inference & Observability:** The agent feeds verified snippets to a 120B parameter model on Groq, streaming tactical missable warnings back to the player with zero cloud runtime costs.
+- **60-Second Interview Soundbite:**
+  > *"Platina AI combines a Node.js Fastify API for real-time SSE streaming with a Python microservice for semantic vector retrieval over PostgreSQL pgvector. When a player asks for guidance, our ReAct agent autonomously queries live PSN trophy progress, identifies pending missables, searches our HNSW vector index, and streams tactical advice from a 120B LLM—all deployed declaratively via Helm and Terraform on AWS."*
+
+
 
 
 
