@@ -1,0 +1,56 @@
+# Production AWS Overlay values for Platina AI Helm Chart
+# Overrides local container images and switches to managed AWS RDS PostgreSQL
+
+global:
+  environment: prod
+  namespace: platina
+
+# In AWS, disable the in-cluster PostgreSQL deployment in favor of managed RDS PostgreSQL
+postgres:
+  enabled: false
+  service:
+    port: 5432
+  auth:
+    database: platina_rag
+    username: platina_admin
+
+# Python Ingest Microservice pulling from AWS ECR
+ingest:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: 590184022238.dkr.ecr.us-east-1.amazonaws.com/platina-ai/ingest
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 8000
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+# Node.js / Fastify Main API pulling from AWS ECR
+api:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: 590184022238.dkr.ecr.us-east-1.amazonaws.com/platina-ai/api
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 3000
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  env:
+    aiProvider: "groq"
+    groqModel: "openai/gpt-oss-120b"

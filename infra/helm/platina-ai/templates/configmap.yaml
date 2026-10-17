@@ -12,6 +12,6 @@ data:
   INGESTION_SERVICE_URL: "http://{{ .Release.Name }}-ingest:{{ .Values.ingest.service.port }}"
   AI_PROVIDER: {{ .Values.api.env.aiProvider | quote }}
   GROQ_MODEL: {{ .Values.api.env.groqModel | quote }}
-  POSTGRES_HOST: "{{ .Release.Name }}-postgres"
+  POSTGRES_HOST: {{ default (printf "%s-postgres" .Release.Name) .Values.postgres.host | quote }}
   POSTGRES_PORT: "{{ .Values.postgres.service.port }}"
   POSTGRES_DB: {{ .Values.postgres.auth.database | quote }}

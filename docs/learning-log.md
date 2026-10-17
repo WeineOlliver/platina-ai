@@ -516,6 +516,22 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"I configured our private container registries in Amazon ECR with immutable tags, automated CVE scanning on push, and retention lifecycle rules. By establishing least-privilege IAM policies for GitHub Actions, we secure the artifact pipeline from pull request to Kubernetes deployment."*
 
+---
+
+### [2026-10-16] — Milestone 5: AWS Application Deployment via Helm (`helm_release.tf` & `values.aws.yaml`)
+- **What I built/configured:**
+  - Authored production overlay `infra/helm/platina-ai/values.aws.yaml`: disabled internal cluster PostgreSQL and switched to managed AWS RDS with dual pod replicas and Always pull policy from Amazon ECR.
+  - Added Terraform `helm` and `kubernetes` provider requirements in `versions.tf`.
+  - Configured declarative `helm_release.platina_ai` resource (`helm_release.tf`) dynamically passing live RDS endpoints, generated passwords, and ECR repository URLs directly into Helm chart values.
+  - Verified chart parsing with `helm lint -f values.aws.yaml` and validated OpenTofu provider configurations via `tofu init` and `tofu validate`.
+- **Key concepts learned:**
+  - Eliminating the "infrastructure vs application" deployment split by treating Helm releases as dependent graph nodes in Terraform.
+- **Problems faced & how they were solved:**
+  - Dynamic ConfigMap templating: added `default (printf "%s-postgres" .Release.Name) .Values.postgres.host` so the chart seamlessly supports either local cluster PostgreSQL or external AWS RDS without code duplication.
+- **Interview Soundbite:**
+  - *"I unified our application deployment into our Terraform pipeline using the Helm provider. By dynamically wiring live RDS endpoints, generated database secrets, and ECR URLs into our Helm release, we guarantee seamless cloud configuration and zero-friction teardowns."*
+
+
 
 
 
