@@ -618,6 +618,22 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"To optimize cloud infrastructure costs without sacrificing architecture quality, we deploy certified k3s onto an AWS Graviton2 EC2 instance using Terraform. This slashes our monthly baseline by over 90% by eliminating EKS control plane fees, while our IAM instance profiles, Systems Manager session access, and standardized Helm charts ensure zero operational drift from production EKS."*
 
+---
+
+### Q46: Container Registry Governance: ECR Tag Immutability, Automated CVE Scanning & Lifecycle Policies
+> **"How do you design container registry storage (Amazon ECR) to guarantee build reproducibility, security compliance, and cost control?"**
+
+- **Core Concept:** An unmanaged container registry quickly becomes a bloated security vulnerability, storing hundreds of untracked gigabytes with mutable images that break reproducibility.
+- **Three Pillar ECR Governance:**
+  1. **Image Tag Immutability (`IMMUTABLE`):** Prevents rewriting existing tags (e.g. `v1.2.0`). Guarantees that the container running in production is bit-for-bit identical to the artifact that passed CI tests. Rollbacks can reliably trust that earlier tags were not poisoned.
+  2. **Automated Vulnerability Scanning (`scan_on_push = true`):** Integrates with AWS native scanning (powered by Clair/Inspector) to index CVEs across OS packages and application dependencies upon every push.
+  3. **Lifecycle Pruning (`aws_ecr_lifecycle_policy`):**
+     - Automatically purges untagged intermediate layer images older than 7 days.
+     - Retains only the last 15 tagged releases, preventing runaway S3 storage costs.
+- **60-Second Interview Soundbite:**
+  > *"In Amazon ECR, we enforce image tag immutability to prevent tag overwriting and guarantee deterministic rollbacks. We enable automated scan-on-push to identify CVEs before pods deploy to Kubernetes, and attach lifecycle policies that expire untagged image layers after 7 days, controlling registry storage costs while preserving an audit trail of our last 15 releases."*
+
+
 
 
 

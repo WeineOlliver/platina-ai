@@ -500,6 +500,23 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"I architected our cloud Kubernetes cluster using Terraform, deploying certified k3s to an AWS Graviton2 EC2 instance with IAM instance profiles and SSM Session Manager access. This delivers enterprise Kubernetes capabilities while saving over 90% in monthly cloud infrastructure expenses."*
 
+---
+
+### [2026-10-16] — Milestone 5: Amazon ECR Repositories, Lifecycle Rules & CI/CD IAM (`ecr.tf`)
+- **What I built/configured:**
+  - `aws_ecr_repository` for `platina-ai/api` and `platina-ai/ingest` with `image_tag_mutability = "IMMUTABLE"` and KMS encryption.
+  - Enabled continuous security scanning with `scan_on_push = true`.
+  - Configured `aws_ecr_lifecycle_policy` expiring untagged layers after 7 days and retaining the 15 latest versioned releases.
+  - Created dedicated IAM policy `platina-cicd-ecr-push` providing GitHub Actions runners with least-privilege image upload capabilities.
+  - Exported registry URLs and policy ARNs in `outputs.tf` and validated with `tofu validate`.
+- **Key concepts learned:**
+  - Tag immutability guarantees production determinism: teams cannot accidentally overwrite an image tag already running in Kubernetes.
+- **Problems faced & how they were solved:**
+  - Crafted multi-rule lifecycle policies addressing untagged garbage layers separately from versioned release tags.
+- **Interview Soundbite:**
+  - *"I configured our private container registries in Amazon ECR with immutable tags, automated CVE scanning on push, and retention lifecycle rules. By establishing least-privilege IAM policies for GitHub Actions, we secure the artifact pipeline from pull request to Kubernetes deployment."*
+
+
 
 
 

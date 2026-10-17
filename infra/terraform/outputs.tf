@@ -63,4 +63,20 @@ output "k3s_server_instance_id" {
   value       = aws_instance.k3s_server.id
 }
 
+output "ecr_repository_api_url" {
+  description = "Registry repository URL for Platina AI Node.js API"
+  value       = aws_ecr_repository.api.repository_url
+}
+
+output "ecr_repository_ingest_url" {
+  description = "Registry repository URL for Platina AI Python Ingestion service"
+  value       = aws_ecr_repository.ingest.repository_url
+}
+
+output "cicd_ecr_policy_arn" {
+  description = "The ARN of the IAM policy for CI/CD container pushes"
+  value       = aws_iam_policy.cicd_ecr_push.arn
+}
+
+
 
