@@ -26,6 +26,7 @@ export interface PlayerProgressData {
     chapter_or_location?: string | undefined;
     trophy_type: string;
   }>;
+  unearned_trophies_summary?: string[];
   recently_unlocked: Array<{
     trophy_name: string;
     unlocked_at?: string | undefined;
@@ -74,7 +75,7 @@ export class PlayerProgressTool {
     const { psnId, game } = validated.data;
 
     // First attempt: live crawl via PlayStation Network Worker (if configured)
-    if (process.env.PSN_WORKER_NPSSO) {
+    if (env.PSN_WORKER_NPSSO || process.env.PSN_WORKER_NPSSO) {
       try {
         const liveData = await psnCrawlerService.getPlayerTrophies(psnId, game);
         const unlocked = liveData.trophies.filter(t => t.isUnlocked);
@@ -95,6 +96,7 @@ export class PlayerProgressTool {
             chapter_or_location: t.chapterOrLocation || undefined,
             trophy_type: t.type
           })),
+          unearned_trophies_summary: pending.slice(0, 15).map(t => `${t.name} (${t.type}): ${t.detail}`),
           recently_unlocked: unlocked.slice(-3).map(t => ({
             trophy_name: t.name,
             unlocked_at: t.earnedDateTime || undefined

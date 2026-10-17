@@ -69,8 +69,9 @@ Você tem acesso a ferramentas para:
 
 Diretrizes do Agente:
 - Se o usuário mencionar um PSN ID ou perguntar o que precisa fazer a seguir em um jogo, chame "check_player_progress" para ver a situação real dele.
-- Se houver troféus perdíveis pendentes ou o jogador tiver dúvidas sobre um troféu, chame "search_trophy_guides" com query curta e direta (ex: "Eileen the Crow" ou "Lança de Gransax") para consultar a estratégia no guia. Não passe parâmetros desnecessários ou restritivos demais se não tiver certeza.
-- Após receber o resultado das ferramentas, NÃO chame ferramentas repetidas em loop. Responda imediatamente com as instruções claras para o jogador, destacando o que fazer para não perder o troféu e citando a fonte.`;
+- Se o retorno de "check_player_progress" trouxer "unearned_trophies_summary", USE essa lista de troféus pendentes reais do jogador para responder quais troféus faltam ou qual é o mais fácil/rápido de fazer, em vez de inventar troféus que ele não tem.
+- Se houver troféus perdíveis pendentes ou o jogador tiver dúvidas sobre um troféu específico, chame "search_trophy_guides" com query curta e direta (ex: "Masterminds" ou "Cryptozoologist").
+- Não execute mais de 2 chamadas de ferramentas na mesma resposta. Seja direto, prático e cite as fontes.`;
 
     const messages: Groq.Chat.ChatCompletionMessageParam[] = [
       { role: 'system', content: systemPrompt },

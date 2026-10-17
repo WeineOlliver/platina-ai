@@ -25,20 +25,22 @@ export interface PsnTrophySyncResult {
   }>;
 }
 
+import { env } from '../../config/env.js';
+
 export class PsnCrawlerService {
   private authTokens: any = null;
-  private npsso: string;
 
-  constructor() {
-    this.npsso = process.env.PSN_WORKER_NPSSO || '';
+  private getNpsso(): string {
+    return env.PSN_WORKER_NPSSO || process.env.PSN_WORKER_NPSSO || '';
   }
 
   private async getAuth() {
-    if (!this.npsso) {
+    const npsso = this.getNpsso();
+    if (!npsso) {
       throw new Error('PSN_WORKER_NPSSO não configurado nas variáveis de ambiente.');
     }
     if (!this.authTokens) {
-      const accessCode = await exchangeNpssoForCode(this.npsso);
+      const accessCode = await exchangeNpssoForCode(npsso);
       this.authTokens = await exchangeCodeForAccessToken(accessCode);
     }
     return this.authTokens;
