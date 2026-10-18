@@ -536,3 +536,72 @@ async def test_fetch_game_guide_with_subpages_browser_fallback_on_403():
         assert url == test_url
 
 
+@pytest.mark.anyio
+async def test_fetch_and_index_syncs_player_trophies_missables(async_client):
+    from src.database import get_db_session
+    from sqlalchemy import text
+    from unittest.mock import patch
+
+    game_title = "Sync Test Game"
+    player_id = "ply_sync_test"
+    player_game_id = "pg_sync_test"
+    trophy_id = "tr_sync_test_01"
+    trophy_name = "Crucial Missable Trophy"
+
+    # Setup DB rows
+    async with get_db_session() as session:
+        await session.execute(
+            text("INSERT INTO players (id, psn_id, email) VALUES (:pid, :psn, :email) ON CONFLICT DO NOTHING"),
+            {"pid": player_id, "psn": "sync_player", "email": "sync@test.com"},
+        )
+        await session.execute(
+            text("INSERT INTO player_games (id, player_id, game_title) VALUES (:gid, :pid, :game) ON CONFLICT DO NOTHING"),
+            {"gid": player_game_id, "pid": player_id, "game": game_title},
+        )
+        await session.execute(
+            text(
+                "INSERT INTO player_trophies (id, player_game_id, trophy_name, trophy_type, trophy_category, is_missable) "
+                "VALUES (:tid, :gid, :tname, 'bronze', 'standard', false) "
+                "ON CONFLICT (player_game_id, trophy_name) DO UPDATE SET is_missable = false, trophy_category = 'standard'"
+            ),
+            {"tid": trophy_id, "gid": player_game_id, "tname": trophy_name},
+        )
+
+    mock_guide_markdown = f"""# {game_title} Guide
+## Troféus Perdíveis (Missable Trophies)
+### {trophy_name}
+Atenção: Troféu perdível (missable)! Não avance antes de coletar.
+"""
+
+    mock_pages = [("Guide Title", mock_guide_markdown, "https://example.com/guide")]
+
+    try:
+        with patch("src.services.scraper.scraper.fetch_game_guide_with_subpages", return_value=mock_pages):
+            resp = await async_client.post(
+                "/api/v1/ingest/fetch-and-index",
+                json={"game": game_title, "force_reindex": True},
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["status"] == "indexed"
+            assert trophy_name in data.get("missables_synced", [])
+
+            # Verify in player_trophies table
+            async with get_db_session() as session:
+                res = await session.execute(
+                    text("SELECT is_missable, trophy_category FROM player_trophies WHERE id = :tid"),
+                    {"tid": trophy_id},
+                )
+                row = res.fetchone()
+                assert row is not None
+                assert row[0] is True, "is_missable should be updated to True"
+                assert row[1] == "missable", "trophy_category should be updated to 'missable'"
+    finally:
+        async with get_db_session() as session:
+            await session.execute(text("DELETE FROM player_trophies WHERE id = :tid"), {"tid": trophy_id})
+            await session.execute(text("DELETE FROM player_games WHERE id = :gid"), {"gid": player_game_id})
+            await session.execute(text("DELETE FROM players WHERE id = :pid"), {"pid": player_id})
+            await session.execute(text("DELETE FROM guide_chunks WHERE game ILIKE :game"), {"game": game_title})
+
+
+

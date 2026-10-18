@@ -95,6 +95,8 @@ class TrophyGuideScraper:
         "stage 3", "stage 4", "trophy guide", "roadmap overview",
         "playstation", "xbox", "steam", "pc", "comments", "leave a reply",
         "all trophies", "platinum trophy",
+        "basics", "side quests", "miscellaneous", "story-related",
+        "things that could go wrong", "things that could go wrong / what is missable",
     }
 
     def __init__(self, timeout: float = 10.0):
@@ -225,7 +227,7 @@ class TrophyGuideScraper:
         name = re.sub(r"<[^>]+>", "", name)
         name = re.sub(r"^(?:#{1,6}|\*|-|\d+\.)\s*", "", name)
         name = re.sub(r"^(?:missable|perd[ií]vel|trof[eé]u\s+perd[ií]vel)\s*[:\-]\s*", "", name, flags=re.IGNORECASE)
-        name = re.sub(r"\s*[\[\(]?(?:missable|perd[ií]vel)[\]\)]?", "", name, flags=re.IGNORECASE)
+        name = re.sub(r"\s*[\[\(]\s*(?:missable|perd[ií]vel)\s*[\]\)]", "", name, flags=re.IGNORECASE)
         name = re.sub(r"\s*-\s*(?:missable|perd[ií]vel)$", "", name, flags=re.IGNORECASE)
         name = name.strip(" \t\n\r\"'`:.-")
         return name
@@ -238,7 +240,7 @@ class TrophyGuideScraper:
             return False
         if re.match(r"^\d+$", lower):
             return False
-        if any(term in lower for term in ["guide", "roadmap", "walkthrough", "trophy list"]):
+        if any(term in lower for term in ["guide", "roadmap", "walkthrough", "trophy list", "troféus perdíveis", "trofeus perdiveis", "missable trophies", "passos da platina"]):
             return False
         if lower.startswith(("http://", "https://", "www.")):
             return False
@@ -365,12 +367,27 @@ class TrophyGuideScraper:
                         for item in re.split(r"[,;]", rest):
                             add_candidate(item)
 
+        # Paragraphs or sections containing explicit missable trophy notices
+        for p in soup.find_all(["p", "div", "li", "tr"]):
+            p_text = p.get_text()
+            if re.search(r"\b(?:is\s+(?:highly\s+)?missable|trof[eé]u\s+perd[ií]vel|missable\s+trophy)\b", p_text, re.IGNORECASE):
+                lines = [l.strip() for l in p_text.splitlines() if l.strip()]
+                if lines:
+                    first_line = lines[0]
+                    if not any(k in first_line.lower() for k in ["things that could", "playlist", "click here", "warning"]):
+                        add_candidate(first_line)
+
         # Markdown headings / bullet points
+        current_heading = None
         for line in text.splitlines():
             line_s = line.strip()
-            if re.search(r"\b(?:missable|perd[ií]vel)\b", line_s, re.IGNORECASE):
+            if re.match(r"^#{1,6}\s+", line_s):
+                current_heading = re.sub(r"^#{1,6}\s+", "", line_s).strip()
+            elif re.search(r"\b(?:missable|perd[ií]vel)\b", line_s, re.IGNORECASE):
                 if re.match(r"^(?:#{1,6}|\*|-)\s*", line_s):
                     add_candidate(line_s)
+                elif current_heading:
+                    add_candidate(current_heading)
 
         # 5. Subpage links
         subpage_urls = self.discover_subpages(html, base_url) if base_url else []
@@ -462,6 +479,11 @@ class TrophyGuideScraper:
         Caps at 15 subpages.
         """
         soup = BeautifulSoup(main_html, "html.parser")
+        for tag in soup.find_all(["aside", "footer", "header", "nav"]):
+            tag.decompose()
+        for tag in soup.find_all(class_=lambda c: c and any(x in " ".join(c).lower() for x in ["sidebar", "widget", "recent-post"])):
+            tag.decompose()
+
         base_clean = urldefrag(base_url)[0].rstrip("/")
         discovered: list[str] = []
         seen = set()
@@ -493,8 +515,11 @@ class TrophyGuideScraper:
             if "share=" in parsed.query.lower():
                 continue
 
-            # Filter out base/main URL itself
+            # Filter out base/main URL itself or generic index pages
             if clean_url.rstrip("/") == base_clean:
+                continue
+
+            if any(clean_url.rstrip("/").endswith(root) for root in ["/trophy-guide", "/trophy-guides", "/guides", "/guide", "/upcoming-guides", "/trophy-lists"]):
                 continue
 
             # Match valid subpage patterns
@@ -533,6 +558,15 @@ class TrophyGuideScraper:
             elif elem.name == "li":
                 md_lines.append(f"- {text}")
             elif elem.name == "p":
+                cls = elem.get("class") or []
+                lines = [l.strip() for l in text.splitlines() if l.strip()]
+                if any(c in ["style96", "style93", "trophy-entry"] for c in cls) and lines:
+                    title_candidate = lines[0]
+                    if self._is_valid_trophy_name(title_candidate) and len(title_candidate) < 70 and not title_candidate.lower().startswith(("the playlist", "click here", "things that could")):
+                        md_lines.append(f"\n### {title_candidate}\n")
+                        if len(lines) > 1:
+                            md_lines.append("\n".join(lines[1:]) + "\n")
+                        continue
                 md_lines.append(f"\n{text}\n")
 
         markdown = "\n".join(md_lines).strip()

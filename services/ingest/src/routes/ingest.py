@@ -1,9 +1,10 @@
 from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Any
 import hashlib
-from sqlalchemy import select, func, delete
+from sqlalchemy import select, func, delete, update
 from src.database import get_db_session
 from src.models.chunk import GuideChunkModel
+from src.models.player import PlayerGameModel, PlayerTrophyModel
 from src.schemas.chunk import IngestGuideRequest, DocumentChunk, FetchAndIndexRequest
 from src.schemas.search import SearchQueryRequest, SearchResponse
 from src.services.chunker import chunker
@@ -149,12 +150,54 @@ async def fetch_and_index_guide(request: FetchAndIndexRequest):
                 )
                 session.add(record)
 
+        # 6. Extract missable trophies from parsed pages & roadmap DOM, then update player_trophies
+        discovered_missables: set[str] = set()
+        for page_title, page_markdown, page_url in pages:
+            dom_data = scraper.parse_roadmap_dom(page_markdown, base_url=page_url)
+            for m in dom_data.get("missable_trophies", []):
+                discovered_missables.add(m)
+
+        for c in all_chunks:
+            if c.is_missable and c.title:
+                norm = scraper._normalize_trophy_name(c.title)
+                if scraper._is_valid_trophy_name(norm):
+                    discovered_missables.add(norm)
+
+        updated_count = 0
+        if discovered_missables:
+            async with get_db_session() as session:
+                game_clean = request.game.strip()
+                pg_stmt = select(PlayerGameModel.id).where(
+                    (PlayerGameModel.game_title.ilike(game_clean))
+                    | (PlayerGameModel.game_title.ilike(f"%{game_clean}%"))
+                )
+                pg_res = await session.execute(pg_stmt)
+                game_ids = [r[0] for r in pg_res.fetchall()]
+
+                lower_names = [m.lower().strip() for m in discovered_missables]
+                update_stmt = (
+                    update(PlayerTrophyModel)
+                    .where(
+                        func.lower(PlayerTrophyModel.trophy_name).in_(lower_names)
+                    )
+                )
+                if game_ids:
+                    update_stmt = update_stmt.where(PlayerTrophyModel.player_game_id.in_(game_ids))
+                update_stmt = update_stmt.values(
+                    is_missable=True,
+                    trophy_category="missable"
+                )
+                res = await session.execute(update_stmt)
+                updated_count = res.rowcount or 0
+
         return {
             "status": "indexed",
             "game": request.game,
             "chunks_indexed": len(all_chunks),
             "pages_indexed": len(pages),
             "source_url": canonical_url,
+            "missables_synced": list(discovered_missables),
+            "trophies_updated": updated_count,
         }
     except Exception as e:
         if isinstance(e, HTTPException):

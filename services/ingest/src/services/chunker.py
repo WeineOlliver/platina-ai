@@ -96,21 +96,24 @@ class TrophyGuideChunker:
             end = min(start + self.max_chunk_size, text_len)
 
             if end < text_len:
-                # Try to break at a newline or period near the end
-                split_at = text.rfind("\n\n", start, end)
-                if split_at == -1 or split_at <= start:
-                    split_at = text.rfind(". ", start, end)
-                if split_at != -1 and split_at > start:
+                # Try to break at a newline or period near the end (only in the forward region)
+                min_break = start + self.chunk_overlap
+                split_at = text.rfind("\n\n", min_break, end)
+                if split_at == -1:
+                    split_at = text.rfind(". ", min_break, end)
+                if split_at != -1 and split_at > min_break:
                     end = split_at + 1
 
             chunk_text = text[start:end].strip()
             if chunk_text:
                 chunks.append(chunk_text)
 
-            # Advance by step size minus overlap
-            start = end - self.chunk_overlap
-            if start >= end:
-                start = end
+            if end >= text_len:
+                break
+
+            # Advance by step size minus overlap, ensuring strict forward progress
+            next_start = end - self.chunk_overlap
+            start = max(next_start, start + 1)
 
         return chunks
 
