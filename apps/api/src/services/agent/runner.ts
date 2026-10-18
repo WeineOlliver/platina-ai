@@ -8,6 +8,7 @@ import {
 } from './tools/playerProgress.js';
 import { searchGuidesTool, SearchGuidesTool, type SearchGuidesParams } from './tools/searchGuides.js';
 import { groundingValidator } from './validator.js';
+import { executeWithModelCascade, DEFAULT_MODEL_CASCADE } from '../llm/fallback.js';
 
 export interface AgentStepEvent {
   type: 'thought' | 'tool_call' | 'tool_result' | 'chunk' | 'done' | 'error';
@@ -111,6 +112,11 @@ Sua resposta final deve ter no total MENOS DE 120 PALAVRAS.`;
       { role: 'user', content: userMessage },
     ];
 
+    const cascadeModels = [
+      this.model,
+      ...DEFAULT_MODEL_CASCADE.filter((m) => m !== this.model),
+    ];
+
     const collectedGuideSources: Array<{ content: string; title: string }> = [];
 
     const verifyAndStreamAnswer = async (
@@ -140,12 +146,16 @@ Sua resposta final deve ter no total MENOS DE 120 PALAVRAS.`;
             },
           ];
 
-          const correctiveCompletion = await this.client.chat.completions.create(
-            {
-              model: this.model,
-              messages: correctiveMessages,
-            },
-            { signal: options.signal }
+          const correctiveCompletion = await executeWithModelCascade(
+            cascadeModels,
+            (model) =>
+              this.client!.chat.completions.create(
+                {
+                  model,
+                  messages: correctiveMessages,
+                },
+                { signal: options.signal }
+              )
           );
 
           const corrected = correctiveCompletion.choices[0]?.message?.content;
@@ -172,14 +182,18 @@ Sua resposta final deve ter no total MENOS DE 120 PALAVRAS.`;
       }
       step++;
 
-      const completion = await this.client.chat.completions.create(
-        {
-          model: this.model,
-          messages,
-          tools: this.getAvailableTools(),
-          tool_choice: 'auto',
-        },
-        { signal: options.signal }
+      const completion = await executeWithModelCascade(
+        cascadeModels,
+        (model) =>
+          this.client!.chat.completions.create(
+            {
+              model,
+              messages,
+              tools: this.getAvailableTools(),
+              tool_choice: 'auto',
+            },
+            { signal: options.signal }
+          )
       );
 
       const choice = completion.choices[0];
@@ -297,18 +311,22 @@ Sua resposta final deve ter no total MENOS DE 120 PALAVRAS.`;
     }
 
     // If max steps reached without final text, generate a direct answer from collected messages
-    const fallbackCompletion = await this.client.chat.completions.create(
-      {
-        model: this.model,
-        messages: [
-          ...messages,
+    const fallbackCompletion = await executeWithModelCascade(
+      cascadeModels,
+      (model) =>
+        this.client!.chat.completions.create(
           {
-            role: 'user',
-            content: 'Sintetize agora a sua resposta final com base em todas as ferramentas que você executou acima.',
+            model,
+            messages: [
+              ...messages,
+              {
+                role: 'user',
+                content: 'Sintetize agora a sua resposta final com base em todas as ferramentas que você executou acima.',
+              },
+            ],
           },
-        ],
-      },
-      { signal: options.signal }
+          { signal: options.signal }
+        )
     );
     const fallbackRawContent = fallbackCompletion.choices[0]?.message?.content ?? '';
     const verifiedContent = await verifyAndStreamAnswer(fallbackRawContent, messages);

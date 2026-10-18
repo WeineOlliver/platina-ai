@@ -90,8 +90,9 @@ export const agentRoutes: FastifyPluginAsync = async (app) => {
       }
     } catch (err: unknown) {
       request.log.error({ err }, 'Erro no loop do agente');
+      const errorDetail = err instanceof Error ? err.message : String(err);
       if (!reply.raw.destroyed) {
-        reply.raw.write(`event: error\ndata: ${JSON.stringify({ error: 'Erro no loop do agente' })}\n\n`);
+        reply.raw.write(`event: error\ndata: ${JSON.stringify({ error: errorDetail })}\n\n`);
       }
     } finally {
       if (!reply.raw.destroyed) {
