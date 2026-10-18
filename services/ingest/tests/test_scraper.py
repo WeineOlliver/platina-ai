@@ -369,3 +369,170 @@ async def test_multi_source_domain_fallback_handles_http_errors():
         assert "Roadmap Overview" in main_markdown or "Test Scraped Game" in main_title
         assert "Passos da Platina" in main_markdown
 
+
+@pytest.mark.anyio
+async def test_parse_roadmap_dom_psnprofiles_structure():
+    scraper_instance = TrophyGuideScraper()
+
+    psn_html = """
+    <html>
+      <body>
+        <div class="trophy-info">
+          <dl>
+            <dt>Difficulty</dt>
+            <dd>4/10</dd>
+            <dt>Playthroughs</dt>
+            <dd>2</dd>
+            <dt>Estimated Time</dt>
+            <dd>50 hours</dd>
+          </dl>
+        </div>
+        <table class="trophy-list">
+          <tr class="trophy-row">
+            <td class="title"><a class="title" href="/trophies/1-master-of-the-arena">Master of the Arena</a></td>
+            <td><span class="tag missable">Missable</span></td>
+          </tr>
+          <tr class="trophy-row">
+            <td class="title"><a class="title" href="/trophies/2-full-crew">Full Crew</a></td>
+            <td><span class="tag missable">Missable</span></td>
+          </tr>
+          <tr class="trophy-row">
+            <td class="title"><a class="title" href="/trophies/3-passed-the-trial">Passed the Trial</a></td>
+            <td><span class="tag story">Story</span></td>
+          </tr>
+        </table>
+        <a href="/guide/123-the-witcher-3-collectibles">Collectibles Guide</a>
+      </body>
+    </html>
+    """
+
+    res = scraper_instance.parse_roadmap_dom(psn_html, base_url="https://psnprofiles.com")
+
+    assert res["difficulty"] == "4/10"
+    assert res["playthroughs"] == 2
+    assert res["time_estimate"] == "50 hours"
+    assert res["missable_trophies"] == ["Master of the Arena", "Full Crew"]
+    assert "Passed the Trial" not in res["missable_trophies"]
+    assert any("collectibles" in u for u in res["subpage_urls"])
+
+
+@pytest.mark.anyio
+async def test_parse_roadmap_dom_powerpyx_structure():
+    scraper_instance = TrophyGuideScraper()
+
+    powerpyx_html = """
+    <html>
+      <body>
+        <div class="entry-content">
+          <p><strong>Estimated trophy difficulty:</strong> 5/10</p>
+          <p><strong>Minimum Playthroughs:</strong> 1</p>
+          <p><strong>Approximate amount of time to platinum:</strong> 70-80 hours</p>
+          <p><strong>Number of missable trophies:</strong> 2 – <a href="#card-collector">Card Collector</a>, <a href="#woodland-spirit">Woodland Spirit</a></p>
+          <h3 class="entry-title"><a name="card-collector"></a>Card Collector</h3>
+          <p><span class="missable">MISSABLE</span></p>
+          <p>Acquire all gwent cards.</p>
+          <h3 class="entry-title"><a name="woodland-spirit"></a>Woodland Spirit</h3>
+          <p><strong>[Missable]</strong></p>
+          <p>Contract trophy.</p>
+          <h3 class="entry-title">Geralt and Friends</h3>
+          <p>Win a round of gwent using only neutral cards.</p>
+          <a href="https://www.powerpyx.com/the-witcher-3-all-gwent-cards-guide/">All Gwent Cards Guide</a>
+        </div>
+      </body>
+    </html>
+    """
+
+    res = scraper_instance.parse_roadmap_dom(powerpyx_html, base_url="https://www.powerpyx.com")
+
+    assert res["difficulty"] == "5/10"
+    assert res["playthroughs"] == 1
+    assert "70-80 hours" in res["time_estimate"]
+    assert res["missable_trophies"] == ["Card Collector", "Woodland Spirit"]
+    assert "Geralt and Friends" not in res["missable_trophies"]
+    assert any("gwent" in u for u in res["subpage_urls"])
+
+
+@pytest.mark.anyio
+async def test_discover_guide_urls_powerpyx_search_and_fallback():
+    scraper_instance = TrophyGuideScraper()
+
+    search_results_html = """
+    <html>
+      <body>
+        <article>
+          <h2 class="entry-title">
+            <a href="https://www.powerpyx.com/the-witcher-3-wild-hunt-trophy-guide-roadmap/">The Witcher 3: Wild Hunt Trophy Guide</a>
+          </h2>
+        </article>
+        <article>
+          <h2 class="entry-title">
+            <a href="https://www.powerpyx.com/guides/the-witcher-3-blood-and-wine-trophy-guide.html">The Witcher 3: Blood and Wine Trophy Guide</a>
+          </h2>
+        </article>
+        <!-- Noise -->
+        <a href="https://www.powerpyx.com/guides/">Guides Index</a>
+        <a href="https://www.powerpyx.com/tag/witcher-3/">Tag Page</a>
+      </body>
+    </html>
+    """
+
+    mock_resp = AsyncMock(spec=Response)
+    mock_resp.status_code = 200
+    mock_resp.text = search_results_html
+
+    with patch("httpx.AsyncClient.get", return_value=mock_resp):
+        urls = await scraper_instance.discover_guide_urls("The Witcher 3")
+
+        # Discovered search result guides are present
+        assert "https://www.powerpyx.com/the-witcher-3-wild-hunt-trophy-guide-roadmap/" in urls
+        assert "https://www.powerpyx.com/guides/the-witcher-3-blood-and-wine-trophy-guide.html" in urls
+
+        # Canonical fallback patterns are included
+        assert any("playstationtrophies.org" in u for u in urls)
+        assert any("psnprofiles.com" in u for u in urls)
+
+        # Noise index links are filtered
+        assert "https://www.powerpyx.com/guides/" not in urls
+
+    # Fallback on search failure
+    with patch("httpx.AsyncClient.get", side_effect=Exception("Connection refused")):
+        fallback_urls = await scraper_instance.discover_guide_urls("The Witcher 3")
+        assert len(fallback_urls) >= 3
+        assert any("powerpyx.com" in u for u in fallback_urls)
+        assert any("playstationtrophies.org" in u for u in fallback_urls)
+        assert any("psnprofiles.com" in u for u in fallback_urls)
+
+
+@pytest.mark.anyio
+async def test_fetch_game_guide_with_subpages_browser_fallback_on_403():
+    scraper_instance = TrophyGuideScraper()
+    test_url = "https://www.powerpyx.com/protected-game-trophy-guide-roadmap/"
+
+    rendered_html = """
+    <html>
+      <head><title>Protected Game Trophy Guide</title></head>
+      <body>
+        <h1>Protected Game Trophy Guide & Roadmap</h1>
+        <p>Estimated trophy difficulty: 6/10</p>
+        <p>Minimum Playthroughs: 2</p>
+        <p>Roadmap content successfully rendered via headless browser.</p>
+      </body>
+    </html>
+    """
+
+    mock_resp_403 = AsyncMock(spec=Response)
+    mock_resp_403.status_code = 403
+    mock_resp_403.text = "Cloudflare Challenge"
+
+    with patch("httpx.AsyncClient.get", return_value=mock_resp_403), \
+         patch("src.services.scraper.fetch_rendered_html", new_callable=AsyncMock, return_value=rendered_html) as mock_browser:
+        pages = await scraper_instance.fetch_game_guide_with_subpages("Protected Game", source_url=test_url)
+
+        assert mock_browser.called
+        assert len(pages) >= 1
+        title, md, url = pages[0]
+        assert "Protected Game Trophy Guide" in title
+        assert "Roadmap content successfully rendered" in md
+        assert url == test_url
+
+

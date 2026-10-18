@@ -1,9 +1,13 @@
 import asyncio
+import logging
 import re
 from typing import Optional, Tuple, List
-from urllib.parse import urljoin, urldefrag, urlparse
+from urllib.parse import quote_plus, urljoin, urldefrag, urlparse
 import httpx
 from bs4 import BeautifulSoup
+from src.services.browser import fetch_rendered_html
+
+logger = logging.getLogger(__name__)
 
 
 class MissableTrophy(dict):
@@ -84,6 +88,15 @@ class TrophyGuideScraper:
         "replytocom",
     ]
 
+    NOISE_TROPHY_NAMES = {
+        "missable", "perdível", "perdivel", "troféus perdíveis", "trofeus perdiveis",
+        "yes", "no", "none", "n/a", "na", "trophy", "trophies",
+        "overview", "roadmap", "guide", "introduction", "stage 1", "stage 2",
+        "stage 3", "stage 4", "trophy guide", "roadmap overview",
+        "playstation", "xbox", "steam", "pc", "comments", "leave a reply",
+        "all trophies", "platinum trophy",
+    }
+
     def __init__(self, timeout: float = 10.0):
         self.timeout = timeout
         self.headers = {
@@ -121,6 +134,268 @@ class TrophyGuideScraper:
                 seen.add(u)
                 deduped.append(u)
         return deduped
+
+    async def discover_guide_urls(self, game: str) -> list[str]:
+        """
+        Queries PowerPyx internal search and falls back cleanly to canonical
+        patterns for PlayStationTrophies, PSNProfiles, PowerPyx, and ConsolePulse.
+        """
+        slug = self.compute_slug(game)
+        canonical = [
+            f"https://www.powerpyx.com/{slug}-trophy-guide-roadmap/",
+            f"https://www.playstationtrophies.org/game/{slug}/guide/",
+            f"https://psnprofiles.com/guide/{slug}",
+            f"https://consolepulse.com/guide/{slug}-trophy-guide/",
+        ]
+        discovered: list[str] = []
+
+        search_url = f"https://www.powerpyx.com/?s={quote_plus(game)}"
+        search_html: Optional[str] = None
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True, headers=self.headers) as client:
+                resp = await client.get(search_url)
+                if resp.status_code == 200:
+                    search_html = resp.text
+                elif resp.status_code == 403:
+                    search_html = await fetch_rendered_html(search_url, timeout=self.timeout)
+        except Exception as exc:
+            logger.warning("Search request failed for %s: %s", game, exc)
+
+        if search_html:
+            try:
+                soup = BeautifulSoup(search_html, "html.parser")
+                articles = soup.find_all("article")
+                candidate_links: list[tuple[str, str]] = []
+                if articles:
+                    for art in articles:
+                        h = art.find(["h1", "h2", "h3"])
+                        a = h.find("a", href=True) if h else art.find("a", href=True)
+                        if a:
+                            candidate_links.append((a["href"].strip(), a.get_text(strip=True)))
+                else:
+                    for a in soup.find_all("a", href=True):
+                        candidate_links.append((a["href"].strip(), a.get_text(strip=True)))
+
+                game_slug_tokens = set(re.sub(r"[^a-zA-Z0-9]+", " ", game.lower()).split())
+                game_slug_tokens = {t for t in game_slug_tokens if t not in {"the", "a", "an", "and", "of", "in", "for"}}
+
+                for raw_href, link_text in candidate_links:
+                    if not raw_href.startswith("http"):
+                        raw_href = urljoin("https://www.powerpyx.com", raw_href)
+                    href_clean = urldefrag(raw_href)[0]
+                    parsed = urlparse(href_clean)
+                    path = parsed.path.rstrip("/")
+                    lower_path = path.lower()
+                    lower_url = clean_url = href_clean.lower()
+
+                    if path in ("", "/guides", "/guide", "/category", "/tag", "/news", "/all-guides"):
+                        continue
+                    if any(noise in lower_path for noise in self.NOISE_PATHS):
+                        continue
+                    if "powerpyx.com" not in parsed.netloc.lower():
+                        continue
+
+                    is_guide_path = (
+                        "-trophy-guide" in lower_path
+                        or "-guide" in lower_path
+                        or "/guides/" in lower_path
+                        or "/guide/" in lower_path
+                    )
+                    if not is_guide_path:
+                        continue
+
+                    text_and_url = lower_url + " " + link_text.lower()
+                    if game_slug_tokens and not any(t in text_and_url for t in game_slug_tokens):
+                        continue
+
+                    if href_clean not in discovered:
+                        discovered.append(href_clean)
+            except Exception as exc:
+                logger.warning("Error parsing search results for %s: %s", game, exc)
+
+        candidates = []
+        seen = set()
+        for u in discovered + canonical:
+            if u not in seen:
+                seen.add(u)
+                candidates.append(u)
+        return candidates
+
+    def _normalize_trophy_name(self, name: str) -> str:
+        name = re.sub(r"<[^>]+>", "", name)
+        name = re.sub(r"^(?:#{1,6}|\*|-|\d+\.)\s*", "", name)
+        name = re.sub(r"^(?:missable|perd[ií]vel|trof[eé]u\s+perd[ií]vel)\s*[:\-]\s*", "", name, flags=re.IGNORECASE)
+        name = re.sub(r"\s*[\[\(]?(?:missable|perd[ií]vel)[\]\)]?", "", name, flags=re.IGNORECASE)
+        name = re.sub(r"\s*-\s*(?:missable|perd[ií]vel)$", "", name, flags=re.IGNORECASE)
+        name = name.strip(" \t\n\r\"'`:.-")
+        return name
+
+    def _is_valid_trophy_name(self, name: str) -> bool:
+        if not name or len(name) < 2 or len(name) > 80:
+            return False
+        lower = name.lower()
+        if lower in self.NOISE_TROPHY_NAMES:
+            return False
+        if re.match(r"^\d+$", lower):
+            return False
+        if any(term in lower for term in ["guide", "roadmap", "walkthrough", "trophy list"]):
+            return False
+        if lower.startswith(("http://", "https://", "www.")):
+            return False
+        if re.match(r"^\d+\s*hours?$", lower) or re.match(r"^\d+/\d+$", lower):
+            return False
+        return True
+
+    def parse_roadmap_dom(self, html: str, base_url: str = "") -> dict:
+        """
+        Uses BeautifulSoup to parse genuine community guide structures:
+        extracts Difficulty, Playthroughs, Missable trophies, and Subpage links.
+        """
+        soup = BeautifulSoup(html, "html.parser")
+        text = soup.get_text(separator="\n")
+
+        # 1. Difficulty
+        difficulty = "N/A"
+        for dt in soup.find_all(["dt", "th", "strong", "b"]):
+            if "difficulty" in dt.get_text().lower() or "dificuldade" in dt.get_text().lower():
+                dd = dt.find_next_sibling(["dd", "td", "span"])
+                if dd and dd.get_text(strip=True):
+                    m = re.search(r"(\d+(?:\.\d+)?\s*/\s*10|\d+(?:\.\d+)?)", dd.get_text(strip=True))
+                    if m:
+                        difficulty = m.group(1).replace(" ", "")
+                        if "/" not in difficulty and float(difficulty) <= 10:
+                            difficulty = f"{difficulty}/10"
+                        break
+        if difficulty == "N/A":
+            m = re.search(
+                r"(?:estimated\s+trophy\s+difficulty|trophy\s+difficulty|dificuldade(?:\s+estimada)?|difficulty)\s*[:\-]?\s*(\d+(?:\.\d+)?(?:\s*/\s*10)?)",
+                text,
+                re.IGNORECASE,
+            )
+            if m:
+                val = m.group(1).replace(" ", "")
+                if "/" not in val and float(val) <= 10:
+                    difficulty = f"{val}/10"
+                else:
+                    difficulty = val
+
+        # 2. Playthroughs
+        playthroughs = 1
+        for dt in soup.find_all(["dt", "th", "strong", "b"]):
+            if "playthrough" in dt.get_text().lower() or "jogadas" in dt.get_text().lower():
+                dd = dt.find_next_sibling(["dd", "td", "span"])
+                if dd and dd.get_text(strip=True):
+                    m = re.search(r"(\d+)", dd.get_text(strip=True))
+                    if m:
+                        playthroughs = int(m.group(1))
+                        break
+        if playthroughs == 1:
+            m = re.search(
+                r"(?:minimum\s+(?:number\s+of\s+)?playthroughs?|playthroughs?(?:\s+required)?|jogadas\s+necess[aá]rias)\s*[:\-]?\s*(\d+)",
+                text,
+                re.IGNORECASE,
+            )
+            if m:
+                playthroughs = int(m.group(1))
+
+        # 3. Time estimate
+        time_estimate = "N/A"
+        for dt in soup.find_all(["dt", "th", "strong", "b"]):
+            if "time" in dt.get_text().lower() or "tempo" in dt.get_text().lower():
+                dd = dt.find_next_sibling(["dd", "td", "span"])
+                if dd and dd.get_text(strip=True):
+                    time_estimate = dd.get_text(strip=True)
+                    break
+        if time_estimate == "N/A":
+            m = re.search(
+                r"(?:approximate\s+amount\s+of\s+time[^:\n<]*|time\s+to\s+platinum|tempo\s+estimado|estimated\s+time)\s*[:\-]?\s*([^\n\r<]+)",
+                text,
+                re.IGNORECASE,
+            )
+            if m:
+                time_estimate = m.group(1).strip()
+
+        # 4. Missable Trophies
+        missables: list[str] = []
+        seen = set()
+
+        def add_candidate(raw: str):
+            norm = self._normalize_trophy_name(raw)
+            if self._is_valid_trophy_name(norm) and norm.lower() not in seen:
+                seen.add(norm.lower())
+                missables.append(norm)
+
+        # Tag-based / class-based
+        missable_elements = soup.find_all(
+            lambda tag: (
+                (tag.get("class") and any("missable" in c.lower() for c in tag.get("class")))
+                or (tag.name in ["span", "strong", "b", "em", "div", "a"] and re.search(r"^\s*\[?\b(?:missable|perd[ií]vel)\b\]?\s*$", tag.get_text(), re.IGNORECASE))
+            )
+        )
+
+        for el in missable_elements:
+            container = el.find_parent(["tr", "li", "div", "article", "section"])
+            found_in_container = False
+            if container:
+                title_el = container.select_one(".title, a.title, .trophy-title, .trophy_name, h2, h3, h4, h5")
+                if title_el:
+                    c_text = title_el.get_text(strip=True)
+                    if c_text and not re.search(r"^\s*\[?\b(?:missable|perd[ií]vel)\b\]?\s*$", c_text, re.IGNORECASE):
+                        add_candidate(c_text)
+                        found_in_container = True
+            if not found_in_container:
+                prev_h = el.find_previous(["h1", "h2", "h3", "h4", "h5"])
+                if prev_h:
+                    add_candidate(prev_h.get_text(strip=True))
+
+        # Overview paragraphs
+        for p in soup.find_all(["p", "li", "dd"]):
+            p_text = p.get_text()
+            if re.search(r"\b(?:missable\s+trophies|number\s+of\s+missable\s+trophies|trof[eé]us\s+perd[ií]veis)\b", p_text, re.IGNORECASE):
+                anchors = p.find_all("a")
+                if anchors:
+                    for a in anchors:
+                        add_candidate(a.get_text(strip=True))
+                else:
+                    m = re.search(r"[:\-–]\s*(.*)$", p_text.strip())
+                    if m:
+                        rest = m.group(1)
+                        rest = re.sub(r"^\d+\s*[-–:]?\s*", "", rest)
+                        rest = rest.strip("()")
+                        for item in re.split(r"[,;]", rest):
+                            add_candidate(item)
+
+        # Markdown headings / bullet points
+        for line in text.splitlines():
+            line_s = line.strip()
+            if re.search(r"\b(?:missable|perd[ií]vel)\b", line_s, re.IGNORECASE):
+                if re.match(r"^(?:#{1,6}|\*|-)\s*", line_s):
+                    add_candidate(line_s)
+
+        # 5. Subpage links
+        subpage_urls = self.discover_subpages(html, base_url) if base_url else []
+        if not subpage_urls:
+            for a in soup.find_all("a", href=True):
+                href = a["href"].strip()
+                if not href or href.startswith(("#", "javascript:", "mailto:")):
+                    continue
+                if any(noise in href.lower() for noise in self.NOISE_PATHS):
+                    continue
+                if any(p.search(href) for p in self.SUBPAGE_PATTERNS) or any(t in href.lower() for t in ["collectibles", "cards", "weapons", "trophy-guide"]):
+                    if href not in subpage_urls:
+                        subpage_urls.append(href)
+
+        return {
+            "difficulty": difficulty,
+            "difficulty_rating": difficulty,
+            "playthroughs": playthroughs,
+            "playthroughs_required": playthroughs,
+            "time_estimate": time_estimate,
+            "time_required": time_estimate,
+            "missable_trophies": missables,
+            "subpage_urls": subpage_urls,
+            "subpages": subpage_urls,
+        }
 
     def _parse_roadmap_content(self, game: str, content: str) -> dict:
         text = content
@@ -162,106 +437,23 @@ class TrophyGuideScraper:
         Extracts canonical roadmap metrics, complete list of missable trophies,
         and structured roadmap stages.
         If content (text/HTML) is provided, parses it generically.
-        Otherwise, returns game-specific metrics if known, or a generic template.
+        Otherwise, returns a generic template.
         """
         if content:
             return self._parse_roadmap_content(game, content)
 
-        game_lower = game.lower()
-        if "grand theft auto" in game_lower or "gta" in game_lower:
-            return {
-                "game": game,
-                "difficulty": "3.5/10",
-                "difficulty_rating": "3.5/10",
-                "playthroughs_required": 1,
-                "playthroughs": 1,
-                "time_required": "60-80 hours",
-                "time_estimate": "60-80 hours",
-                "missable_trophies": [
-                    MissableTrophy("Kifflom!", "Complete Epsilon Program questline with Michael"),
-                    MissableTrophy("Red Mist", "Complete all 5 Rampages with Trevor"),
-                    MissableTrophy("Show Off", "Complete all 50 Stunt Jumps"),
-                    MissableTrophy("San Andreas Sightseer", "Explore entire Los Santos and Blaine County map"),
-                    MissableTrophy("Three Man Army", "Survive 3 minutes with 3-star wanted level with all 3 characters outside missions"),
-                    MissableTrophy("A Lot of Cheddar", "Spend a total of $200 million across all 3 characters"),
-                ],
-                "roadmap_stages": [
-                    RoadmapStage(1, "Stage 1", "Story playthrough selecting Option C in the finale"),
-                    RoadmapStage(2, "Stage 2", "Strangers and Freaks + Missables (Kifflom!, Rampages)"),
-                    RoadmapStage(3, "Stage 3", "Collectibles and 100% Completion Checklist"),
-                    RoadmapStage(4, "Stage 4", "GTA Online trophies and rank 100"),
-                ],
-                "stages": [
-                    "Stage 1: Story playthrough selecting Option C in the finale",
-                    "Stage 2: Strangers and Freaks + Missables (Kifflom!, Rampages)",
-                    "Stage 3: Collectibles and 100% Completion Checklist",
-                    "Stage 4: GTA Online trophies and rank 100",
-                ],
-            }
-        elif "bloodborne" in game_lower:
-            return {
-                "game": game,
-                "difficulty": "7/10",
-                "difficulty_rating": "7/10",
-                "playthroughs_required": 1,
-                "playthroughs": 1,
-                "time_required": "40-60 hours",
-                "time_estimate": "40-60 hours",
-                "missable_trophies": [
-                    MissableTrophy("Hunter's Essence", "Acquire all 26 trick weapons and firearms, Eileen/Djura questlines"),
-                    MissableTrophy("Childhood's Beginning", "Consume 3 One Third of Umbilical Cord and defeat Moon Presence"),
-                    MissableTrophy("Yharnam Sunrise", "Submit your life to Gehrman"),
-                    MissableTrophy("Honoring Wishes", "Refuse Gehrman and defeat him without consuming cords"),
-                ],
-                "roadmap_stages": [
-                    RoadmapStage(1, "Stage 1", "Playthrough up to Mergo's Wet Nurse with weapon collection"),
-                    RoadmapStage(2, "Stage 2", "Chalice Dungeons down to Yharnam, Pthumerian Queen"),
-                    RoadmapStage(3, "Stage 3", "Backup save for 3 endings (Childhood's Beginning, Yharnam Sunrise, Honoring Wishes)"),
-                ],
-                "stages": [
-                    "Stage 1: Playthrough up to Mergo's Wet Nurse with weapon collection",
-                    "Stage 2: Chalice Dungeons down to Yharnam, Pthumerian Queen",
-                    "Stage 3: Backup save for 3 endings (Childhood's Beginning, Yharnam Sunrise, Honoring Wishes)",
-                ],
-            }
-        elif "elden ring" in game_lower:
-            return {
-                "game": game,
-                "difficulty": "6/10",
-                "difficulty_rating": "6/10",
-                "playthroughs_required": 1,
-                "playthroughs": 1,
-                "time_required": "80-120 hours",
-                "time_estimate": "80-120 hours",
-                "missable_trophies": [
-                    MissableTrophy("Legendary Armaments", "Collect all 9 legendary armaments before Leyndell becomes Ashen Capital - Bolt of Gransax"),
-                    MissableTrophy("Age of the Stars", "Complete Ranni the Witch questline and trigger her ending"),
-                    MissableTrophy("Lord of Frenzied Flame", "Inherit the Frenzied Flame from the Three Fingers beneath Subterranean Shunning-Grounds"),
-                ],
-                "roadmap_stages": [
-                    RoadmapStage(1, "Stage 1", "Complete main story and side quests before burning the Erdtree"),
-                    RoadmapStage(2, "Stage 2", "Collect all Legendary Armaments, Ashen Remains, Sorceries, and Talismans"),
-                    RoadmapStage(3, "Stage 3", "Backup save before Elden Beast for 3 ending trophies"),
-                ],
-                "stages": [
-                    "Stage 1: Complete main story and side quests before burning the Erdtree",
-                    "Stage 2: Collect all Legendary Armaments, Ashen Remains, Sorceries, and Talismans",
-                    "Stage 3: Backup save before Elden Beast for 3 ending trophies",
-                ],
-            }
-        else:
-            return {
-                "game": game,
-                "difficulty": "N/A",
-                "difficulty_rating": "N/A",
-                "playthroughs_required": 1,
-                "playthroughs": 1,
-                "time_required": "N/A",
-                "time_estimate": "N/A",
-                "missable_trophies": [],
-                "roadmap_stages": [],
-                "stages": [],
-            }
+        return {
+            "game": game,
+            "difficulty": "N/A",
+            "difficulty_rating": "N/A",
+            "playthroughs_required": 1,
+            "playthroughs": 1,
+            "time_required": "N/A",
+            "time_estimate": "N/A",
+            "missable_trophies": [],
+            "roadmap_stages": [],
+            "stages": [],
+        }
 
     def discover_subpages(self, main_html: str, base_url: str) -> list[str]:
         """
@@ -380,40 +572,49 @@ class TrophyGuideScraper:
     ) -> list[tuple[str, str, str]]:
         slug = self.compute_slug(game)
 
-        async def _fetch_subpage(client: httpx.AsyncClient, url: str) -> Optional[Tuple[str, str, str]]:
+        async def _fetch_html(client: httpx.AsyncClient, url: str) -> Optional[str]:
             try:
                 resp = await client.get(url)
                 if resp.status_code == 200:
-                    md = self._html_to_markdown(resp.text)
-                    if len(md) >= 20:
-                        soup = BeautifulSoup(resp.text, "html.parser")
-                        title_tag = soup.find("h1") or soup.find("title")
-                        title = title_tag.get_text().strip() if title_tag else "Guia de Troféus"
-                        return (title, md, str(resp.url))
+                    return resp.text
+                if resp.status_code == 403:
+                    rendered = await fetch_rendered_html(url, timeout=self.timeout)
+                    if rendered:
+                        return rendered
             except Exception:
                 pass
             return None
 
-        # 1. Fetch main page (source_url or candidate remote URLs)
+        async def _fetch_subpage(client: httpx.AsyncClient, url: str) -> Optional[Tuple[str, str, str]]:
+            html = await _fetch_html(client, url)
+            if html:
+                md = self._html_to_markdown(html)
+                if len(md) >= 20:
+                    soup = BeautifulSoup(html, "html.parser")
+                    title_tag = soup.find("h1") or soup.find("title")
+                    title = title_tag.get_text().strip() if title_tag else "Guia de Troféus"
+                    return (title, md, url)
+            return None
+
+        # 1. Fetch main page (source_url or candidate remote URLs from discover_guide_urls)
         main_html: Optional[str] = None
         main_url: Optional[str] = None
 
-        candidate_urls = self.get_candidate_urls(game, source_url)
+        candidate_urls = await self.discover_guide_urls(game)
+        if source_url:
+            candidate_urls = [source_url] + [u for u in candidate_urls if u != source_url]
 
         async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True, headers=self.headers) as client:
             for url in candidate_urls:
                 if not url:
                     continue
-                try:
-                    resp = await client.get(url)
-                    if resp.status_code == 200:
-                        md_check = self._html_to_markdown(resp.text)
-                        if len(md_check) >= 20:
-                            main_html = resp.text
-                            main_url = str(resp.url)
-                            break
-                except Exception:
-                    continue
+                html = await _fetch_html(client, url)
+                if html:
+                    md_check = self._html_to_markdown(html)
+                    if len(md_check) >= 20:
+                        main_html = html
+                        main_url = url
+                        break
 
             if main_html and main_url:
                 main_soup = BeautifulSoup(main_html, "html.parser")
@@ -444,4 +645,6 @@ class TrophyGuideScraper:
 
 scraper = TrophyGuideScraper()
 extract_canonical_roadmap = scraper.extract_canonical_roadmap
+discover_guide_urls = scraper.discover_guide_urls
+parse_roadmap_dom = scraper.parse_roadmap_dom
 
