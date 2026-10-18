@@ -353,7 +353,7 @@ describe('Platina AI Agent Runner Benchmark Suite', () => {
         total_results: 1,
         results: [
           {
-            title: 'Bloodborne - Guia Oficial de Armas',
+            title: "Troféu: Hunter's Essence (Bloodborne)",
             content:
               "A Blade of Mercy é obtida através de Eileen the Crow em Central Yharnam antes de derrotar Rom.",
           },

@@ -51,7 +51,7 @@ class PlayerTrophyModel(Base):
     player_game_id = Column(String(64), ForeignKey("player_games.id", ondelete="CASCADE"), nullable=False, index=True)
     trophy_name = Column(String(255), nullable=False)
     trophy_type = Column(String(20), nullable=False)
-    trophy_category = Column(String(32), default="standard", nullable=False)
+    trophy_category = Column(String(32), default="standard", nullable=False, index=True)
     is_missable = Column(Boolean, default=False, index=True)
     is_unlocked = Column(Boolean, default=False, index=True)
     unlocked_at = Column(DateTime(timezone=True), nullable=True)

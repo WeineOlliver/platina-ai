@@ -141,14 +141,13 @@ Sua resposta final deve ter no total MENOS DE 120 PALAVRAS.`;
 
           const corrected = correctiveCompletion.choices[0]?.message?.content;
           if (corrected) {
-            return corrected;
+            const revalidation = await groundingValidator.validate(corrected, collectedGuideSources);
+            if (revalidation.isValid) {
+              return corrected;
+            }
           }
         } catch {
           // If corrective re-prompt fails, provide a safe grounded fallback rather than hallucinated advice
-        }
-        // If the answer is based on player progress data or general guidance, let the rawContent pass rather than a hard abort
-        if (collectedGuideSources.some((s) => s.title.includes('Progresso PSN'))) {
-          return rawContent;
         }
         return 'Guia oficial não encontrado para este objetivo.\nQuer que eu procure em fontes complementares?';
       }

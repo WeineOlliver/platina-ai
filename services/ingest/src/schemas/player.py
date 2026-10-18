@@ -26,6 +26,7 @@ class PlayerProgressResponse(BaseModel):
     pending_missables_count: int = 0
     pending_missable_trophies: List[PlayerTrophyProgressItem] = Field(default_factory=list)
     recently_unlocked: List[RecentlyUnlockedItem] = Field(default_factory=list)
+    unearned_trophies_summary: List[str] = Field(default_factory=list)
     quick_cleanup_trophies: List[PlayerTrophyProgressItem] = Field(default_factory=list)
     heavy_grind_trophies: List[PlayerTrophyProgressItem] = Field(default_factory=list)
     natural_grind_trophies: List[PlayerTrophyProgressItem] = Field(default_factory=list)
