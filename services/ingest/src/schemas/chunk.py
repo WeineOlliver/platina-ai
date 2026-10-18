@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 
 class DocumentChunk(BaseModel):
@@ -19,3 +19,8 @@ class IngestGuideRequest(BaseModel):
     game: str = Field(..., min_length=2, max_length=100)
     source_url: str = Field(default="local", description="Original source guide URL or reference")
     content: str = Field(..., min_length=50, description="Raw markdown or text content of the trophy guide")
+
+
+class FetchAndIndexRequest(BaseModel):
+    game: str = Field(..., min_length=2, max_length=100, description="Game title to fetch and index")
+    source_url: Optional[str] = Field(default=None, description="Optional custom source URL for guide")

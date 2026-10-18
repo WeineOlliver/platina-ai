@@ -1,9 +1,14 @@
 from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Any
-from src.schemas.chunk import IngestGuideRequest, DocumentChunk
+from sqlalchemy import select, func
+from src.database import get_db_session
+from src.models.chunk import GuideChunkModel
+from src.schemas.chunk import IngestGuideRequest, DocumentChunk, FetchAndIndexRequest
 from src.schemas.search import SearchQueryRequest, SearchResponse
 from src.services.chunker import chunker
+from src.services.embedding import embedding_service
 from src.services.ingestion import ingestion_repo
+from src.services.scraper import scraper
 from src.services.search import vector_search_service
 
 router = APIRouter(prefix="/api/v1/ingest", tags=["Ingestion & Chunker"])
@@ -73,3 +78,62 @@ async def reindex_guide(request: IngestGuideRequest):
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(status_code=500, detail=f"Erro na reindexação do guia: {str(e)}")
+
+
+@router.post("/fetch-and-index", response_model=Dict[str, Any])
+async def fetch_and_index_guide(request: FetchAndIndexRequest):
+    """
+    On-demand web scraper and ingestion pipeline.
+    Checks if guide chunks already exist for the game; if not, fetches/scrapes the guide,
+    chunks it semantically, embeds it, and stores chunks with pgvector and full-text search.
+    """
+    try:
+        # 1. Check if game is already indexed
+        async with get_db_session() as session:
+            stmt = select(func.count(GuideChunkModel.id)).where(GuideChunkModel.game.ilike(request.game.strip()))
+            result = await session.execute(stmt)
+            count = result.scalar() or 0
+            if count > 0:
+                return {
+                    "status": "already_indexed",
+                    "chunks_indexed": count,
+                }
+
+        # 2. Scrape or generate authoritative structured roadmap
+        markdown_content, canonical_url = await scraper.fetch_guide(request.game, source_url=request.source_url)
+
+        # 3. Chunk via semantic markdown chunker
+        ingest_req = IngestGuideRequest(game=request.game, source_url=canonical_url, content=markdown_content)
+        chunks = chunker.chunk_guide(ingest_req)
+        if not chunks:
+            raise HTTPException(status_code=400, detail="Conteúdo insuficiente para indexação.")
+
+        # 4. Embed chunks in batch
+        texts_to_embed = [f"{c.title}\n{c.content}" for c in chunks]
+        embeddings = await embedding_service.embed_batch(texts_to_embed)
+
+        # 5. Persist to PostgreSQL (tsv generated column computed automatically)
+        async with get_db_session() as session:
+            for chunk, emb in zip(chunks, embeddings):
+                record = GuideChunkModel(
+                    id=chunk.chunk_id,
+                    game=chunk.game,
+                    title=chunk.title,
+                    content=chunk.content,
+                    is_missable=chunk.is_missable,
+                    source_url=chunk.metadata.get("source_url", canonical_url),
+                    metadata_=chunk.metadata,
+                    embedding=emb,
+                )
+                session.add(record)
+
+        return {
+            "status": "indexed",
+            "game": request.game,
+            "chunks_indexed": len(chunks),
+            "source_url": canonical_url,
+        }
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=f"Erro na extração e indexação do guia: {str(e)}")

@@ -13,6 +13,9 @@ class IEmbeddingService(ABC):
     async def embed_texts(self, texts: List[str]) -> List[List[float]]:
         pass
 
+    async def embed_batch(self, texts: List[str]) -> List[List[float]]:
+        return await self.embed_texts(texts)
+
     @abstractmethod
     async def embed_query(self, query: str) -> List[float]:
         pass

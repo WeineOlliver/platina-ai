@@ -145,3 +145,4 @@ class TrophyGuideChunker:
 
 
 chunker = TrophyGuideChunker()
+MarkdownSemanticChunker = TrophyGuideChunker
