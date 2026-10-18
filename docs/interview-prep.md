@@ -805,4 +805,20 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"Static batch pipelines leave RAG systems vulnerable to cold-start misses when users ask about newly added or unindexed domain entities. To solve this without hallucination or brittle failures, I architected an autonomous Just-In-Time (JIT) ingestion loop: when hybrid search yields zero chunks for a game, our Node.js agent triggers on-demand scraping and vectorization via our Python service. To preserve user experience across the 2-3 second ingestion window, we stream Server-Sent Event (SSE) thought heartbeats to keep the connection alive and give immediate feedback in the UI. If remote scraping fails, an authoritative structured fallback guarantees transactionally safe, grounded context every time."*
 
+---
+
+## Milestone 12: Recursive Subpage Scraper & Adaptive Deep Walkthrough Mode
+
+### Q59: Adaptive Verbosity & Claim-Coverage Grounding in Complex Gaming RAG
+> **"How do you balance ultra-concise mobile UX with exhaustive multi-page guides (e.g. 199 collectible locations), and how does claim-coverage validation prevent false-positive grounding failures?"**
+
+- **Core Concept:** Dynamic prompt switching between concise tactical briefs ($\le 120$ words) and deep walkthroughs ($\le 800$ words), paired with multi-turn intent detection. Threshold-based claim coverage ($\ge 75\%$) for long generated outputs vs zero-tolerance for short briefs.
+- **Key Engineering Solution & Trade-offs:**
+  - **Adaptive Verbosity & Multi-Turn Intent Detection:** Single-size prompt limits fail in production gaming RAG: players need concise tactical summaries during fast-paced play, but comprehensive step-by-step checklists when hunting complex trophies (e.g., all 199 Gwent cards in *The Witcher 3*). We implement intent detection that inspects prompt semantics (`passo a passo`, `guia detalhado`, `walkthrough`, `todos`, `localizações`) and dynamically switches agent instructions between a tactical brief ($\le 120$ words, 350 max tokens) and an exhaustive deep walkthrough ($\le 800$ words, 1200 max tokens) with increased retrieval limits ($k=8$).
+  - **Threshold-Based Claim Coverage vs. Zero-Tolerance Grounding:** Rigid claim validators demand 100% exact entity matches against retrieved chunks. In long guides ($\ge 150$ words), formatting glue, organizational headers, and conversational transitions inevitably introduce non-indexed lexical tokens, triggering false-positive rejection loops. We enforce an adaptive dual-mode grounding gate: short responses demand 100% strict verification, while long walkthroughs calculate claim coverage (`matched_claims / total_claims`), requiring a $\ge 75\%$ threshold. This stops genuine hallucinations while tolerating natural structural discourse.
+  - **Recursive Subpage Crawling & Provenance Tracking:** High-value gaming guides fragment critical details across linked subpages. Our Python crawler extracts scoped subpage URLs (filtering boilerplate navigation/auth links) and fetches them in parallel with bounded concurrency. Each subpage chunk retains its source provenance URL, ensuring vector embeddings and BM25 tsvector entries maintain end-to-end attribution back to specific collectible sub-guides.
+- **60-Second Interview Soundbite:**
+  > *"Production RAG cannot treat mobile tactical advice and deep 200-item walkthroughs with the same prompt rules or grounding gates. I built an adaptive verbosity engine that detects user intent: fast queries get a tight 120-word brief, while requests for comprehensive guides unlock an 800-word walkthrough mode backed by recursive subpage scraping and an 8-chunk retrieval window. Crucially, a rigid 100% entity-matching validator creates false-positive rejection cascades on long walkthroughs due to structural formatting words. I implemented an adaptive grounding validator enforcing zero-tolerance on short briefs, but transitioning to a 75% claim-coverage threshold on deep guides. This eliminates genuine hallucinations while preserving natural formatting and high throughput."*
+
+
 
