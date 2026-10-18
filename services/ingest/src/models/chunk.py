@@ -1,5 +1,5 @@
-from sqlalchemy import Column, String, Text, Boolean, DateTime, func
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import Column, String, Text, Boolean, DateTime, func, Computed
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import declarative_base
 from pgvector.sqlalchemy import Vector
 
@@ -20,5 +20,12 @@ class GuideChunkModel(Base):
     source_url = Column(String(500), nullable=True)
     metadata_ = Column("metadata", JSONB, default=dict)
     embedding = Column(Vector(1536), nullable=False)
+    tsv = Column(
+        TSVECTOR,
+        Computed(
+            "to_tsvector('portuguese', coalesce(title, '') || ' ' || coalesce(content, ''))",
+            persisted=True,
+        ),
+    )
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
