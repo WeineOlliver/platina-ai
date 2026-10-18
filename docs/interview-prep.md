@@ -762,6 +762,20 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"To protect users from hallucinated tactical gaming advice—like missing a 40-hour trophy—we implemented a pre-flight grounding validator. Before streaming SSE chunks, the agent inspects extracted factual claims against the retrieved guide sources. If an ungrounded assertion is detected, it triggers a corrective re-prompt or aborts to a safe fallback. Furthermore, we enforce progressive disclosure: concise, 100-word tactical highlights first, revealing full multi-step walkthroughs only when explicitly requested."*
 
+---
+
+### Q56: Deterministic Telemetry Categorization vs. Probabilistic LLM Routing
+> **"Why categorize unearned trophies into deterministic database buckets (quick_cleanup, heavy_grind) rather than asking the LLM to sort them dynamically in the prompt?"**
+
+- **Core Concept:** Eliminates hallucination risk, reduces token cost/latency dramatically, provides 100% testable logic via SQL/ORM, and enables deterministic grounding in high-stakes routing decisions.
+- **Key Engineering Benefits:**
+  - **Zero Hallucination Risk:** LLMs are probabilistic engines prone to missable misclassifications or inventing criteria under complex multi-trophy prompts. Deterministic database attributes (`category`) and Python bucketing ensure rigorous, mathematically guaranteed classification.
+  - **Token & Latency Optimization:** Pre-filtering and grouping trophies at the database/service layer prevents polluting the context window with dozens of raw trophy objects, saving hundreds of prompt tokens per request and slashing Time-To-First-Token (TTFT).
+  - **Testability & Deterministic Grounding:** Telemetry bucketing logic is 100% unit-tested via SQL queries and Python unit tests, producing structured payloads that constrain and ground downstream LLM tactical prompts into deterministic dual-route planning (Fast Track vs. Comprehensive Platinum Road).
+- **60-Second Interview Soundbite:**
+  > *"Relying on an LLM to categorize unearned trophies dynamically inside the prompt introduces latency, increases token spend, and invites hallucinations where missable or grindy requirements are misjudged. We enforce deterministic bucketing at the database and microservice tier: structured categories in PostgreSQL feed into explicit Python buckets like `quick_cleanup` and `heavy_grind`. This guarantees 100% testable categorization logic, slashes prompt token bloat, and provides deterministically grounded telemetry for our agent's dual-route tactical planning."*
+
+
 
 
 

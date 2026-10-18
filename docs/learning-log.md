@@ -612,8 +612,7 @@ This document tracks technical learnings, design decisions, and system design in
 
 ---
 
-## 2026-10-17: Milestone 8 — RAG Hardening, Hybrid Search & Grounded Verification
-
+### [2026-10-17] — Milestone 8: RAG Hardening, Hybrid Search & Grounded Verification
 - **What I built/configured:**
   - Added PostgreSQL generated `tsvector` column and GIN index to `guide_chunks` for full-text search capability.
   - Implemented true hybrid retrieval in `services/ingest` combining dense cosine distance (`pgvector`) and sparse BM25 text search via Reciprocal Rank Fusion ($k=60$).
@@ -628,6 +627,24 @@ This document tracks technical learnings, design decisions, and system design in
   - RAG guardrails at the retrieval layer (similarity floor) cut LLM hallucinations and API costs to zero for non-domain queries.
 - **Interview Soundbite:**
   - *"I engineered our production RAG hardening pipeline: combining PostgreSQL full-text search with pgvector via Reciprocal Rank Fusion, enforcing a 0.65 similarity floor, and validating factual assertions in a pre-flight grounding gate before streaming concise, tactical advice."*
+
+---
+
+### [2026-10-17] — Milestone 9: Tactical Trophy Route Planner & Deterministic Telemetry Bucketing
+- **What I built/configured:**
+  - **Structured Categories in PostgreSQL:** Extended the `player_trophies` schema with a `category` column (`VARCHAR(50)`) and categorized trophy types (`story_progression`, `missable_warning`, `quick_cleanup`, `heavy_grind`, `multiplayer_online`) with backward-compatible defaults.
+  - **Deterministic Telemetry Bucketing in Python FastAPI:** Updated `player_service.py` to deterministically segregate unearned trophies into `quick_cleanup_trophies` and `heavy_grind_trophies` buckets alongside `pending_missable_trophies`, updating `/player/{player_id}/progress/{game_id}` and Pydantic schemas.
+  - **Node.js Client Integration:** Updated `PlayerProgressTool` in `apps/api` to deserialize the new bucketing contracts and surface them to the agent runtime.
+  - **Dual-Route Adaptive Prompting:** Enhanced `AgentRunner` to analyze bucketing telemetry and dynamically adapt the LLM prompt between a *Fast-Track Quick Platinum Path* (when quick cleanup trophies are available) and a *Comprehensive Platinum Road* (handling heavy grinds, collectathons, and missables).
+  - **Full Test Suite & Benchmarks:** Comprehensive coverage across both services (`uv run pytest` and `npm test` passing 100%).
+- **Key concepts learned:**
+  - Offloading classification and sorting logic from LLM prompt space to the database and microservice layer eliminates hallucination vectors while cutting prompt token consumption and latency.
+  - Dual-route planning provides players with actionable tactical choices based on deterministic game state rather than speculative LLM responses.
+- **Problems faced & how they were solved:**
+  - Maintaining backward compatibility for existing progress endpoint consumers while adding structured buckets. Solved by retaining all existing fields and adding optional/defaulted list buckets in Pydantic and TypeScript interfaces.
+- **Interview Soundbite (How to explain this in 60s):**
+  - *"I implemented the Tactical Trophy Route Planner across our polyglot architecture. Rather than relying on non-deterministic LLM prompting to categorize trophies, we store structured categories in PostgreSQL and bucket unearned trophies deterministically in Python FastAPI into quick-cleanup and heavy-grind collections. The Node.js ReAct agent consumes these buckets to dynamically generate dual-route tactical advice—offering players both a fast-track route and a comprehensive platinum roadmap with zero hallucination risk."*
+
 
 
 
