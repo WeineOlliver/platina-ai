@@ -105,3 +105,30 @@ async def test_player_progress_service_get_progress_direct():
     assert len(result.quick_cleanup_trophies) == 9
     assert len(result.heavy_grind_trophies) == 4
     assert len(result.pending_missables) == 0
+
+
+@pytest.mark.anyio
+async def test_get_player_progress_witcher_3_returns_all_10_missables(async_client):
+    response = await async_client.get(
+        "/api/v1/players/olliverW9/progress",
+        params={"game": "The Witcher 3: Wild Hunt"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["pending_missables_count"] == 10
+
+    expected_missables = {
+        "Assassin of Kings",
+        "Card Collector",
+        "Even Odds",
+        "Fast and Furious",
+        "Friends With Benefits",
+        "Full Crew",
+        "Gwent Master",
+        "Kingmaker",
+        "The Doppler Effect",
+        "Woodland Spirit",
+    }
+    actual_missables = {t["trophy_name"] for t in data["pending_missable_trophies"]}
+    assert expected_missables == actual_missables
+
