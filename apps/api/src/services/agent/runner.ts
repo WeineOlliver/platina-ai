@@ -175,6 +175,12 @@ ${personaInstructions}`;
         console.log('SOURCES AVAILABLE:', collectedGuideSources.map(s => s.title));
       }
       if (!validation.isValid) {
+        // In Deep Walkthrough mode (or answers with > 120 words / multiple listed entities / choice replies)
+        // do not reject with hard abort if sources are present
+        if (isDeepWalkthrough && collectedGuideSources.length > 0) {
+          return rawContent;
+        }
+
         // If it's a direct conversational choice turn and sources include history/progress, let the model respond
         if (isChoiceOrGreeting && collectedGuideSources.length > 0) {
           return rawContent;
