@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS player_trophies (
     player_game_id VARCHAR(64) REFERENCES player_games(id) ON DELETE CASCADE,
     trophy_name VARCHAR(255) NOT NULL,
     trophy_type VARCHAR(20) NOT NULL, -- bronze, silver, gold, platinum
+    trophy_category VARCHAR(32) DEFAULT 'standard',
     is_missable BOOLEAN DEFAULT FALSE,
     is_unlocked BOOLEAN DEFAULT FALSE,
     unlocked_at TIMESTAMP WITH TIME ZONE,
@@ -37,3 +38,4 @@ CREATE TABLE IF NOT EXISTS player_trophies (
 CREATE INDEX IF NOT EXISTS idx_player_games_player ON player_games(player_id);
 CREATE INDEX IF NOT EXISTS idx_player_trophies_unlocked ON player_trophies(player_game_id, is_unlocked);
 CREATE INDEX IF NOT EXISTS idx_player_trophies_missable ON player_trophies(player_game_id, is_missable);
+CREATE INDEX IF NOT EXISTS idx_player_trophies_category ON player_trophies(trophy_category);
