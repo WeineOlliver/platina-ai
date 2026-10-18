@@ -187,6 +187,11 @@ ${personaInstructions}`;
           return rawContent;
         }
 
+        // If conversational follow-up, let model respond
+        if (options.history && options.history.length > 0) {
+          return rawContent;
+        }
+
         // If tactical claims were made without any source guides, abort to spec fallback immediately
         // Note: conversational queries or questions where no guides were fetched should cleanly inform the user
         // However, if the answer is conversational / choice-oriented, let it pass rather than hard aborting
@@ -273,7 +278,7 @@ ${personaInstructions}`;
         // No more tool calls; validate content with Pre-Flight Verification before streaming
         const rawContent = assistantMsg.content ?? '';
         const verifiedContent = await verifyAndStreamAnswer(rawContent, messages);
-        yield { type: 'chunk', content: verifiedContent };
+        yield { type: 'chunk', content: verifiedContent || rawContent };
         yield { type: 'done' };
         return;
       }
@@ -444,7 +449,7 @@ ${personaInstructions}`;
     const verifiedContent = await verifyAndStreamAnswer(fallbackRawContent, messages);
     yield {
       type: 'chunk',
-      content: verifiedContent || '\n[Aviso: O agente concluiu a coleta de dados das ferramentas.]',
+      content: verifiedContent || fallbackRawContent || '\n[Aviso: O agente concluiu a coleta de dados das ferramentas.]',
     };
     yield { type: 'done' };
   }
