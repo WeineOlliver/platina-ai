@@ -3,6 +3,7 @@ from sqlalchemy import select, and_, func
 from src.schemas.search import SearchQueryRequest, SearchResultItem, SearchResponse
 from src.models.chunk import GuideChunkModel
 from src.services.embedding import embedding_service
+from src.services.reranker import reranker_service
 from src.database import get_db_session
 
 
@@ -101,9 +102,9 @@ class VectorSearchService:
 
         # 8. Sort candidates by RRF rank descending (with similarity as tiebreaker)
         candidates.sort(key=lambda x: (x["rrf_score"], x["similarity_score"]), reverse=True)
-        top_candidates = candidates[:request.limit]
+        candidate_pool = candidates[:max(request.limit * 3, 15)]
 
-        results: List[SearchResultItem] = [
+        candidate_items: List[SearchResultItem] = [
             SearchResultItem(
                 id=item["model"].id,
                 game=item["model"].game,
@@ -114,8 +115,15 @@ class VectorSearchService:
                 similarity_score=item["similarity_score"],
                 metadata=item["model"].metadata_ or {},
             )
-            for item in top_candidates
+            for item in candidate_pool
         ]
+
+        # 9. Cross-Scoring Reranker
+        results = reranker_service.rerank(
+            query=request.query,
+            candidates=candidate_items,
+            top_k=request.limit,
+        )
 
         return SearchResponse(
             query=request.query,
