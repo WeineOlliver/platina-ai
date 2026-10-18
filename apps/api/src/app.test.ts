@@ -216,5 +216,25 @@ describe('Platina AI API - App Suite', () => {
       expect(body).toContain('data: {"type":');
       expect(body).toContain('"done"');
     });
+
+    it('POST /api/v1/agent/run accepts single-character message and conversational history', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/v1/agent/run',
+        payload: {
+          message: '2',
+          history: [
+            { role: 'user', content: 'Qual rota você prefere encarar primeiro?' },
+            { role: 'assistant', content: 'Opção 1 ou Opção 2?' },
+          ],
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.headers['content-type']).toContain('text/event-stream');
+      const body = response.body;
+      expect(body).toContain('data: {"type":');
+      expect(body).toContain('"done"');
+    });
   });
 });

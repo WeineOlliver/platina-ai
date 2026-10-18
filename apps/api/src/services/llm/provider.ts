@@ -71,7 +71,7 @@ export class GroqLlmProvider implements ILlmProvider {
 }
 
 export const getLlmProvider = (): ILlmProvider => {
-  if (env.AI_PROVIDER === 'groq' && env.GROQ_API_KEY) {
+  if (process.env.AI_PROVIDER !== 'mock' && env.AI_PROVIDER === 'groq' && env.GROQ_API_KEY) {
     return new GroqLlmProvider(env.GROQ_API_KEY, env.GROQ_MODEL);
   }
 

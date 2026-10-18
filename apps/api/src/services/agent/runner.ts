@@ -21,6 +21,7 @@ export interface AgentStepEvent {
 export interface RunAgentOptions {
   maxSteps?: number;
   signal?: AbortSignal;
+  history?: Array<{ role: 'user' | 'assistant'; content: string }> | undefined;
 }
 
 // Insight: Agent ReAct Loop (Reasoning + Acting).
@@ -97,8 +98,16 @@ Se o usuário perguntar sobre um troféu específico, mantenha o layout tático 
 Orçamento de Resposta (Obrigatório):
 Sua resposta final deve ter no total MENOS DE 120 PALAVRAS.`;
 
+    // ponytail: in-memory history slice passed from client; upgrade to persisted session store when multi-device sync is needed.
+    const historyMessages: Groq.Chat.ChatCompletionMessageParam[] = (options.history ?? []).map((msg) =>
+      msg.role === 'assistant'
+        ? { role: 'assistant', content: msg.content }
+        : { role: 'user', content: msg.content }
+    );
+
     const messages: Groq.Chat.ChatCompletionMessageParam[] = [
       { role: 'system', content: systemPrompt },
+      ...historyMessages,
       { role: 'user', content: userMessage },
     ];
 

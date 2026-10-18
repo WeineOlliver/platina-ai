@@ -340,6 +340,7 @@
 
   <script>
     let isDetailsOpen = false;
+    const chatHistory = [];
 
     // Configura o Marked.js para quebras de linha normais
     marked.setOptions({
@@ -414,7 +415,8 @@
           body: JSON.stringify({
             message: text,
             psnId: 'OlliverW9',
-            game: 'Grand Theft Auto V'
+            game: 'Grand Theft Auto V',
+            history: chatHistory
           })
         });
 
@@ -459,6 +461,11 @@
               } catch (e) {}
             }
           }
+        }
+
+        if (assistantFullText) {
+          chatHistory.push({ role: 'user', content: text });
+          chatHistory.push({ role: 'assistant', content: assistantFullText });
         }
 
         logSummary.textContent = `⚙️ Execução concluída (${toolCallCount} ferramenta(s) executada(s))`;

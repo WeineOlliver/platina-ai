@@ -9,9 +9,17 @@ const nextStepQuerySchema = z.object({
 });
 
 const agentQuerySchema = z.object({
-  message: z.string().min(2, 'A mensagem deve ter pelo menos 2 caracteres'),
+  message: z.string().trim().min(1, 'A mensagem não pode ser vazia'),
   psnId: z.string().optional(),
   game: z.string().optional(),
+  history: z
+    .array(
+      z.object({
+        role: z.enum(['user', 'assistant']),
+        content: z.string(),
+      })
+    )
+    .optional(),
 });
 
 export const agentRoutes: FastifyPluginAsync = async (app) => {
@@ -38,7 +46,7 @@ export const agentRoutes: FastifyPluginAsync = async (app) => {
       return reply.badRequest(validation.error.message);
     }
 
-    const { message, psnId, game } = validation.data;
+    const { message, psnId, game, history } = validation.data;
     const promptWithContext = [
       psnId ? `PSN ID do jogador: ${psnId}` : null,
       game ? `Jogo: ${game}` : null,
@@ -69,6 +77,7 @@ export const agentRoutes: FastifyPluginAsync = async (app) => {
     try {
       const generator = platinaAgentRunner.run(promptWithContext, {
         signal: abortController.signal,
+        ...(history ? { history } : {}),
       });
 
       for await (const event of generator) {
