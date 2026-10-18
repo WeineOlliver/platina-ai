@@ -704,3 +704,20 @@ This document tracks technical learnings, design decisions, and system design in
 
 
 
+
+---
+
+### [2026-10-18] — Milestone 13: Multi-Source Robust Guide Ingestion & Complete Catalog Synchronization
+- **What I built/configured:**
+  - **Resilient Multi-Source Scraper (`services/ingest/src/services/scraper.py`):** Ordered source fallbacks across PlayStationTrophies, ConsolePulse, PowerPyx and PSNProfiles; HTTP 403 (Cloudflare WAF), 404 (migrated URLs) and timeouts fail over to the next domain. Canonical extraction into typed `MissableTrophy` / `RoadmapStage` records, with the static fallback audited to include all 10 Witcher 3 missables (`Assassin of Kings`, `Card Collector`, `Even Odds`, `Fast and Furious`, `Friends With Benefits`, `Full Crew`, `Gwent Master`, `Kingmaker`, `The Doppler Effect`, `Woodland Spirit`).
+  - **Whole-Catalog Missable Synchronization (`infra/postgres/08_complete_catalog_missables.sql`):** One migration flags every canonical missable with `is_missable = true` / `trophy_category = 'missable'` across all cataloged games and recomputes `player_games.total_trophies`.
+  - **Complete Roadmap & Gwent Subpage Indexing:** Full multi-source roadmap plus Gwent subpages indexed into pgvector, covered by RAG benchmark tests in `services/ingest/tests/test_rag_benchmark.py`.
+  - **Agent Benchmark (`apps/api/src/services/agent/runner.benchmark.test.ts`):** New test drives an unstarted player (`olliverW9`, 0%) asking for Witcher 3 missables through `check_player_progress` → `search_trophy_guides(missableOnly)` and asserts the grounded answer names all 10 canonical missables.
+- **Key concepts learned:**
+  - A scraper's fallback data is part of the trust boundary: an incomplete fallback produces confident hallucinations, so it must be audited like source data.
+  - Data fixes belong at catalog scope. Patching only the game the user asked about leaves every other title inconsistent between telemetry and guide chunks.
+- **Problems faced & how they were solved:**
+  - PSNProfiles returned 403 to headless clients and PowerPyx legacy URLs returned 404, so the agent fell back to a 3-of-10 synthetic roadmap and invented trophy names. Solved with multi-domain fallbacks plus an audited canonical fallback.
+  - `is_missable` flags were missing for several canonical trophies, so `check_player_progress` under-reported missables. Solved with the catalog-wide synchronization migration.
+- **Interview Soundbite (How to explain this in 60s):**
+  - *"In Milestone 13 I made ingestion survive the real web: Cloudflare 403s, dead 404 links and shifting DOMs. The scraper fails over across several authoritative domains, extracts typed canonical records, and its last-resort fallback is audited to hold the full missable set, because partial fallbacks are what make an LLM hallucinate. I then synchronized missable flags across the whole catalog in a single migration, so player telemetry and retrieved guides agree, and added a benchmark proving an unstarted Witcher 3 player is warned about all 10 missables."*

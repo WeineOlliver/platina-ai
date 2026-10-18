@@ -822,3 +822,19 @@ This document contains real-world technical interview questions, key engineering
 
 
 
+
+---
+
+## Milestone 13: Multi-Source Robust Guide Ingestion & Complete Catalog Synchronization
+
+### Q60: Multi-Source Ingestion Resilience & Anti-Scraping Defense in Production AI
+> **"How do you design an enterprise RAG ingestion pipeline resilient against Cloudflare WAF bot-walls (HTTP 403), dead links (HTTP 404), and dynamic DOM changes without degrading answer quality?"**
+
+- **Core Concept:** Multi-domain source fallbacks, structured canonical extraction, deterministic catalog synchronization, and subpage parsing with claim-coverage validation.
+- **Key Engineering Solution & Trade-offs:**
+  - **Multi-Domain Source Fallbacks:** A single authoritative domain is a single point of failure: PSNProfiles answers headless clients with Cloudflare 403s, and PowerPyx migrated legacy `/guides/{slug}.html` URLs to new slugs that now 404. The scraper walks an ordered list of sources (PlayStationTrophies → ConsolePulse → PowerPyx → PSNProfiles) and treats 403/404/timeouts as "try next source", never as "fall back to fiction".
+  - **Structured Canonical Extraction over Free-Text Scraping:** DOM layouts change without notice, so parsing is anchored on semantic signals (headings, lists, trophy names) and normalized into typed records (`MissableTrophy(name, condition)`, `RoadmapStage`). The static fallback is no longer a thin synthetic template — it is audited against verified roadmaps so it carries the full canonical set (all 10 Witcher 3 missables, not 3 of 10). A partial fallback is worse than none: the LLM fills the gaps with invented names ("Eredin's Claim") and the grounding gate rejects the answer.
+  - **Deterministic Catalog Synchronization:** The fix is applied to the whole catalog, not the game a user complained about. A SQL migration (`08_complete_catalog_missables.sql`) sets `is_missable = true` / `trophy_category = 'missable'` for every canonical missable across all games and recomputes `total_trophies`, so `check_player_progress` returns the same missable buckets the guide chunks describe.
+  - **Subpage Parsing + Claim-Coverage Validation:** Collectible details (Gwent cards, Passiflora, Vegelbud) live on subpages, which are crawled with bounded depth and indexed with provenance. The pre-flight validator then cross-checks agent output against progress telemetry *and* retrieved chunks — strict for short briefs, ≥75% coverage for long walkthroughs — so a source outage surfaces as missing context, not as a hallucination.
+- **60-Second Interview Soundbite:**
+  > *"Scrapers fail in three ways: WAF bot-walls return 403, sites restructure and links 404, and DOMs drift. I stopped treating any single site as the source of truth. Ingestion walks an ordered list of authoritative domains and treats every failure as 'try the next source'. Parsing extracts typed canonical records instead of raw text, and the last-resort fallback is audited against verified roadmaps so it always contains the complete missable set — because a fallback with 3 of 10 trophies just teaches the model to invent the other 7. The database catalog is synchronized for every game in one migration, so player telemetry and retrieved chunks agree, and the grounding validator checks answers against both. The result: a source outage degrades latency, not answer quality."*

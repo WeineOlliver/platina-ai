@@ -560,6 +560,87 @@ describe('Platina AI Agent Runner Benchmark Suite', () => {
     });
   });
 
+  describe('Multi-Source Canonical Missables Benchmark', () => {
+    const W3 = 'The Witcher 3: Wild Hunt';
+    const CANONICAL_MISSABLES: Array<[string, string]> = [
+      ['Assassin of Kings', 'Reason of State'],
+      ['Card Collector', 'Velen'],
+      ['Even Odds', 'Velen'],
+      ['Fast and Furious', 'Skellige'],
+      ['Friends With Benefits', 'Velen'],
+      ['Full Crew', 'Kaer Morhen'],
+      ['Gwent Master', 'Passiflora'],
+      ['Kingmaker', 'Skellige'],
+      ['The Doppler Effect', 'Novigrad'],
+      ['Woodland Spirit', 'Skellige'],
+    ];
+
+    it('warns an unstarted Witcher 3 player about all 10 canonical missables from progress + vector retrieval', async () => {
+      const runner = new PlatinaAgentRunner();
+
+      const progress = {
+        psn_id: 'olliverW9',
+        game: W3,
+        completion_percentage: 0,
+        pending_missables_count: CANONICAL_MISSABLES.length,
+        pending_missable_trophies: CANONICAL_MISSABLES.map(([trophy_name, chapter_or_location]) => ({
+          trophy_name,
+          trophy_type: 'bronze',
+          chapter_or_location,
+        })),
+        unearned_trophies_summary: [],
+      };
+      const guide = {
+        results: CANONICAL_MISSABLES.map(([name, where]) => ({
+          title: `${W3} - Missable: ${name}`,
+          content: `${name} é perdível: complete em ${where} antes do ponto sem retorno.`,
+        })),
+      };
+
+      const executeToolSpy = vi
+        .spyOn(runner, 'executeTool')
+        .mockImplementation(async (name: string) => (name === 'check_player_progress' ? progress : guide));
+      // Probe must find chunks so no on-demand ingestion is triggered
+      const probeSpy = vi.spyOn(ingestionClient, 'search').mockResolvedValue([
+        { id: 'p1', game: W3, title: 'probe', content: 'probe', is_missable: true, similarity_score: 0.9 },
+      ]);
+
+      const answer = [
+        'Troféus perdíveis em The Witcher 3 (0% concluído):',
+        ...CANONICAL_MISSABLES.map(([name, where]) => `- ${name}: ${where}`),
+        'Quer os detalhes completos e rotas deste troféu?',
+      ].join('\n');
+
+      const toolCall = (id: string, name: string, args: object) => ({
+        choices: [{ message: { role: 'assistant', tool_calls: [{ id, function: { name, arguments: JSON.stringify(args) } }] } }],
+      });
+      const mockCreate = vi
+        .fn()
+        .mockResolvedValueOnce(toolCall('call_progress_w3', 'check_player_progress', { psnId: 'olliverW9', game: W3 }))
+        .mockResolvedValueOnce(toolCall('call_missables_w3', 'search_trophy_guides', { query: 'missable', game: W3, missableOnly: true }))
+        .mockResolvedValue({ choices: [{ message: { role: 'assistant', content: answer } }] });
+
+      (runner as unknown as { client: { chat: { completions: { create: typeof mockCreate } } } }).client = {
+        chat: { completions: { create: mockCreate } },
+      };
+
+      const events: AgentStepEvent[] = [];
+      for await (const event of runner.run('Quais troféus perdíveis tenho em The Witcher 3? Sou olliverW9 e ainda não comecei.')) {
+        events.push(event);
+      }
+
+      const toolNames = events.filter((e) => e.type === 'tool_call').map((e) => e.toolName);
+      expect(toolNames).toEqual(['check_player_progress', 'search_trophy_guides']);
+      expect(executeToolSpy).toHaveBeenCalledWith('search_trophy_guides', expect.objectContaining({ missableOnly: true }));
+
+      const output = events.find((e) => e.type === 'chunk')?.content ?? '';
+      for (const [name] of CANONICAL_MISSABLES) expect(output).toContain(name);
+      expect(events.some((e) => e.type === 'done')).toBe(true);
+
+      probeSpy.mockRestore();
+    });
+  });
+
   describe('Pre-Flight Grounding Verification Catches Fabricated Advice', () => {
     it('catches fabricated advice directly with groundingValidator when claims are ungrounded', async () => {
       const realGuideSources: SourceDocument[] = [
