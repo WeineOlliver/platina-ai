@@ -25,7 +25,7 @@ def normalize_text(text: str) -> str:
 
 
 def _match_term(term: str, words_set: Set[str], full_text: str) -> bool:
-    """Match a term exactly, as a substring, or by common prefix stem."""
+    """Match a term exactly, as a substring, or by common prefix stem (with minimum length guards)."""
     if term in words_set:
         return True
     if len(term) >= 3 and term in full_text:
@@ -33,7 +33,7 @@ def _match_term(term: str, words_set: Set[str], full_text: str) -> bool:
     if len(term) >= 4:
         stem = term[:4]
         for w in words_set:
-            if w.startswith(stem) or term.startswith(w[:4]):
+            if len(w) >= 4 and (w.startswith(stem) or term.startswith(w[:4])):
                 return True
     return False
 

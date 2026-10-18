@@ -97,6 +97,12 @@ Sua resposta final deve ter no total MENOS DE 120 PALAVRAS e seguir rigorosament
 
       const validation = await groundingValidator.validate(rawContent, collectedGuideSources);
       if (!validation.isValid) {
+        // If tactical claims were made without any source guides, abort to spec fallback immediately
+        // Note: conversational queries or questions where no guides were fetched should cleanly inform the user
+        if (collectedGuideSources.length === 0 && validation.ungroundedClaims.length > 0) {
+          return 'Guia oficial não encontrado para este objetivo.\nQuer que eu procure em fontes complementares?';
+        }
+
         try {
           const correctiveMessages: Groq.Chat.ChatCompletionMessageParam[] = [
             ...currentMessages,
@@ -121,8 +127,9 @@ Sua resposta final deve ter no total MENOS DE 120 PALAVRAS e seguir rigorosament
             return corrected;
           }
         } catch {
-          // If corrective re-prompt fails, return rawContent
+          // If corrective re-prompt fails, provide a safe grounded fallback rather than hallucinated advice
         }
+        return 'Guia oficial não encontrado para este objetivo.\nQuer que eu procure em fontes complementares?';
       }
 
       return rawContent;

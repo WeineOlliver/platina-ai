@@ -76,22 +76,27 @@ describe('Platina AI Agent Runner Benchmark Suite', () => {
       const runner = new PlatinaAgentRunner();
 
       const mockGuideSources = {
-        total_results: 1,
         results: [
           {
             title: "Troféu: Hunter's Essence (Bloodborne)",
             content:
-              "Para o troféu Hunter's Essence você deve coletar todas as armas de caçador. A arma Blade of Mercy é obtida através de Eileen the Crow em Central Yharnam antes de derrotar Rom.",
+              "Para o troféu Hunter's Essence você deve coletar todas as armas de caçador. Fale com Eileen the Crow em Central Yharnam antes de derrotar Rom para receber a Blade of Mercy.",
           },
         ],
       };
 
       vi.spyOn(runner, 'executeTool').mockResolvedValue(mockGuideSources);
 
+      // We pass tacticalAnswer which is fully grounded in mockGuideSources
       const tacticalAnswer = [
         "Troféu: Hunter's Essence em Central Yharnam.",
-        '- Fale com Eileen the Crow antes de derrotar Rom em Central Yharnam.',
-        '- Ajude Eileen no combate para garantir a Blade of Mercy.',
+        '- Fale com Eileen the Crow em Central Yharnam antes de derrotar Rom para receber a Blade of Mercy.',
+        'Quer os detalhes completos e rotas deste troféu?',
+      ].join('\n');
+
+      const correctiveResponse = [
+        "Troféu: Hunter's Essence em Central Yharnam.",
+        '- Fale com Eileen the Crow antes de derrotar Rom em Central Yharnam para obter a Blade of Mercy.',
         'Quer os detalhes completos e rotas deste troféu?',
       ].join('\n');
 
@@ -123,6 +128,17 @@ describe('Platina AI Agent Runner Benchmark Suite', () => {
               message: {
                 role: 'assistant',
                 content: tacticalAnswer,
+              },
+            },
+          ],
+        })
+        // Step 3: Corrective call if pre-flight re-prompts
+        .mockResolvedValueOnce({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: correctiveResponse,
               },
             },
           ],
@@ -230,7 +246,7 @@ describe('Platina AI Agent Runner Benchmark Suite', () => {
 
       const correctedGroundedAnswer = [
         "Troféu: Hunter's Essence em Central Yharnam.",
-        '- Fale com Eileen the Crow antes de derrotar Rom em Central Yharnam.',
+        '- Fale com Eileen the Crow antes de derrotar Rom em Central Yharnam para obter a Blade of Mercy.',
         'Quer os detalhes completos e rotas deste troféu?',
       ].join('\n');
 

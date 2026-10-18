@@ -125,6 +125,9 @@ class VectorSearchService:
             top_k=request.limit,
         )
 
+        # Enforce minimum similarity cutoff post-reranking
+        results = [r for r in results if r.similarity_score >= request.min_similarity]
+
         return SearchResponse(
             query=request.query,
             total_results=len(results),
