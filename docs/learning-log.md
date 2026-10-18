@@ -663,3 +663,23 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite (How to explain this in 60s):**
   - *"To achieve high availability against LLM rate limits and provider outages, I engineered a resilient Multi-Model Fallback Cascade in our Fastify API. When our primary 120B model encounters a 429 rate limit or 5xx server error, the system automatically falls back to Llama-3.3-70B and then Llama-3.1-8B while logging structured telemetry. It fails fast on 400/401/403 client errors to prevent wasteful retries. This ensures uninterrupted agent execution and zero downtime for end users even on constrained API tiers."*
 
+---
+
+### [2026-10-18] — Milestone 11: Real Web Scraping Ingestion, Multi-Session Tabbed UI, and Cold-Start Game Routing
+- **What I built/configured:**
+  - **On-Demand Web Scraping Service (`services/ingest/src/services/scraper.py`):** Built `TrophyGuideScraper` using `httpx` and `BeautifulSoup4` with realistic browser headers, semantic HTML-to-markdown parsing (headers, lists, paragraphs), and an authoritative structured fallback roadmap for cold-start games.
+  - **Dynamic Ingestion API Endpoint (`POST /api/v1/ingest/fetch-and-index`):** Exposed FastAPI endpoint that accepts `{ game: str, source_url?: str }`, scrapes or synthesizes the guide, chunks markdown semantically, generates dense embeddings, and atomically indexes chunks with tsvector full-text search into PostgreSQL `guide_chunks`.
+  - **Autonomous Agent Hook (`apps/api/src/services/agent/runner.ts` & `IngestionClient`):** Added `fetchAndIndex(game)` to `IngestionClient`. Configured `PlatinaAgentRunner` to detect 0-chunk retrieval on valid game titles, dispatching on-demand ingestion and emitting real-time SSE `{ type: "thought", content: "📥 Jogo inédito detectado: indexando guia..." }` events to maintain connection liveness.
+  - **Multi-Session Tabbed Chat Interface (`test-chat.html`):** Architected persistent multi-session tabs backed by `localStorage` (`platina_sessions`), isolating `chatHistory`, tool logs, and active game inputs across game contexts (`Grand Theft Auto V`, `The Witcher 3: Wild Hunt`). Included dynamic tab switching, session creation (`[+ Nova Platina]`), safe deletion, and animated thought bubble indicators.
+  - **Database Seed Expansion (`infra/postgres/07_seed_witcher.sql`):** Seeded initial player record for `olliverW9` on *The Witcher 3: Wild Hunt* with 35 unearned trophies (0% completion), categorizing missable (`Card Collector`, `Full Crew`, `Assassin of Kings`), natural grind (`Humpty Dumpty`, `That Is the Evilest Thing`), quick cleanup (`Brawler`, `Fist of the South Star`), and heavy grind (`Walked the Demon's Path`, `Ran the Gauntlet`).
+- **Key concepts learned:**
+  - Just-In-Time (JIT) ingestion solves RAG cold-start entity problems without requiring exhaustive batch-indexing of entire domain catalogs.
+  - Long-running async ingestion tasks must communicate progress over SSE via thought heartbeats to prevent connection timeouts and user drop-off.
+  - Multi-session chat interfaces require strict conversation history and tool log isolation per game entity to avoid cross-contamination in agent context windows.
+- **Problems faced & how they were solved:**
+  - Remote guide sites may change markup or block automated scrapers. Solved by implementing an authoritative, domain-grounded fallback roadmap generator that produces structured markdown covering missable trophies, grind milestones, and cleanup steps.
+  - Synchronizing tab state and game input dynamically without race conditions. Solved by two-way binding game titles between active tab state and input fields while preserving existing history in `localStorage`.
+- **Interview Soundbite (How to explain this in 60s):**
+  - *"In Milestone 11, I bridged the gap between static RAG pipelines and production user realities by building an autonomous On-Demand Ingestion system and a multi-session tabbed chat interface. When an agent encounters an unindexed game like The Witcher 3, it automatically invokes a Python web scraping pipeline to ingest and vectorize guide chunks in real time, streaming SSE thought indicators to the client so the UI never hangs. Each game session runs in complete conversational isolation in the frontend, backed by deterministic trophy telemetry in PostgreSQL for zero-hallucination platinum routing."*
+
+

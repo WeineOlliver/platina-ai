@@ -790,3 +790,19 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"When relying on constrained or free LLM tiers, rate limits (HTTP 429) and upstream 5xx outages are inevitable. To ensure high availability, I implemented an automated Multi-Model Fallback Cascade (`openai/gpt-oss-120b` -> `llama-3.3-70b-versatile` -> `llama-3.1-8b-instant`). We distinguish transient from non-transient errors: client errors like 400, 401, or 403 fail fast immediately, while 429s or 5xx server issues dynamically degrade to the next model in the cascade with structured warning logs. This guarantees continuous uptime, preserves user experience, and maximizes throughput without manual intervention."*
 
+---
+
+## Milestone 11: On-Demand Guide Ingestion & Multi-Session Architecture
+
+### Q58: On-Demand RAG Ingestion vs. Static Batch Pipelines
+> **"How do you handle unindexed domain entities in production RAG systems without failing or hallucinating, and what are the trade-offs of Just-In-Time (JIT) scraping?"**
+
+- **Core Concept:** Autonomous ingestion trigger over cold-start entities, SSE heartbeat streaming during vectorization, and deterministic transaction safety. When an agent queries a domain entity (e.g., a newly released or previously unindexed game guide) that yields zero vector chunks, rather than hallucinating or failing with a generic error, the system triggers an on-demand Just-In-Time (JIT) scraping and indexing pipeline while streaming real-time status heartbeats to the client.
+- **Key Engineering Solution & Trade-offs:**
+  - **Dynamic Ingestion vs. Static Batch Pipelines:** Traditional RAG architectures rely on offline batch ingestion jobs (Cron/Airflow), which suffer from cold-start blind spots whenever users query unindexed content. Platina AI couples the ReAct retrieval step directly with an on-demand scraper endpoint (`POST /api/v1/ingest/fetch-and-index`). If hybrid retrieval returns 0 chunks, the Node.js agent automatically orchestrates on-demand ingestion via the Python FastAPI scraping worker.
+  - **SSE Heartbeat & UX Preservation:** Web scraping and embedding generation introduce latency (typically 1.5s - 4s). To prevent HTTP gateway timeouts and avoid user abandonment, the agent emits real-time Server-Sent Event (SSE) thought indicators (`{ type: "thought", content: "📥 Jogo inédito detectado: indexando guia..." }`), maintaining connection liveness while vectorization completes in the background.
+  - **Atomic Transaction Safety & Fallback Resilience:** The ingestion service parses semantic guide sections with BeautifulSoup, calculates chunk embeddings via HuggingFace/SentenceTransformers, and indexes chunks into PostgreSQL `guide_chunks` alongside full-text tsvector data within an atomic transaction. If remote scraping is rate-limited or blocked, the service falls back to an authoritative structured roadmap markdown template, guaranteeing the downstream RAG agent always has grounded domain context.
+- **60-Second Interview Soundbite:**
+  > *"Static batch pipelines leave RAG systems vulnerable to cold-start misses when users ask about newly added or unindexed domain entities. To solve this without hallucination or brittle failures, I architected an autonomous Just-In-Time (JIT) ingestion loop: when hybrid search yields zero chunks for a game, our Node.js agent triggers on-demand scraping and vectorization via our Python service. To preserve user experience across the 2-3 second ingestion window, we stream Server-Sent Event (SSE) thought heartbeats to keep the connection alive and give immediate feedback in the UI. If remote scraping fails, an authoritative structured fallback guarantees transactionally safe, grounded context every time."*
+
+
