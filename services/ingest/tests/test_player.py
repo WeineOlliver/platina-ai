@@ -1,6 +1,8 @@
 import pytest
 from httpx import AsyncClient, ASGITransport
 from src.main import create_app
+from src.schemas.player import PlayerProgressResponse, PlayerTrophyProgressItem
+from src.services.player import player_progress_service
 
 
 @pytest.fixture
@@ -34,6 +36,15 @@ async def test_get_player_progress_success(async_client):
     missable_names = [t["trophy_name"] for t in data["pending_missable_trophies"]]
     assert any("Eileen" in name for name in missable_names)
 
+    # Verify bucket fields are present in response
+    assert "quick_cleanup_trophies" in data
+    assert "heavy_grind_trophies" in data
+    assert "natural_grind_trophies" in data
+    assert "pending_missables" in data
+    assert len(data["pending_missables"]) == 2
+    assert any("Eileen" in t["trophy_name"] for t in data["pending_missables"])
+    assert all(t["trophy_category"] == "standard" for t in data["pending_missables"])
+
 
 @pytest.mark.anyio
 async def test_get_player_progress_not_found(async_client):
@@ -42,3 +53,55 @@ async def test_get_player_progress_not_found(async_client):
         params={"game": "Bloodborne"},
     )
     assert response.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_get_player_progress_gta_categorized_buckets(async_client):
+    response = await async_client.get(
+        "/api/v1/players/olliverW9/progress",
+        params={"game": "Grand Theft Auto V"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+
+    # Validate against Pydantic schema
+    progress_obj = PlayerProgressResponse(**data)
+    assert progress_obj.psn_id == "olliverW9"
+    assert progress_obj.game == "Grand Theft Auto V"
+    assert progress_obj.pending_missables_count == 0
+    assert len(progress_obj.pending_missables) == 0
+
+    expected_quick_cleanup = {
+        "Vinewood Visionary",
+        "Majestic",
+        "Humans of Los Santos",
+        "Animal Lover",
+        "Ensemble Piece",
+        "Cult Movie",
+        "Location Scout",
+        "Method Actor",
+        "Cryptozoologist",
+    }
+    actual_quick_cleanup = {t.trophy_name for t in progress_obj.quick_cleanup_trophies}
+    assert expected_quick_cleanup.issubset(actual_quick_cleanup)
+    assert all(t.trophy_category == "quick_cleanup" for t in progress_obj.quick_cleanup_trophies)
+
+    expected_heavy_grind = {
+        "Live a Little",
+        "Mastermind",
+        "Masterminds",
+        "Elitist",
+    }
+    actual_heavy_grind = {t.trophy_name for t in progress_obj.heavy_grind_trophies}
+    assert expected_heavy_grind.issubset(actual_heavy_grind)
+    assert all(t.trophy_category == "heavy_grind" for t in progress_obj.heavy_grind_trophies)
+
+
+@pytest.mark.anyio
+async def test_player_progress_service_get_progress_direct():
+    result = await player_progress_service.get_progress("olliverW9", "Grand Theft Auto V")
+    assert result is not None
+    assert isinstance(result, PlayerProgressResponse)
+    assert len(result.quick_cleanup_trophies) == 9
+    assert len(result.heavy_grind_trophies) == 4
+    assert len(result.pending_missables) == 0
