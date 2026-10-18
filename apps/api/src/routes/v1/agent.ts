@@ -47,6 +47,7 @@ export const agentRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const { message, psnId, game, history } = validation.data;
+    request.log.info({ message, psnId, game, historyLength: history?.length }, '📨 Executando agent run');
     const promptWithContext = [
       psnId ? `PSN ID do jogador: ${psnId}` : null,
       game ? `Jogo: ${game}` : null,

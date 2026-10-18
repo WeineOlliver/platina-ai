@@ -140,9 +140,16 @@ Sua resposta final deve ter no total MENOS DE 120 PALAVRAS.`;
 
       const isChoiceOrGreeting =
         /^(1|2|a|b|sim|nao|ok|quero|ola|oi|rota 1|rota 2)/i.test(userMessage.trim()) ||
-        /^(1|2|a|b)$/i.test(userMessage.trim());
+        /^(1|2|a|b)$/i.test(userMessage.trim()) ||
+        userMessage.includes('Mensagem do usuário: 1') ||
+        userMessage.includes('Mensagem do usuário: 2') ||
+        Boolean(options.history && options.history.length > 0);
 
       const validation = await groundingValidator.validate(rawContent, collectedGuideSources);
+      if (validation.ungroundedClaims.length > 0) {
+        console.log('🚨 UNGROUNDED CLAIMS DETECTED:', validation.ungroundedClaims);
+        console.log('SOURCES AVAILABLE:', collectedGuideSources.map(s => s.title));
+      }
       if (!validation.isValid) {
         // If it's a direct conversational choice turn and sources include history/progress, let the model respond
         if (isChoiceOrGreeting && collectedGuideSources.length > 0) {
