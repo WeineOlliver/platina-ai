@@ -85,7 +85,7 @@ export class PlatinaAgentRunner {
       hasAssistantCTA && /^(sim|quero|manda|pode mandar|detalhes)/i.test(userMessage.trim());
 
     const isExplicitDeepWalkthrough =
-      /(detalhad|passo a passo|como pegar cad|todos os|todas as cartas|guia complet|rotas complet)/i.test(userMessage);
+      /(detalhad|passo a passo|como pegar cad|todos os|todas as cartas|guia complet|rotas complet|quais pontos|cada carta|uma por uma|onde pegar)/i.test(userMessage);
 
     const isDeepWalkthrough = isExplicitDeepWalkthrough || isAffirmativeFollowUp;
 
@@ -117,7 +117,8 @@ Você tem acesso a ferramentas para:
 Diretrizes do Agente:
 - Se o usuário mencionar um PSN ID ou perguntar o que precisa fazer a seguir em um jogo, chame "check_player_progress" para ver a situação real dele.
 - Se o retorno de "check_player_progress" trouxer "unearned_trophies_summary", USE essa lista de troféus pendentes reais do jogador para responder quais troféus faltam ou qual é o mais fácil/rápido de fazer.
-- Para buscar no banco de guias com "search_trophy_guides", envie SEMPRE o nome exato do troféu curto e limpo (ex: query: "Masterminds", "Kifflom", "Cryptozoologist"), NUNCA concatene a descrição inteira do troféu, palavras como "silver", "bronze" ou textos longos na query de busca.${isDeepWalkthrough ? ' No modo detalhado, passe limit: 8 para obter contexto abrangente.' : ''}
+- Para buscar no banco de guias com "search_trophy_guides", envie SEMPRE o nome exato do troféu curto e limpo (ex: query: "Card Collector", "Masterminds", "Kifflom", "Cryptozoologist"), NUNCA concatene a descrição inteira do troféu, palavras como "silver", "bronze" ou textos longos na query de busca.${isDeepWalkthrough ? ' No modo detalhado, passe limit: 8 para obter contexto abrangente.' : ''}
+- Quando o usuário perguntar sobre cartas, colecionáveis ou passos detalhados de um troféu, chame "search_trophy_guides" usando o nome do troféu em inglês (ex: query: "Card Collector" para troféu de cartas de Gwent) e limit: 8.
 - Se você identificou o progresso do jogador e nenhum guia vetorial adicional for necessário (ou a dúvida for apenas sobre a lista de pendências), responda usando os dados retornados de "check_player_progress" de forma tática.
 - Se o usuário responder escolhendo uma opção numérica ou rota (ex: "1", "2", "Rota 1", "Rota 2"), use o histórico da conversa e os dados já obtidos para traçar o plano detalhado dessa rota específica. Chame "search_trophy_guides" apenas se precisar de detalhes de um troféu específico dessa rota.
 - Não execute mais de 2 chamadas de ferramentas na mesma resposta. Seja direto, prático e cite as fontes.
@@ -181,8 +182,8 @@ ${personaInstructions}`;
           return rawContent;
         }
 
-        // If it's a direct conversational choice turn and sources include history/progress, let the model respond
-        if (isChoiceOrGreeting && collectedGuideSources.length > 0) {
+        // If it's a direct conversational choice turn or affirmative request and sources include history/progress, let the model respond
+        if ((isChoiceOrGreeting || isDeepWalkthrough) && collectedGuideSources.length > 0) {
           return rawContent;
         }
 
@@ -335,6 +336,34 @@ ${personaInstructions}`;
                 });
               }
             }
+          }
+        }
+
+        // Also fetch related subguide chunks directly into collectedGuideSources if it's Gwent Card Collector
+        if (toolName === SearchGuidesTool.name && toolArgs && typeof toolArgs === 'object') {
+          const tArgs = toolArgs as { query?: string; game?: string };
+          if (tArgs.query && /card collector|gwent/i.test(tArgs.query) && tArgs.game && /witcher/i.test(tArgs.game)) {
+            try {
+              const extraSearch = await searchGuidesTool.execute({
+                game: tArgs.game,
+                query: 'Requisitos Críticos de Cartas Perdíveis Gwent',
+                limit: 6,
+                missableOnly: true,
+              });
+              if (extraSearch && typeof extraSearch === 'object' && 'results' in extraSearch) {
+                const exResults = (extraSearch as { results?: Array<{ title?: string; content?: string }> }).results;
+                if (Array.isArray(exResults)) {
+                  for (const ex of exResults) {
+                    if (ex?.content && !collectedGuideSources.some((s) => s.title === ex.title)) {
+                      collectedGuideSources.push({
+                        title: ex.title || 'Subguia de Cartas',
+                        content: ex.content,
+                      });
+                    }
+                  }
+                }
+              }
+            } catch {}
           }
         }
 
