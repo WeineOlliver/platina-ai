@@ -42,6 +42,45 @@ Conquiste o troféu Masterminds completando todos os 3 Atos do Golpe do Juízo F
 Troféu Kifflom! obtido completando todas as missões do Programa Epsilon com Michael. Requer doar fundos no site da Epsilon, comprar e vestir a túnica por 10 dias seguidos e caminhar 8 quilômetros no deserto de Grand Senora. Atenção crítica para não falhar a entrega final do dinheiro.
 """
 
+GOLD_GUIDE_WITCHER_3 = """# Guia Completo de Troféus - The Witcher 3: Wild Hunt
+
+## Troféu Perdível: Full Crew (Equipe Completa)
+Recrute todos os aliados possíveis para Kaer Morhen antes de viajar para a Ilha das Brumas (Isle of Mists). Atenção crítica: este troféu é missable (perdível). Conclua as linhas de missões de Keira Metz, Vernon Roche, Zoltan Chivay, Ermion e os governantes de Skellige antes de avançar além do ponto de não retorno.
+
+## Troféu Perdível: Card Collector (Colecionador de Cartas)
+Atenção: Este troféu é missable (perdível)! Adquira todas as 199 cartas de Gwent únicas no jogo base espalhadas por Pomar Branco (White Orchard), Velen, Novigrad e Skellige. Certas cartas de torneios e personagens expiram permanentemente se você avançar sem conquistá-las.
+
+## Troféu Perdível: Assassin of Kings (Assassino de Reis)
+Atenção: Troféu perdível (missable)! Participe do complô contra o Rei Radovid na quest Reason of State. Conclua as missões secundárias An Eye for an Eye, A Deadly Plot, Redania's Most Wanted e Reason of State. Não agrida Dijkstra nos banhos públicos.
+
+## Troféu Perdível: Friends With Benefits (Amigos com Benefícios)
+Atenção: Troféu perdível (missable)! Conclua toda a linha de missões de Keira Metz sem matar a feiticeira. Convença Keira a ir para Kaer Morhen.
+
+## Troféu Perdível: Gwent Master (Mestre do Gwent)
+Atenção: Troféu perdível (missable)! Vença o torneio High Stakes no bordel Passiflora em Novigrad com 1000 coroas e baralho forte.
+
+## Troféu Perdível: Kingmaker (Criador de Reis)
+Atenção: Troféu perdível (missable)! Complete a linha de missões de sucessão do trono de Skellige apoiando Cerys ou Hjalmar an Craite.
+
+## Troféu Perdível: Even Odds (Pau a Pau)
+Atenção: Troféu perdível (missable)! Conclua 2 contratos de bruxo matando os monstros sem usar sinais, poções, mutagênicos, óleos ou bombas.
+
+## Troféu Perdível: Fast and Furious (Velozes e Furiosos)
+Atenção: Troféu perdível (missable)! Vença todas as corridas de cavalo em Velen, Novigrad e Skellige.
+
+## Troféu Perdível: The Doppler Effect (O Efeito Doppler)
+Atenção: Troféu perdível (missable)! Conclua o contrato de bruxo Um Ladrão Elusivo (An Elusive Thief) em Novigrad resolvendo o problema do doppler.
+
+## Troféu Perdível: Woodland Spirit (Espírito da Floresta)
+Atenção: Troféu perdível (missable)! Conclua o contrato do Leshen em Skellige ficando do lado de Sven para matar o monstro.
+
+## Troféu Perdível: White Orchard innkeeper (Estalajadeira do Pomar Branco)
+Atenção: Carta altamente perdível (missable)! Compre todas as cartas de Gwent da White Orchard innkeeper Elsa logo no início na taverna do Pomar Branco antes de partir para Vizima.
+
+## Troféu Perdível: Dandelion in Vegelbud Masquerade (Dandelion no Baile dos Vegelbud)
+Atenção: Carta estritamente perdível (missable)! Vença as 3 partidas no torneio de Gwent durante o baile de máscaras com Triss na propriedade Vegelbud (Vegelbud Masquerade) para ganhar a carta Dandelion.
+"""
+
 # 10 Ground-Truth Benchmark Cases (Bloodborne, Elden Ring, and GTA V)
 BENCHMARK_10_SCENARIOS = [
     # Bloodborne (4 scenarios)
@@ -300,10 +339,11 @@ async def seed_benchmark_gold_guides(async_client):
         },
     )
     await async_client.post(
-        "/api/v1/ingest/fetch-and-index",
+        "/api/v1/ingest/reindex",
         json={
             "game": "The Witcher 3: Wild Hunt",
-            "force_reindex": True,
+            "source_url": "https://powerpyx.com/witcher-3-trophy-guide",
+            "content": GOLD_GUIDE_WITCHER_3,
         },
     )
 

@@ -4,7 +4,7 @@ from unittest.mock import patch, AsyncMock
 from src.main import create_app
 from src.database import get_db_session
 from src.models.chunk import GuideChunkModel
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from src.services.scraper import TrophyGuideScraper, scraper
 
 
@@ -22,33 +22,70 @@ async def async_client():
 
 @pytest.fixture(autouse=True)
 async def cleanup_test_game():
-    test_games = ["The Witcher 3: Wild Hunt", "Test Scraped Game"]
     async with get_db_session() as session:
-        for g in test_games:
-            await session.execute(delete(GuideChunkModel).where(GuideChunkModel.game.ilike(g)))
+        await session.execute(delete(GuideChunkModel).where(GuideChunkModel.game.ilike("Test%")))
     yield
     async with get_db_session() as session:
-        for g in test_games:
-            await session.execute(delete(GuideChunkModel).where(GuideChunkModel.game.ilike(g)))
+        await session.execute(delete(GuideChunkModel).where(GuideChunkModel.game.ilike("Test%")))
+
+
+@pytest.mark.anyio
+async def test_cleanup_fixture_preserves_witcher_chunks():
+    async with get_db_session() as session:
+        witcher_chunk = GuideChunkModel(
+            id="chunk_test_w3_preserved",
+            game="The Witcher 3: Wild Hunt",
+            title="Preserved Witcher Chunk",
+            content="This chunk must not be deleted by test fixtures.",
+            source_url="https://test.powerpyx.com/witcher-chunk",
+            embedding=[0.0] * 1536,
+            is_missable=False,
+        )
+        test_chunk = GuideChunkModel(
+            id="chunk_test_scraped_temp",
+            game="Test Scraped Game",
+            title="Temporary Test Chunk",
+            content="This chunk should be deleted by test cleanup.",
+            source_url="https://test.powerpyx.com/test-chunk",
+            embedding=[0.0] * 1536,
+            is_missable=False,
+        )
+        session.add(witcher_chunk)
+        session.add(test_chunk)
+        await session.commit()
+
+    async with get_db_session() as session:
+        await session.execute(delete(GuideChunkModel).where(GuideChunkModel.game.ilike("Test%")))
+        await session.commit()
+
+    async with get_db_session() as session:
+        w_res = await session.execute(select(GuideChunkModel).where(GuideChunkModel.game == "The Witcher 3: Wild Hunt"))
+        witcher_survived = w_res.scalars().all()
+        assert len(witcher_survived) >= 1
+        assert any(c.title == "Preserved Witcher Chunk" for c in witcher_survived)
+
+        t_res = await session.execute(select(GuideChunkModel).where(GuideChunkModel.game == "Test Scraped Game"))
+        assert len(t_res.scalars().all()) == 0
+
+        await session.execute(
+            delete(GuideChunkModel).where(
+                GuideChunkModel.game == "The Witcher 3: Wild Hunt",
+                GuideChunkModel.title == "Preserved Witcher Chunk",
+            )
+        )
+        await session.commit()
 
 
 @pytest.mark.anyio
 async def test_scraper_fallback_structured_roadmap():
     scraper_instance = TrophyGuideScraper()
-    markdown, canonical_url = await scraper_instance.fetch_guide("The Witcher 3: Wild Hunt")
+    markdown, canonical_url = await scraper_instance.fetch_guide("Test Scraped Game")
 
-    assert "the-witcher-3-wild-hunt" in canonical_url
+    assert "test-scraped-game" in canonical_url
     assert "Roadmap Overview" in markdown
     assert "Tempo" in markdown
     assert "Dificuldade" in markdown
     assert "Passos da Platina" in markdown
-    assert "Card Collector" in markdown
-    assert "Full Crew" in markdown
-    assert "Assassin of Kings" in markdown
-    assert "Humpty Dumpty" in markdown
-    assert "That Is the Evilest Thing" in markdown
-    assert "Brawler" in markdown
-    assert "Fist of the South Star" in markdown
 
 
 @pytest.mark.anyio
@@ -81,7 +118,7 @@ async def test_scraper_fetches_source_url_with_html_parsing():
 
 @pytest.mark.anyio
 async def test_fetch_and_index_new_game_and_idempotent_skip(async_client):
-    game_name = "The Witcher 3: Wild Hunt"
+    game_name = "Test Scraped Game"
 
     # 1. First call: game is not indexed yet -> should scrape, chunk, embed, index
     response1 = await async_client.post(
@@ -92,8 +129,8 @@ async def test_fetch_and_index_new_game_and_idempotent_skip(async_client):
     data1 = response1.json()
     assert data1["status"] == "indexed"
     assert data1["game"] == game_name
-    assert data1["chunks_indexed"] >= 4
-    assert "the-witcher-3-wild-hunt" in data1["source_url"]
+    assert data1["chunks_indexed"] >= 1
+    assert "test-scraped-game" in data1["source_url"]
 
     # 2. Second call: game is already indexed -> should return already_indexed with chunk count
     response2 = await async_client.post(
@@ -222,24 +259,20 @@ async def test_fetch_game_guide_with_subpages_parallel_fetching():
 
 
 @pytest.mark.anyio
-async def test_fetch_game_guide_witcher_3_subpages_gwent_requirements():
+async def test_fetch_game_guide_subpages_generic_fallback():
     scraper_instance = TrophyGuideScraper()
-    pages = await scraper_instance.fetch_game_guide_with_subpages("The Witcher 3: Wild Hunt")
+    pages = await scraper_instance.fetch_game_guide_with_subpages("Test Scraped Game")
 
-    assert len(pages) >= 2
-    gwent_page = next((p for p in pages if "gwent" in p[2].lower() or "gwent" in p[0].lower()), None)
-    assert gwent_page is not None, "Gwent subpage must be present for The Witcher 3"
-
-    title, markdown, url = gwent_page
-    assert "Dandelion in Vegelbud Masquerade" in markdown
-    assert "Zoltan/Baron in Velen" in markdown
-    assert "High Stakes tournament in Passiflora" in markdown
-    assert "White Orchard innkeeper" in markdown
+    assert len(pages) == 1
+    title, markdown, url = pages[0]
+    assert "test-scraped-game" in url
+    assert "Roadmap Overview" in title
+    assert "Passos da Platina" in markdown
 
 
 @pytest.mark.anyio
 async def test_fetch_and_index_force_reindex(async_client):
-    game_name = "The Witcher 3: Wild Hunt"
+    game_name = "Test Scraped Game"
 
     # 1. First indexing
     resp1 = await async_client.post(
@@ -271,63 +304,44 @@ async def test_fetch_and_index_force_reindex(async_client):
 
 
 @pytest.mark.anyio
-async def test_extract_canonical_roadmap_witcher_3():
+async def test_extract_canonical_roadmap_generic_and_content_parsing():
     scraper_instance = TrophyGuideScraper()
-    roadmap = scraper_instance.extract_canonical_roadmap("The Witcher 3: Wild Hunt")
 
-    # Assert exact metrics
-    assert "difficulty" in roadmap or "difficulty_rating" in roadmap
-    assert "playthroughs_required" in roadmap or "playthroughs" in roadmap
-    assert "time_required" in roadmap or "time_estimate" in roadmap
+    # 1. Unindexed game without content returns generic template with empty missables
+    roadmap_empty = scraper_instance.extract_canonical_roadmap("Unknown Game")
+    assert roadmap_empty["game"] == "Unknown Game"
+    assert roadmap_empty["difficulty"] == "N/A"
+    assert len(roadmap_empty["missable_trophies"]) == 0
 
-    # Assert 10 canonical missable trophies
-    missables = roadmap["missable_trophies"]
-    assert len(missables) == 10
+    # 2. Witcher 3 without content also returns generic template (no hardcoded dict)
+    roadmap_w3 = scraper_instance.extract_canonical_roadmap("The Witcher 3: Wild Hunt")
+    assert roadmap_w3["game"] == "The Witcher 3: Wild Hunt"
+    assert roadmap_w3["difficulty"] == "N/A"
+    assert len(roadmap_w3["missable_trophies"]) == 0
 
-    expected_trophies = {
-        "Assassin of Kings": "Reason of State",
-        "Card Collector": "199",
-        "Even Odds": "without Signs",
-        "Fast and Furious": "horse races",
-        "Friends With Benefits": "Keira Metz",
-        "Full Crew": "Kaer Morhen",
-        "Gwent Master": "Passiflora",
-        "Kingmaker": "Skellige succession",
-        "The Doppler Effect": "An Elusive Thief",
-        "Woodland Spirit": "Leshen",
-    }
-
-    # Extract names and conditions
-    trophy_names = [t["name"] if isinstance(t, dict) else str(t) for t in missables]
-    for expected_name, expected_snippet in expected_trophies.items():
-        assert expected_name in trophy_names, f"Missing missable trophy: {expected_name}"
-        # Find item and check quest condition
-        matching = next(t for t in missables if (t["name"] if isinstance(t, dict) else str(t)) == expected_name)
-        condition_text = matching["condition"] if isinstance(matching, dict) else str(matching)
-        assert expected_snippet.lower() in condition_text.lower(), (
-            f"Expected '{expected_snippet}' in condition for {expected_name}, got: {condition_text}"
-        )
-
-    # Assert structured Roadmap Stages 1 to 6
-    stages = roadmap.get("roadmap_stages") or roadmap.get("stages", [])
-    assert len(stages) == 6
-    stages_text = " ".join(str(s) for s in stages).lower()
-    assert "death march" in stages_text
-    assert "gwent" in stages_text
-    assert "ally" in stages_text or "kaer morhen" in stages_text
-    assert "radovid" in stages_text
-    assert "competitions" in stages_text or "horse races" in stages_text
-    assert "mists" in stages_text
+    # 3. Content-based extraction parses metrics and missables generically
+    sample_content = """
+    Estimated trophy difficulty: 5/10
+    Minimum playthroughs: 2
+    Approximate amount of time to platinum: 40 hours
+    ### Missable: Secret Ending
+    ### Perdível: Ancient Relic
+    """
+    parsed = scraper_instance.extract_canonical_roadmap("Test Game", content=sample_content)
+    assert parsed["difficulty"] == "5/10"
+    assert parsed["playthroughs_required"] == 2
+    assert parsed["time_required"] == "40 hours"
+    assert len(parsed["missable_trophies"]) == 2
+    names = [t.name for t in parsed["missable_trophies"]]
+    assert "Missable: Secret Ending" in names
+    assert "Perdível: Ancient Relic" in names
 
 
 @pytest.mark.anyio
 async def test_multi_source_domain_fallback_handles_http_errors():
     scraper_instance = TrophyGuideScraper()
 
-    # Candidate URLs should cover PlayStationTrophies.org, ConsolePulse, PowerPyx
-    candidates = scraper_instance.get_candidate_urls("The Witcher 3: Wild Hunt")
-    assert any("playstationtrophies.org" in c.lower() for c in candidates)
-    assert any("consolepulse.com" in c.lower() for c in candidates)
+    candidates = scraper_instance.get_candidate_urls("Test Scraped Game")
     assert any("powerpyx.com" in c.lower() for c in candidates)
 
     # Mock all HTTP calls returning 403 / 404 errors
@@ -347,13 +361,11 @@ async def test_multi_source_domain_fallback_handles_http_errors():
         return resp
 
     with patch("httpx.AsyncClient.get", side_effect=mock_get):
-        pages = await scraper_instance.fetch_game_guide_with_subpages("The Witcher 3: Wild Hunt")
+        pages = await scraper_instance.fetch_game_guide_with_subpages("Test Scraped Game")
 
         # Must not fail and must fall back gracefully to structured canonical guide
         assert len(pages) >= 1
         main_title, main_markdown, canonical_url = pages[0]
-        assert "Roadmap Overview" in main_markdown or "The Witcher 3" in main_title
-        assert "Card Collector" in main_markdown
-        assert "Full Crew" in main_markdown
-        assert "Assassin of Kings" in main_markdown
+        assert "Roadmap Overview" in main_markdown or "Test Scraped Game" in main_title
+        assert "Passos da Platina" in main_markdown
 

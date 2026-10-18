@@ -37,13 +37,6 @@ WHERE id = 'pg_witcher3_01';
 
 
 -- 2. Grand Theft Auto V (canonical missables)
-INSERT INTO player_trophies (id, player_game_id, trophy_name, trophy_type, trophy_category, is_missable, is_unlocked, unlocked_at, chapter_or_location)
-VALUES
-    ('tr_gta_m_kifflom_alt', 'pg_gtav_01', 'Kifflom! e o Programa Epsilon', 'silver', 'missable', true, true, CURRENT_TIMESTAMP - INTERVAL '6 days', 'Epsilon Program'),
-    ('tr_gta_m_3man_alt', 'pg_gtav_01', 'Three Man Army', 'bronze', 'missable', true, true, CURRENT_TIMESTAMP - INTERVAL '5 days', 'Free Roam')
-ON CONFLICT (player_game_id, trophy_name)
-DO UPDATE SET trophy_category = EXCLUDED.trophy_category, is_missable = EXCLUDED.is_missable;
-
 UPDATE player_trophies
 SET is_missable = true, trophy_category = 'missable'
 WHERE player_game_id = 'pg_gtav_01'

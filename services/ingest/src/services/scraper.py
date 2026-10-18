@@ -122,53 +122,53 @@ class TrophyGuideScraper:
                 deduped.append(u)
         return deduped
 
-    def extract_canonical_roadmap(self, game: str) -> dict:
+    def _parse_roadmap_content(self, game: str, content: str) -> dict:
+        text = content
+        if "<html" in content.lower() or "<div" in content.lower() or "<p" in content.lower():
+            soup = BeautifulSoup(content, "html.parser")
+            text = soup.get_text(separator="\n")
+
+        diff_match = re.search(r"(?:estimated\s+trophy\s+difficulty|dificuldade(?:\s+estimada)?)\s*:\s*([^\n\r]+)", text, re.IGNORECASE)
+        difficulty = diff_match.group(1).strip() if diff_match else "N/A"
+
+        pt_match = re.search(r"(?:minimum\s+(?:number\s+of\s+)?playthroughs|jogadas\s+necess[aá]rias)\s*:\s*(\d+)", text, re.IGNORECASE)
+        playthroughs = int(pt_match.group(1)) if pt_match else 1
+
+        time_match = re.search(r"(?:approximate\s+amount\s+of\s+time[^:\n]*|tempo\s+estimado)\s*:\s*([^\n\r]+)", text, re.IGNORECASE)
+        time_estimate = time_match.group(1).strip() if time_match else "N/A"
+
+        missables = []
+        for line in text.splitlines():
+            line_clean = line.strip()
+            if re.search(r"\b(?:missable|perd[ií]vel)\b", line_clean, re.IGNORECASE) and len(line_clean) < 120:
+                name = re.sub(r"^(?:###|\*|-)\s*", "", line_clean).strip()
+                missables.append(MissableTrophy(name, line_clean))
+
+        return {
+            "game": game,
+            "difficulty": difficulty,
+            "difficulty_rating": difficulty,
+            "playthroughs_required": playthroughs,
+            "playthroughs": playthroughs,
+            "time_required": time_estimate,
+            "time_estimate": time_estimate,
+            "missable_trophies": missables,
+            "roadmap_stages": [],
+            "stages": [],
+        }
+
+    def extract_canonical_roadmap(self, game: str, content: Optional[str] = None) -> dict:
         """
         Extracts canonical roadmap metrics, complete list of missable trophies,
         and structured roadmap stages.
-        Guarantees complete coverage for The Witcher 3: Wild Hunt (all 10 canonical missables),
-        Grand Theft Auto V, Bloodborne, and Elden Ring.
+        If content (text/HTML) is provided, parses it generically.
+        Otherwise, returns game-specific metrics if known, or a generic template.
         """
+        if content:
+            return self._parse_roadmap_content(game, content)
+
         game_lower = game.lower()
-        if "witcher" in game_lower and "3" in game_lower:
-            return {
-                "game": game,
-                "difficulty": "6/10 (Death March)",
-                "difficulty_rating": "6/10 (Death March)",
-                "playthroughs_required": 1,
-                "playthroughs": 1,
-                "time_required": "100-150 hours",
-                "time_estimate": "100-150 hours",
-                "missable_trophies": [
-                    MissableTrophy("Assassin of Kings", "Quest: Reason of State, Plot against Radovid"),
-                    MissableTrophy("Card Collector", "All 199 unique Gwent cards across Velen, Novigrad, Skellige, White Orchard"),
-                    MissableTrophy("Even Odds", "Kill 2 contract monsters without Signs, potions, mutagens, oils, or bombs"),
-                    MissableTrophy("Fast and Furious", "Win all horse races in Velen, Novigrad, Skellige"),
-                    MissableTrophy("Friends With Benefits", "Complete Keira Metz questline without killing her"),
-                    MissableTrophy("Full Crew", "Recruit all 7 allies to Kaer Morhen before Isle of Mists: Keira, Triss, Roche, Ves, Zoltan, Ermion, Hjalmar"),
-                    MissableTrophy("Gwent Master", "Win High Stakes tournament at Passiflora"),
-                    MissableTrophy("Kingmaker", "Complete Skellige succession questline with Cerys or Hjalmar"),
-                    MissableTrophy("The Doppler Effect", 'Complete contract "An Elusive Thief" in Novigrad'),
-                    MissableTrophy("Woodland Spirit", "Complete contract in Skellige siding with Sven to kill the Leshen"),
-                ],
-                "roadmap_stages": [
-                    RoadmapStage(1, "Stage 1", "Death March Difficulty playthrough"),
-                    RoadmapStage(2, "Stage 2", "Gwent card collection from Prologue onward"),
-                    RoadmapStage(3, "Stage 3", "Ally recruitment for Kaer Morhen"),
-                    RoadmapStage(4, "Stage 4", "Political conspiracy against Radovid"),
-                    RoadmapStage(5, "Stage 5", "Regional competitions (fistfights and horse races)"),
-                    RoadmapStage(6, "Stage 6", "Pre-Isle of Mists cutoff master save"),
-                ],
-                "stages": [
-                    "Stage 1: Death March Difficulty playthrough",
-                    "Stage 2: Gwent card collection from Prologue onward",
-                    "Stage 3: Ally recruitment for Kaer Morhen",
-                    "Stage 4: Political conspiracy against Radovid",
-                    "Stage 5: Regional competitions (fistfights and horse races)",
-                    "Stage 6: Pre-Isle of Mists cutoff master save",
-                ],
-            }
-        elif "grand theft auto" in game_lower or "gta" in game_lower:
+        if "grand theft auto" in game_lower or "gta" in game_lower:
             return {
                 "game": game,
                 "difficulty": "3.5/10",
@@ -350,100 +350,20 @@ class TrophyGuideScraper:
 
     def generate_fallback_roadmap(self, game: str, slug: str) -> str:
         """
-        Authoritative structured roadmap fallback covering:
-        - Roadmap Overview (Tempo, Dificuldade, Passos da Platina)
-        - Missable Trophies (Complete list of 10 canonical missables for Witcher 3)
-        - Natural Grinds (Humpty Dumpty, That Is the Evilest Thing)
-        - Post-Game Cleanups (Brawler, Fist of the South Star)
+        Authoritative structured roadmap fallback.
         """
-        is_witcher_3 = "witcher" in game.lower() and "3" in game.lower()
-        if is_witcher_3:
-            return f"""# Guia de Platina: {game} — Roadmap Overview
-
-- Tempo estimado para a platina: 100-150 horas
-- Dificuldade estimada da platina: 6/10 (Marcha da Morte)
-- Total de troféus: 53 (1 Platina, 2 Ouro, 8 Prata, 42 Bronze)
-- Passos da Platina:
-  1. Concluir a história principal na dificuldade Marcha da Morte (Death March) sem alterar o nível em nenhum momento.
-  2. Coletar todas as cartas de Gwent e completar missões secundárias associadas a troféus perdíveis antes do ponto de não retorno em Kaer Morhen.
-  3. Fazer a limpeza de contratos de bruxo, lutas desarmadas e troféus específicos de combate.
-
-## Passos da Platina (Roadmap Stages)
-
-### Stage 1: Death March Difficulty playthrough
-Conclua a história principal na dificuldade Marcha da Morte (Death March) sem alterar o nível de dificuldade em nenhum momento do jogo.
-
-### Stage 2: Gwent card collection from Prologue onward
-Inicie a coleta de todas as 199 cartas de Gwent únicas desde o Prólogo (Pomar Branco / White Orchard) até Novigrad, Velen e Skellige.
-
-### Stage 3: Ally recruitment for Kaer Morhen
-Recrute todos os 7 aliados necessários para a defesa de Kaer Morhen antes de viajar para a Ilha das Brumas (Isle of Mists).
-
-### Stage 4: Political conspiracy against Radovid
-Participe ativamente da conspiração política contra o Rei Radovid completando a cadeia de missões secundárias de Dijkstra e Vernon Roche em Novigrad.
-
-### Stage 5: Regional competitions (fistfights and horse races)
-Vença todas as competições regionais de lutas desarmadas (fistfights) e corridas de cavalos (horse races) em Velen, Novigrad e Skellige.
-
-### Stage 6: Pre-Isle of Mists cutoff master save
-Crie um save mestre antes de embarcar para a Ilha das Brumas (Isle of Mists), pois várias missões secundárias e oportunidades de troféus perdíveis expiram neste ponto de corte.
-
-## Troféus Perdíveis (Missable Trophies)
-
-### Assassin of Kings
-Atenção: Troféu perdível (missable)! Participe do complô contra o Rei Radovid (Quest: Reason of State, Plot against Radovid). Conclua as missões secundárias 'An Eye for an Eye', 'A Deadly Plot', 'Redania's Most Wanted' e 'Reason of State'. Não agrida Dijkstra durante os eventos do banho público.
-
-### Card Collector
-Atenção: Este troféu é missable (perdível)! Adquira todas as 199 cartas de Gwent disponíveis no jogo base espalhadas por Pomar Branco (White Orchard), Velen, Novigrad e Skellige (All 199 unique Gwent cards across Velen, Novigrad, Skellige, White Orchard). Certas cartas só podem ser obtidas em torneios específicos (como o torneio no Passiflora) ou durante festas com Triss Merigold. Se você falhar ou recusar partidas, perderá o troféu.
-
-### Even Odds
-Atenção: Troféu perdível (missable)! Mate 2 monstros de contratos de bruxo sem usar Sinais, poções, mutagênicos, óleos ou bombas (Kill 2 contract monsters without Signs, potions, mutagens, oils, or bombs).
-
-### Fast and Furious
-Atenção: Troféu perdível (missable)! Vença todas as corridas de cavalo em Velen, Novigrad e Skellige (Win all horse races in Velen, Novigrad, Skellige).
-
-### Friends With Benefits
-Atenção: Troféu perdível (missable)! Conclua toda a linha de missões de Keira Metz sem matá-la (Complete Keira Metz questline without killing her).
-
-### Full Crew
-Atenção: Troféu perdível (missable)! Recrute todos os aliados possíveis para Kaer Morhen antes de viajar para a Ilha das Brumas (Recruit all 7 allies to Kaer Morhen before Isle of Mists: Keira, Triss, Roche, Ves, Zoltan, Ermion, Hjalmar). Ponto de não retorno: não avance para a Ilha das Brumas sem antes completar as linhas de missões de Keira Metz, Vernon Roche, Zoltan Chivay, Ermion e os governantes de Skellige (Hjalmar ou Cerys).
-
-### Gwent Master
-Atenção: Troféu perdível (missable)! Vença o torneio High Stakes no bordel Passiflora em Novigrad (Win High Stakes tournament at Passiflora).
-
-### Kingmaker
-Atenção: Troféu perdível (missable)! Complete a linha de missões de sucessão do trono de Skellige apoiando Cerys ou Hjalmar (Complete Skellige succession questline with Cerys or Hjalmar).
-
-### The Doppler Effect
-Atenção: Troféu perdível (missable)! Conclua o contrato de bruxo "Um Ladrão Elusivo" em Novigrad (Complete contract "An Elusive Thief" in Novigrad).
-
-### Woodland Spirit
-Atenção: Troféu perdível (missable)! Conclua o contrato em Skellige ficando do lado de Sven para matar o Leshen (Complete contract in Skellige siding with Sven to kill the Leshen).
-
-## Grinds Naturais (Natural Grinds)
-
-### Humpty Dumpty
-Mate 10 oponentes empurrando-os de lugares altos utilizando o sinal Aard. Um ótimo local de grind é a Fossa do Diabo em Velen, empurrando bandidos de plataformas elevadas.
-
-### That Is the Evilest Thing
-Incendeie o gás criado por uma bomba Dragão utilizando um oponente já em chamas 10 vezes. Combine o sinal Igni com a bomba Estrela Dançante ou Sonho do Dragão.
-
-## Limpeza Pós-Jogo (Post-Game Cleanups)
-
-### Brawler
-Complete todas as missões de brigas de rua e derrotas de campeões em Velen, Novigrad e Skellige.
-
-### Fist of the South Star
-Derrote um oponente em uma luta desarmada sem sofrer nenhum tipo de dano ou golpe."""
-        else:
-            roadmap = self.extract_canonical_roadmap(game)
-            stages_md = "\n".join([f"  {idx+1}. {s}" for idx, s in enumerate(roadmap.get("stages", []))]) or "  1. Complete main campaign and clean up remaining trophies."
+        roadmap = self.extract_canonical_roadmap(game)
+        stages_md = "\n".join([f"  {idx+1}. {s}" for idx, s in enumerate(roadmap.get("stages", []))]) or "  1. Complete main campaign and clean up remaining trophies."
+        missables = roadmap.get("missable_trophies", [])
+        if missables:
             missables_md = "\n\n".join([
-                f"### {m.get('name', 'Trophy')}\nAtenção: Troféu perdível (missable)! {m.get('condition', '')}"
-                for m in roadmap.get("missable_trophies", [])
-            ]) or "Nenhum troféu estritamente perdível registrado."
+                f"### {m.get('name', 'Trophy') if isinstance(m, dict) else getattr(m, 'name', str(m))}\nAtenção: Troféu perdível (missable)! {m.get('condition', '') if isinstance(m, dict) else getattr(m, 'condition', '')}"
+                for m in missables
+            ])
+        else:
+            missables_md = "Nenhum troféu estritamente perdível registrado."
 
-            return f"""# Guia de Platina: {game} — Roadmap Overview
+        return f"""# Guia de Platina: {game} — Roadmap Overview
 
 - Tempo estimado para a platina: {roadmap.get('time_required', 'N/A')}
 - Dificuldade estimada da platina: {roadmap.get('difficulty', 'N/A')}
@@ -455,64 +375,10 @@ Derrote um oponente em uma luta desarmada sem sofrer nenhum tipo de dano ou golp
 ## Troféus Perdíveis (Missable Trophies)
 {missables_md}"""
 
-    def generate_witcher_3_gwent_guide(self, game: str = "The Witcher 3: Wild Hunt") -> str:
-        """
-        Authoritative subpage guide for Gwent Card Locations covering all critical missable cards:
-        - White Orchard innkeeper
-        - Zoltan/Baron in Velen
-        - Dandelion in Vegelbud Masquerade
-        - High Stakes tournament in Passiflora
-        """
-        return f"""# {game} — Guia Completo de Cartas de Gwent e Colecionáveis Perdíveis (Card Collector)
-
-## Visão Geral do Troféu Card Collector (Colecionador de Cartas)
-Atenção: Este troféu é missable (perdível)! Para conquistá-lo, você precisa obter todas as cartas de Gwent disponíveis no jogo base. Se perder qualquer carta de missões com tempo limitado ou PNJs que morrem, o troféu será bloqueado na jogada atual.
-
-## Requisitos Críticos de Cartas Perdíveis (Missable Gwent Cards)
-
-### 1. White Orchard innkeeper (Estalajadeira do Pomar Branco)
-- Localização: Taverna do Pomar Branco.
-- Detalhes: Atenção: Carta altamente perdível (missable)! Compre todas as cartas da White Orchard innkeeper (Elsa) logo no início do jogo antes de avançar para o Palácio Real em Vizima. Caso você avance a história sem comprar, ela deixará o vilarejo permanentemente.
-
-### 2. Zoltan/Baron in Velen (Zoltan e Barão Sanguinário em Velen)
-- Missão: Gwent: Velen Players (Gwent: Jogadores de Velen).
-- Detalhes: Atenção: Requisito perdível (missable)! Jogue contra Zoltan e depois contra o Barão Sanguinário (Phillip Strenger) em Poleiro do Corvo antes de completar as missões 'Family Matters' e 'Return to Crookback Bog'. Se o Barão morrer ou partir antes de você vencê-lo no Gwent, a carta Zoltan/Baron in Velen e a lista de jogadores podem ser recolhidas em sua mesa de trabalho no castelo.
-
-### 3. Dandelion in Vegelbud Masquerade (Dandelion no Baile dos Vegelbud)
-- Missão: A Matter of Life and Death (Uma Questão de Vida ou Morte).
-- Detalhes: Atenção: Carta estritamente perdível (missable)! Durante o baile de máscaras com Triss Merigold na Propriedade dos Vegelbud (Vegelbud Masquerade), há um torneio secundário de Gwent com 3 partidas consecutivas. Você DEVE vencer todas as 3 partidas para obter a carta Dandelion in Vegelbud Masquerade. Não deixe a festa sem vencer essas partidas, pois a mansão fica inacessível depois.
-
-### 4. High Stakes tournament in Passiflora (Torneio Apostas Altas no Passiflora)
-- Missão: High Stakes (Apostas Altas).
-- Detalhes: Atenção: Torneio perdível (missable)! O torneio High Stakes tournament in Passiflora no bordel Passiflora em Novigrad exige 1000 coroas e um baralho forte. Você enfrentará Bernard Tulle, Sasha, Finneas e o Conde Tybalt. Salve o jogo antes de cada confronto; qualquer derrota desqualifica Geralt e perde as cartas exclusivas dos líderes.
-
-## Distribuição Regional de Cartas de Gwent (Card Locations by Region)
-
-### White Orchard (Pomar Branco)
-- Estalajadeira (White Orchard innkeeper): Vende cartas de Foltest, Catapult, Decoy e Blue Stripes Commando antes de sair.
-- Erudito na Taverna: Carta Zoltan Chivay ganha na partida tutorial de Gwent.
-
-### Velen (No Man's Land)
-- Poleiro do Corvo (Crow's Perch): Barão Sanguinário (Zoltan/Baron in Velen) concede a carta Sigismund Dijkstra.
-- Jogadores de Velen: Venda de cartas e partidas contra o adivinho (Soothsayer), o artesão de barcos de Oreton e Haddy em Midcopse.
-
-### Novigrad
-- Propriedade dos Vegelbud: Torneio durante o baile de máscaras com Triss para obter a carta Dandelion in Vegelbud Masquerade.
-- Passiflora: Torneio de Apostas Altas (High Stakes tournament in Passiflora) para conquistar as 4 cartas de líderes exclusivas.
-- Jogadores da Cidade Grande: Partidas contra Vivaldi, Marquesa Serenity e Dijkstra.
-- Thaler: Carta lendária Geralt de Rívia obtida na missão Um Complô Mortal.
-
-### Skellige
-- Estilo Skellige (Gwent: Skellige Style): Ermion concede a carta Leshen, Crach an Craite concede Draug, Gremist e Sjusta em Kaer Trolde.
-- Madman Lugos: Carta Vampire: Katakan deve ser obtida antes dos eventos finais em Kaer Muire.
-- Missão Terapia de Choque (Shock Therapy): Concedida por druidas em Gedyneith garantindo a carta neutra Iorveth.
-"""
-
     async def fetch_game_guide_with_subpages(
         self, game: str, source_url: Optional[str] = None
     ) -> list[tuple[str, str, str]]:
         slug = self.compute_slug(game)
-        is_witcher_3 = "witcher" in game.lower() and "3" in game.lower()
 
         async def _fetch_subpage(client: httpx.AsyncClient, url: str) -> Optional[Tuple[str, str, str]]:
             try:
@@ -563,34 +429,13 @@ Atenção: Este troféu é missable (perdível)! Para conquistá-lo, você preci
                         if sub:
                             pages.append(sub)
 
-                # For Witcher 3, verify Gwent card requirements are covered
-                if is_witcher_3:
-                    has_gwent = any(
-                        "dandelion in vegelbud masquerade" in p[1].lower() and
-                        "white orchard innkeeper" in p[1].lower()
-                        for p in pages
-                    )
-                    if not has_gwent:
-                        gwent_url = f"https://www.powerpyx.com/{slug}-gwent-cards-locations-guide/"
-                        gwent_title = f"{game} — Guia Completo de Cartas de Gwent e Colecionáveis Perdíveis"
-                        gwent_md = self.generate_witcher_3_gwent_guide(game)
-                        pages.append((gwent_title, gwent_md, gwent_url))
-
                 return pages
 
         # 2. Fallback structured roadmap
         canonical_url = f"https://www.powerpyx.com/{slug}-trophy-guide-roadmap/"
         main_title = f"Guia de Platina: {game} — Roadmap Overview"
         main_markdown = self.generate_fallback_roadmap(game, slug)
-        pages = [(main_title, main_markdown, canonical_url)]
-
-        if is_witcher_3:
-            gwent_url = f"https://www.powerpyx.com/{slug}-gwent-cards-locations-guide/"
-            gwent_title = f"{game} — Guia Completo de Cartas de Gwent e Colecionáveis Perdíveis"
-            gwent_md = self.generate_witcher_3_gwent_guide(game)
-            pages.append((gwent_title, gwent_md, gwent_url))
-
-        return pages
+        return [(main_title, main_markdown, canonical_url)]
 
     async def fetch_guide(self, game: str, source_url: Optional[str] = None) -> Tuple[str, str]:
         pages = await self.fetch_game_guide_with_subpages(game, source_url)
