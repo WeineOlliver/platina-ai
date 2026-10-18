@@ -1,6 +1,11 @@
 import Groq from 'groq-sdk';
 import { env } from '../../config/env.js';
-import { playerProgressTool, PlayerProgressTool, type CheckPlayerProgressParams } from './tools/playerProgress.js';
+import {
+  playerProgressTool,
+  PlayerProgressTool,
+  type CheckPlayerProgressParams,
+  type PlayerProgressResult,
+} from './tools/playerProgress.js';
 import { searchGuidesTool, SearchGuidesTool, type SearchGuidesParams } from './tools/searchGuides.js';
 import { groundingValidator } from './validator.js';
 
@@ -70,8 +75,9 @@ Você tem acesso a ferramentas para:
 
 Diretrizes do Agente:
 - Se o usuário mencionar um PSN ID ou perguntar o que precisa fazer a seguir em um jogo, chame "check_player_progress" para ver a situação real dele.
-- Se o retorno de "check_player_progress" trouxer "unearned_trophies_summary", USE essa lista de troféus pendentes reais do jogador para responder quais troféus faltam ou qual é o mais fácil/rápido de fazer, em vez de inventar troféus que ele não tem.
-- Se houver troféus perdíveis pendentes ou o jogador tiver dúvidas sobre um troféu específico, chame "search_trophy_guides" com query curta e direta (ex: "Masterminds" ou "Cryptozoologist").
+- Se o retorno de "check_player_progress" trouxer "unearned_trophies_summary", USE essa lista de troféus pendentes reais do jogador para responder quais troféus faltam ou qual é o mais fácil/rápido de fazer.
+- Para buscar no banco de guias com "search_trophy_guides", envie SEMPRE o nome exato do troféu curto e limpo (ex: query: "Masterminds", "Kifflom", "Cryptozoologist"), NUNCA concatene a descrição inteira do troféu, palavras como "silver", "bronze" ou textos longos na query de busca.
+- Se você identificou o progresso do jogador e nenhum guia vetorial adicional for necessário (ou a dúvida for apenas sobre a lista de pendências), responda usando os dados retornados de "check_player_progress" de forma tática.
 - Não execute mais de 2 chamadas de ferramentas na mesma resposta. Seja direto, prático e cite as fontes.
 
 Persona Concisa e Tática (Formato Obrigatório de Resposta):
@@ -128,6 +134,10 @@ Sua resposta final deve ter no total MENOS DE 120 PALAVRAS e seguir rigorosament
           }
         } catch {
           // If corrective re-prompt fails, provide a safe grounded fallback rather than hallucinated advice
+        }
+        // If the answer is based on player progress data or general guidance, let the rawContent pass rather than a hard abort
+        if (collectedGuideSources.some((s) => s.title.includes('Progresso PSN'))) {
+          return rawContent;
         }
         return 'Guia oficial não encontrado para este objetivo.\nQuer que eu procure em fontes complementares?';
       }
@@ -210,6 +220,45 @@ Sua resposta final deve ter no total MENOS DE 120 PALAVRAS e seguir rigorosament
                 });
               }
             }
+          }
+        }
+
+        if (toolName === PlayerProgressTool.name && resultData && typeof resultData === 'object') {
+          const pData = resultData as Partial<PlayerProgressResult>;
+          const summaryParts: string[] = [];
+          if (pData.game) summaryParts.push(`Jogo: ${pData.game}`);
+          if (pData.pending_missable_trophies?.length) {
+            summaryParts.push(
+              `Troféus perdíveis pendentes: ${pData.pending_missable_trophies.map((t) => t.trophy_name).join(', ')}`
+            );
+          }
+          if (pData.unearned_trophies_summary?.length) {
+            summaryParts.push(`Lista de troféus pendentes:\n${pData.unearned_trophies_summary.slice(0, 10).join('\n')}`);
+          }
+          if (summaryParts.length > 0) {
+            collectedGuideSources.push({
+              title: `Progresso PSN (${pData.game || 'Geral'})`,
+              content: summaryParts.join('\n'),
+            });
+          }
+
+          const gameName = pData.game || 'Geral';
+          if (pData.quick_cleanup_trophies?.length) {
+            collectedGuideSources.push({
+              title: `Progresso PSN (${gameName}) - Troféus Rápidos (Limpeza)`,
+              content: pData.quick_cleanup_trophies
+                .map((t) => `- ${t.trophy_name}${t.trophy_type ? ` [${t.trophy_type}]` : ''}${t.chapter_or_location ? `: ${t.chapter_or_location}` : ''}`)
+                .join('\n'),
+            });
+          }
+
+          if (pData.heavy_grind_trophies?.length) {
+            collectedGuideSources.push({
+              title: `Progresso PSN (${gameName}) - Troféus de Grind Pesado`,
+              content: pData.heavy_grind_trophies
+                .map((t) => `- ${t.trophy_name}${t.trophy_type ? ` [${t.trophy_type}]` : ''}${t.chapter_or_location ? `: ${t.chapter_or_location}` : ''}`)
+                .join('\n'),
+            });
           }
         }
 

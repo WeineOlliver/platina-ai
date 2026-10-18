@@ -36,4 +36,23 @@ describe('PlayerProgressTool Suite', () => {
       expect(names.some((n) => n.includes('Eileen'))).toBe(true);
     }
   });
+
+  it('queries progress service and returns quick_cleanup_trophies and heavy_grind_trophies', async () => {
+    const result = await playerProgressTool.execute({
+      psnId: 'olliverW9',
+      game: 'Grand Theft Auto V',
+    });
+
+    expect('error' in result).toBe(false);
+    if (!('error' in result)) {
+      expect(result.psn_id).toBe('olliverW9');
+      expect(result.game).toBe('Grand Theft Auto V');
+      expect(result.quick_cleanup_trophies).toBeDefined();
+      expect(result.quick_cleanup_trophies!.length).toBeGreaterThan(0);
+      expect(result.heavy_grind_trophies).toBeDefined();
+      expect(result.heavy_grind_trophies!.length).toBeGreaterThan(0);
+      expect(result.quick_cleanup_trophies!.some((t) => t.trophy_name === 'Vinewood Visionary')).toBe(true);
+      expect(result.heavy_grind_trophies!.some((t) => t.trophy_name === 'Masterminds')).toBe(true);
+    }
+  });
 });

@@ -12,7 +12,7 @@ export const checkPlayerProgressParamsSchema = z.object({
 
 export type CheckPlayerProgressParams = z.infer<typeof checkPlayerProgressParamsSchema>;
 
-export interface PlayerProgressData {
+export interface PlayerProgressResult {
   psn_id: string;
   game: string;
   platform: string;
@@ -31,7 +31,29 @@ export interface PlayerProgressData {
     trophy_name: string;
     unlocked_at?: string | undefined;
   }>;
+  quick_cleanup_trophies?: Array<{
+    trophy_name: string;
+    chapter_or_location?: string | undefined;
+    trophy_type?: string | undefined;
+  }>;
+  heavy_grind_trophies?: Array<{
+    trophy_name: string;
+    chapter_or_location?: string | undefined;
+    trophy_type?: string | undefined;
+  }>;
+  natural_grind_trophies?: Array<{
+    trophy_name: string;
+    chapter_or_location?: string | undefined;
+    trophy_type?: string | undefined;
+  }>;
+  pending_missables?: Array<{
+    trophy_name: string;
+    chapter_or_location?: string | undefined;
+    trophy_type?: string | undefined;
+  }>;
 }
+
+export type PlayerProgressData = PlayerProgressResult;
 
 export class PlayerProgressTool {
   static readonly name = 'check_player_progress';
@@ -66,7 +88,7 @@ export class PlayerProgressTool {
     this.baseUrl = baseUrl.replace(/\/$/, '');
   }
 
-  async execute(params: CheckPlayerProgressParams): Promise<PlayerProgressData | { error: string }> {
+  async execute(params: CheckPlayerProgressParams): Promise<PlayerProgressResult | { error: string }> {
     const validated = checkPlayerProgressParamsSchema.safeParse(params);
     if (!validated.success) {
       return { error: `Parâmetros inválidos: ${validated.error.message}` };
@@ -74,13 +96,48 @@ export class PlayerProgressTool {
 
     const { psnId, game } = validated.data;
 
-    // First attempt: live crawl via PlayStation Network Worker (if configured)
+    // First attempt: internal microservice database query
+    try {
+      const url = `${this.baseUrl}/api/v1/players/${encodeURIComponent(psnId)}/progress?game=${encodeURIComponent(game)}`;
+      const response = await fetch(url);
+
+      if (response.ok) {
+        return (await response.json()) as PlayerProgressResult;
+      }
+    } catch {
+      // Fall back to live crawl if microservice is offline or times out
+    }
+
+    // Fallback: live crawl via PlayStation Network Worker (if configured)
     if (env.PSN_WORKER_NPSSO || process.env.PSN_WORKER_NPSSO) {
       try {
         const liveData = await psnCrawlerService.getPlayerTrophies(psnId, game);
         const unlocked = liveData.trophies.filter(t => t.isUnlocked);
         const pending = liveData.trophies.filter(t => !t.isUnlocked);
         const pendingMissables = pending.filter(t => t.isMissable);
+
+        const quickCleanup = pending.filter(
+          (t) =>
+            t.chapterOrLocation?.toLowerCase().includes('director mode') ||
+            [
+              'Vinewood Visionary',
+              'Majestic',
+              'Humans of Los Santos',
+              'Animal Lover',
+              'Ensemble Piece',
+              'Cult Movie',
+              'Location Scout',
+              'Method Actor',
+              'Cryptozoologist',
+            ].includes(t.name)
+        );
+
+        const heavyGrind = pending.filter(
+          (t) =>
+            t.chapterOrLocation?.toLowerCase().includes('heist') ||
+            t.chapterOrLocation?.toLowerCase().includes('doomsday') ||
+            ['Live a Little', 'Mastermind', 'Masterminds', 'Elitist'].includes(t.name)
+        );
 
         return {
           psn_id: liveData.psnId,
@@ -100,34 +157,51 @@ export class PlayerProgressTool {
           recently_unlocked: unlocked.slice(-3).map(t => ({
             trophy_name: t.name,
             unlocked_at: t.earnedDateTime || undefined
-          }))
+          })),
+          quick_cleanup_trophies: quickCleanup.map(t => ({
+            trophy_name: t.name,
+            chapter_or_location: t.chapterOrLocation || undefined,
+            trophy_type: t.type,
+          })),
+          heavy_grind_trophies: heavyGrind.map(t => ({
+            trophy_name: t.name,
+            chapter_or_location: t.chapterOrLocation || undefined,
+            trophy_type: t.type,
+          })),
+          natural_grind_trophies: [],
+          pending_missables: pendingMissables.map(t => ({
+            trophy_name: t.name,
+            chapter_or_location: t.chapterOrLocation || undefined,
+            trophy_type: t.type,
+          })),
         };
       } catch (err: unknown) {
-        // Fall back to internal microservice database query if PSN API times out or fails
+        // live crawl failed or not found
       }
     }
 
+    // Direct error check if microservice gave a specific error response
     try {
       const url = `${this.baseUrl}/api/v1/players/${encodeURIComponent(psnId)}/progress?game=${encodeURIComponent(game)}`;
       const response = await fetch(url);
-
       if (response.status === 404) {
         return {
           error: `Jogador "${psnId}" ou jogo "${game}" não encontrado no banco de dados da PSN.`,
         };
       }
-
       if (!response.ok) {
         return {
           error: `Erro ao consultar serviço de troféus: HTTP ${response.status}`,
         };
       }
-
-      return (await response.json()) as PlayerProgressData;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Falha na conexão com serviço de progresso';
       return { error: `Falha na requisição: ${message}` };
     }
+
+    return {
+      error: `Jogador "${psnId}" ou jogo "${game}" não encontrado no banco de dados da PSN.`,
+    };
   }
 }
 

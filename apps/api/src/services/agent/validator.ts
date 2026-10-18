@@ -49,15 +49,19 @@ export class GroundingValidator {
     }
 
     // Sources are present: combine and normalize guide corpus
-    const fullCorpus = sources
-      .map((s) => `${s.title}\n${s.content}`)
-      .join('\n\n')
-      .toLowerCase();
+    // We normalize diacritics / accents for robust matching
+    const normalize = (t: string) =>
+      t
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+
+    const fullCorpus = normalize(sources.map((s) => `${s.title}\n${s.content}`).join('\n\n'));
 
     const ungroundedClaims: string[] = [];
 
     for (const claim of claims) {
-      const normalizedClaim = claim.trim().toLowerCase();
+      const normalizedClaim = normalize(claim.trim());
       if (!normalizedClaim || normalizedClaim.length < 2) continue;
 
       if (!this.isClaimSupported(normalizedClaim, fullCorpus)) {
