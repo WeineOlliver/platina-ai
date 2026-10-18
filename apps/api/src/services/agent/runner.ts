@@ -2,6 +2,7 @@ import Groq from 'groq-sdk';
 import { env } from '../../config/env.js';
 import { playerProgressTool, PlayerProgressTool, type CheckPlayerProgressParams } from './tools/playerProgress.js';
 import { searchGuidesTool, SearchGuidesTool, type SearchGuidesParams } from './tools/searchGuides.js';
+import { groundingValidator } from './validator.js';
 
 export interface AgentStepEvent {
   type: 'thought' | 'tool_call' | 'tool_result' | 'chunk' | 'done' | 'error';
@@ -53,7 +54,7 @@ export class PlatinaAgentRunner {
     const maxSteps = options.maxSteps ?? 5;
 
     // Fallback if no LLM client is configured
-    if (!this.client || env.AI_PROVIDER === 'mock') {
+    if (!this.client || env.AI_PROVIDER === 'mock' || process.env.AI_PROVIDER === 'mock') {
       yield {
         type: 'chunk',
         content: `[Platina Agent - Mock] Analisando sua solicitação: "${userMessage}".\nPara ativar o loop completo de ferramentas com o modelo de 120B parâmetros, configure o GROQ_API_KEY no arquivo .env.`,
@@ -71,12 +72,61 @@ Diretrizes do Agente:
 - Se o usuário mencionar um PSN ID ou perguntar o que precisa fazer a seguir em um jogo, chame "check_player_progress" para ver a situação real dele.
 - Se o retorno de "check_player_progress" trouxer "unearned_trophies_summary", USE essa lista de troféus pendentes reais do jogador para responder quais troféus faltam ou qual é o mais fácil/rápido de fazer, em vez de inventar troféus que ele não tem.
 - Se houver troféus perdíveis pendentes ou o jogador tiver dúvidas sobre um troféu específico, chame "search_trophy_guides" com query curta e direta (ex: "Masterminds" ou "Cryptozoologist").
-- Não execute mais de 2 chamadas de ferramentas na mesma resposta. Seja direto, prático e cite as fontes.`;
+- Não execute mais de 2 chamadas de ferramentas na mesma resposta. Seja direto, prático e cite as fontes.
+
+Persona Concisa e Tática (Formato Obrigatório de Resposta):
+Sua resposta final deve ter no total MENOS DE 120 PALAVRAS e seguir rigorosamente esta estrutura:
+- Linha 1: Troféu alvo + localização (ex: "Troféu: [Nome] em [Localização].").
+- Linhas 2-3 (ou 2-4): Ação tática imediata para não perdê-lo (etapa imediata, condição crítica ou ponto de não retorno).
+- Linha final: Call to action oferecendo walkthrough completo: "Quer os detalhes completos e rotas deste troféu?"`;
 
     const messages: Groq.Chat.ChatCompletionMessageParam[] = [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userMessage },
     ];
+
+    const collectedGuideSources: Array<{ content: string; title: string }> = [];
+
+    const verifyAndStreamAnswer = async (
+      rawContent: string,
+      currentMessages: Groq.Chat.ChatCompletionMessageParam[]
+    ): Promise<string> => {
+      if (!this.client || !rawContent.trim()) {
+        return rawContent;
+      }
+
+      const validation = await groundingValidator.validate(rawContent, collectedGuideSources);
+      if (!validation.isValid) {
+        try {
+          const correctiveMessages: Groq.Chat.ChatCompletionMessageParam[] = [
+            ...currentMessages,
+            { role: 'assistant', content: rawContent },
+            {
+              role: 'user',
+              content:
+                'A resposta anterior continha afirmações não sustentadas pelo guia. Reescreva de forma estritamente ancorada apenas nos fatos verificados do guia.',
+            },
+          ];
+
+          const correctiveCompletion = await this.client.chat.completions.create(
+            {
+              model: this.model,
+              messages: correctiveMessages,
+            },
+            { signal: options.signal }
+          );
+
+          const corrected = correctiveCompletion.choices[0]?.message?.content;
+          if (corrected) {
+            return corrected;
+          }
+        } catch {
+          // If corrective re-prompt fails, return rawContent
+        }
+      }
+
+      return rawContent;
+    };
 
     let step = 0;
 
@@ -109,9 +159,10 @@ Diretrizes do Agente:
       const toolCalls = assistantMsg.tool_calls;
 
       if (!toolCalls || toolCalls.length === 0) {
-        // No more tool calls; stream final assistant text response
-        const content = assistantMsg.content ?? '';
-        yield { type: 'chunk', content };
+        // No more tool calls; validate content with Pre-Flight Verification before streaming
+        const rawContent = assistantMsg.content ?? '';
+        const verifiedContent = await verifyAndStreamAnswer(rawContent, messages);
+        yield { type: 'chunk', content: verifiedContent };
         yield { type: 'done' };
         return;
       }
@@ -139,6 +190,20 @@ Diretrizes do Agente:
           resultData = await this.executeTool(toolName, toolArgs);
         } catch (err: unknown) {
           resultData = { error: err instanceof Error ? err.message : String(err) };
+        }
+
+        if (toolName === SearchGuidesTool.name && resultData && typeof resultData === 'object' && 'results' in resultData) {
+          const results = (resultData as { results?: Array<{ title?: string; content?: string }> }).results;
+          if (Array.isArray(results)) {
+            for (const item of results) {
+              if (item?.content) {
+                collectedGuideSources.push({
+                  title: item.title || 'Guia de Troféus',
+                  content: item.content,
+                });
+              }
+            }
+          }
         }
 
         yield {
@@ -170,10 +235,11 @@ Diretrizes do Agente:
       },
       { signal: options.signal }
     );
-    const finalContent = fallbackCompletion.choices[0]?.message?.content ?? '';
+    const fallbackRawContent = fallbackCompletion.choices[0]?.message?.content ?? '';
+    const verifiedContent = await verifyAndStreamAnswer(fallbackRawContent, messages);
     yield {
       type: 'chunk',
-      content: finalContent || '\n[Aviso: O agente concluiu a coleta de dados das ferramentas.]',
+      content: verifiedContent || '\n[Aviso: O agente concluiu a coleta de dados das ferramentas.]',
     };
     yield { type: 'done' };
   }
