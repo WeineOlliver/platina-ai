@@ -1,7 +1,7 @@
 export const DEFAULT_MODEL_CASCADE = [
   'openai/gpt-oss-120b',
-  'llama-3.3-70b-versatile',
-  'llama-3.1-8b-instant',
+  'openai/gpt-oss-20b',
+  'qwen/qwen3.8-27b',
 ];
 
 function isTransientError(error: unknown): boolean {
