@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import { PlatinaAgentRunner, type AgentStepEvent } from './runner.js';
 import { groundingValidator, type SourceDocument } from './validator.js';
 import { env } from '../../config/env.js';
@@ -18,8 +18,14 @@ describe('Platina AI Agent Runner Benchmark Suite', () => {
     (env as unknown as { AI_PROVIDER: string }).AI_PROVIDER = 'groq';
   });
 
+  afterAll(() => {
+    process.env.AI_PROVIDER = 'mock';
+    (env as unknown as { AI_PROVIDER: string }).AI_PROVIDER = 'mock';
+  });
+
   describe('Agent Conciseness & Output Format Benchmark', () => {
     const PROGRESSIVE_CTA = 'Quer os detalhes completos e rotas deste troféu?';
+    const ROUTING_CTA = 'Qual rota você prefere encarar primeiro?';
 
     const BENCHMARK_RESPONSES = [
       {
@@ -52,6 +58,15 @@ describe('Platina AI Agent Runner Benchmark Suite', () => {
           PROGRESSIVE_CTA,
         ].join('\n'),
       },
+      {
+        scenario: 'Grand Theft Auto V - Post-Story Routing (OlliverHunter 71%)',
+        response: [
+          'Campanha concluída! Você tem 71% dos troféus e nenhum troféu perdível pendente.',
+          '- Opção 1 (Velocidade): Conquiste rapidamente troféus do Modo Diretor como Vinewood Visionary e Majestic.',
+          '- Opção 2 (Fundação / Grind Pesado): Encare os Golpes do Juízo Final focando em Masterminds e Elitist.',
+          ROUTING_CTA,
+        ].join('\n'),
+      },
     ];
 
     it.each(BENCHMARK_RESPONSES)(
@@ -65,8 +80,8 @@ describe('Platina AI Agent Runner Benchmark Suite', () => {
         expect(bulletCount).toBeLessThanOrEqual(4);
         expect(bulletCount).toBeGreaterThanOrEqual(2);
 
-        // Progressive disclosure CTA constraint
-        expect(response).toContain(PROGRESSIVE_CTA);
+        // Progressive disclosure CTA constraint (tactical single trophy or dual-option routing)
+        expect(response).toMatch(/Quer os detalhes completos e rotas deste troféu\?|Qual rota você prefere/);
       }
     );
   });
@@ -173,6 +188,115 @@ describe('Platina AI Agent Runner Benchmark Suite', () => {
       expect(output).toContain('Quer os detalhes completos e rotas deste troféu?');
 
       // Assert done event
+      const doneEvent = events.find((e) => e.type === 'done');
+      expect(doneEvent).toBeDefined();
+    });
+
+    it('Grand Theft Auto V - Post-Story Routing (OlliverHunter 71%)', async () => {
+      const runner = new PlatinaAgentRunner();
+
+      const mockProgressResult = {
+        psn_id: 'OlliverHunter',
+        game: 'Grand Theft Auto V',
+        platform: 'PS5',
+        total_trophies: 51,
+        unlocked_count: 36,
+        completion_percentage: 71,
+        pending_count: 15,
+        pending_missables_count: 0,
+        pending_missable_trophies: [],
+        quick_cleanup_trophies: [
+          { trophy_name: 'Vinewood Visionary', trophy_type: 'bronze', chapter_or_location: 'Modo Diretor' },
+          { trophy_name: 'Majestic', trophy_type: 'silver', chapter_or_location: 'Modo Diretor' },
+          { trophy_name: 'Location Scout', trophy_type: 'silver', chapter_or_location: 'Modo Diretor' },
+        ],
+        heavy_grind_trophies: [
+          { trophy_name: 'Masterminds', trophy_type: 'silver', chapter_or_location: 'Golpe do Juízo Final' },
+          { trophy_name: 'Elitist', trophy_type: 'silver', chapter_or_location: 'Golpe do Juízo Final' },
+        ],
+        natural_grind_trophies: [],
+        pending_missables: [],
+        unearned_trophies_summary: [
+          'Vinewood Visionary (bronze): Crie e exporte um vídeo usando o Modo Diretor.',
+          'Majestic (silver): Crie e exporte 10 vídeos usando o Modo Diretor.',
+          'Location Scout (silver): Visite todos os locais no Modo Diretor.',
+          'Masterminds (silver): Complete todos os 3 desafios do Golpe do Juízo Final.',
+          'Elitist (silver): Complete todos os 3 desafios de Elite no Golpe do Juízo Final.',
+        ],
+      };
+
+      vi.spyOn(runner, 'executeTool').mockResolvedValue(mockProgressResult);
+
+      const dualOptionRoutingAdvice = [
+        'Campanha concluída! Você tem 71% dos troféus e nenhum troféu perdível pendente.',
+        '- Opção 1 (Velocidade): Limpe os troféus rápidos do Modo Diretor como Vinewood Visionary e Majestic.',
+        '- Opção 2 (Fundação / Grind Pesado): Encare os Golpes do Juízo Final focando em Masterminds e Elitist.',
+        'Qual rota você prefere encarar primeiro?',
+      ].join('\n');
+
+      const mockCreate = vi
+        .fn()
+        // Step 1: Agent calls check_player_progress
+        .mockResolvedValueOnce({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                tool_calls: [
+                  {
+                    id: 'call_progress_gta',
+                    function: {
+                      name: 'check_player_progress',
+                      arguments: JSON.stringify({ psnId: 'OlliverHunter', game: 'Grand Theft Auto V' }),
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        })
+        // Step 2: Agent synthesizes dual-option strategic routing advice
+        .mockResolvedValueOnce({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: dualOptionRoutingAdvice,
+              },
+            },
+          ],
+        });
+
+      (runner as unknown as { client: { chat: { completions: { create: typeof mockCreate } } } }).client = {
+        chat: { completions: { create: mockCreate } },
+      };
+
+      const events: AgentStepEvent[] = [];
+      for await (const event of runner.run('Qual a melhor rota e próximos passos para OlliverHunter em Grand Theft Auto V?')) {
+        events.push(event);
+      }
+
+      // Verify tool call was dispatched for player progress
+      const toolCallEvent = events.find((e) => e.type === 'tool_call');
+      expect(toolCallEvent).toBeDefined();
+      expect(toolCallEvent?.toolName).toBe('check_player_progress');
+
+      // Verify final advice chunk
+      const chunkEvent = events.find((e) => e.type === 'chunk');
+      expect(chunkEvent).toBeDefined();
+      const output = chunkEvent?.content ?? '';
+
+      // Asserts dual options (Velocidade e Grind Pesado)
+      expect(output).toMatch(/Opção 1|Velocidade/i);
+      expect(output).toMatch(/Opção 2|Grind/i);
+
+      // Asserts CTA "Qual rota você prefere"
+      expect(output).toContain('Qual rota você prefere');
+
+      // Asserts conciseness: <= 120 words
+      expect(countWords(output)).toBeLessThanOrEqual(120);
+
+      // Verify completion
       const doneEvent = events.find((e) => e.type === 'done');
       expect(doneEvent).toBeDefined();
     });

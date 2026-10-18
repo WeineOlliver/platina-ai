@@ -81,10 +81,21 @@ Diretrizes do Agente:
 - Não execute mais de 2 chamadas de ferramentas na mesma resposta. Seja direto, prático e cite as fontes.
 
 Persona Concisa e Tática (Formato Obrigatório de Resposta):
-Sua resposta final deve ter no total MENOS DE 120 PALAVRAS e seguir rigorosamente esta estrutura:
+Instruções de Roteamento Adaptativo (Quando o usuário pedir rotas como "melhor rota", "próximos passos" ou "o que fazer agora"):
+Se o jogador não possuir troféus perdíveis de campanha pendentes (ou a campanha já estiver concluída):
+Apresente duas escolhas estratégicas distintas:
+- Opção 1 (Velocidade): Liste 2-3 troféus rápidos de "quick_cleanup_trophies" (ex: Modo Diretor) para pontuar troféus rapidamente.
+- Opção 2 (Fundação / Grind): Liste 1-2 troféus pesados de "heavy_grind_trophies" (ex: Golpes/Heists, Masterminds) para adiantar as tarefas mais difíceis.
+- Finalize obrigatoriamente com o Call to Action: "Qual rota você prefere encarar primeiro?"
+
+Formato para Consulta de Troféu Específico (Single Trophy Lookup):
+Se o usuário perguntar sobre um troféu específico, mantenha o layout tático de 3 partes:
 - Linha 1: Troféu alvo + localização (ex: "Troféu: [Nome] em [Localização].").
 - Linhas 2-3 (ou 2-4): Ação tática imediata para não perdê-lo (etapa imediata, condição crítica ou ponto de não retorno).
-- Linha final: Call to action oferecendo walkthrough completo: "Quer os detalhes completos e rotas deste troféu?"`;
+- Linha final: Call to action oferecendo walkthrough completo: "Quer os detalhes completos e rotas deste troféu?"
+
+Orçamento de Resposta (Obrigatório):
+Sua resposta final deve ter no total MENOS DE 120 PALAVRAS.`;
 
     const messages: Groq.Chat.ChatCompletionMessageParam[] = [
       { role: 'system', content: systemPrompt },

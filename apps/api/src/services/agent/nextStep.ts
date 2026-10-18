@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import Groq from 'groq-sdk';
 import { env } from '../../config/env.js';
-import { playerProgressTool } from './tools/playerProgress.js';
+import { playerProgressTool, type PlayerProgressResult } from './tools/playerProgress.js';
 import { searchGuidesTool } from './tools/searchGuides.js';
 
 export const nextStepAdviceSchema = z.object({
@@ -34,9 +34,33 @@ export class NextStepAdvisor {
 
   async generateNextStepAdvice(psnId: string, game: string): Promise<NextStepAdvice> {
     // 1. Fetch live player progress
-    const progress = await playerProgressTool.execute({ psnId, game });
-    if ('error' in progress) {
-      throw new Error(`Não foi possível obter o progresso do jogador: ${progress.error}`);
+    let progress: PlayerProgressResult;
+    const progressRes = await playerProgressTool.execute({ psnId, game });
+    if ('error' in progressRes) {
+      if (!this.client || env.AI_PROVIDER === 'mock' || process.env.AI_PROVIDER === 'mock') {
+        progress = {
+          psn_id: psnId,
+          game,
+          platform: 'PS5',
+          total_trophies: 6,
+          unlocked_count: 3,
+          completion_percentage: 50,
+          pending_count: 3,
+          pending_missables_count: 1,
+          pending_missable_trophies: [
+            {
+              trophy_name: "Hunter's Essence",
+              chapter_or_location: 'Central Yharnam',
+              trophy_type: 'gold',
+            },
+          ],
+          recently_unlocked: [],
+        };
+      } else {
+        throw new Error(`Não foi possível obter o progresso do jogador: ${progressRes.error}`);
+      }
+    } else {
+      progress = progressRes;
     }
 
     // 2. Determine highest priority trophy (missables take precedence)
@@ -57,7 +81,7 @@ export class NextStepAdvisor {
       : 'Siga a rota principal prestando atenção em NPCs e diálogos antes de avançar de capítulo.';
 
     // Mock fallback when in local mock mode
-    if (!this.client || env.AI_PROVIDER === 'mock') {
+    if (!this.client || env.AI_PROVIDER === 'mock' || process.env.AI_PROVIDER === 'mock') {
       return {
         game,
         currentProgressPercentage: progress.completion_percentage,
