@@ -381,6 +381,183 @@ describe('Platina AI Agent Runner Benchmark Suite', () => {
       const doneEvent = events.find((e) => e.type === 'done');
       expect(doneEvent).toBeDefined();
     });
+
+    it('generates deep walkthrough for Gwent cards with high token limit when detailed guide is requested', async () => {
+      const runner = new PlatinaAgentRunner();
+
+      const mockGwentChunks = {
+        results: [
+          {
+            title: 'The Witcher 3: Wild Hunt - Guia de Cartas de Gwent (Card Collector)',
+            content: [
+              'Troféu Card Collector: Requer coletar todas as cartas de Gwent no jogo base.',
+              '1. White Orchard innkeeper: Elsa vende cartas de líderes e unidades antes de sair da região.',
+              '2. Zoltan/Baron in Velen: Complete a quest Velen Players derrotando o Barão Sanguinário Phillip Strenger.',
+              '3. Dandelion in Vegelbud Masquerade: Durante a quest A Matter of Life and Death no baile de máscaras Vegelbud, vença as 3 rodadas consecutivas.',
+              '4. High Stakes tournament in Passiflora em Novigrad com taxa de inscrição de 1000 coroas e baralho forte.',
+            ].join('\n'),
+          },
+        ],
+      };
+
+      const executeToolSpy = vi.spyOn(runner, 'executeTool').mockResolvedValue(mockGwentChunks);
+
+      const deepGwentWalkthroughResponse = [
+        '# Passo a Passo Detalhado: Troféu Card Collector (The Witcher 3)',
+        '',
+        'O troféu Card Collector exige a obtenção de todas as cartas de Gwent no jogo base. Abaixo está o roteiro estruturado detalhando cada etapa crítica e os cuidados para não perder cartas perdíveis:',
+        '',
+        '| Região | Localização e NPC | Missão e Condição | Cuidados e Requisitos |',
+        '| --- | --- | --- | --- |',
+        '| White Orchard | Elsa na estalagem | Prólogo do jogo | Compre todas as cartas com a White Orchard innkeeper antes de sair da região para não perdê-las. |',
+        '| Velen | Barão Sanguinário Phillip Strenger | Velen Players | Jogue contra Zoltan/Baron in Velen durante a missão Velen Players para obter a carta do Barão Sanguinário. |',
+        '| Novigrad | Baile no Vegelbud | A Matter of Life and Death | Garanta Dandelion in Vegelbud Masquerade vencendo as 3 rodadas consecutivas no baile. |',
+        '| Novigrad | Passiflora | High Stakes | Participe do High Stakes tournament in Passiflora com 1000 coroas e baralho forte para vencer o torneio. |',
+        '',
+        'Roteiro de Coleta por Região:',
+        '- Em White Orchard, compre as cartas de Elsa com a White Orchard innkeeper antes de sair da região.',
+        '- Em Velen, vença o Barão Sanguinário Phillip Strenger em Velen Players.',
+        '- Em Novigrad, obtenha a carta de Dandelion in Vegelbud Masquerade durante A Matter of Life and Death.',
+        '- No torneio de High Stakes tournament in Passiflora, vença todas as partidas decisivas com seu melhor baralho.',
+        '',
+        'Siga rigorosamente cada localização para assegurar a conquista do troféu Card Collector sem perder nenhuma carta.',
+      ].join('\n');
+
+      const mockCreate = vi
+        .fn()
+        // Step 1: Agent calls search_trophy_guides with limit: 8
+        .mockResolvedValueOnce({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                tool_calls: [
+                  {
+                    id: 'call_search_gwent_deep',
+                    function: {
+                      name: 'search_trophy_guides',
+                      arguments: JSON.stringify({
+                        query: 'Card Collector',
+                        game: 'The Witcher 3: Wild Hunt',
+                        limit: 8,
+                      }),
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        })
+        // Step 2: Agent synthesizes detailed structured walkthrough
+        .mockResolvedValueOnce({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: deepGwentWalkthroughResponse,
+              },
+            },
+          ],
+        });
+
+      (runner as unknown as { client: { chat: { completions: { create: typeof mockCreate } } } }).client = {
+        chat: { completions: { create: mockCreate } },
+      };
+
+      const events: AgentStepEvent[] = [];
+      const userMessage = 'Como pegar todas as cartas de Gwent em The Witcher 3? Quero um passo a passo detalhado';
+      for await (const event of runner.run(userMessage)) {
+        events.push(event);
+      }
+
+      // Verify tool call dispatched with limit: 8
+      const toolCallEvent = events.find((e) => e.type === 'tool_call');
+      expect(toolCallEvent).toBeDefined();
+      expect(toolCallEvent?.toolName).toBe('search_trophy_guides');
+      expect((toolCallEvent?.toolArgs as { limit?: number })?.limit).toBe(8);
+
+      // Verify executeTool received limit: 8
+      expect(executeToolSpy).toHaveBeenCalledWith(
+        'search_trophy_guides',
+        expect.objectContaining({ limit: 8 })
+      );
+
+      // Verify system prompt contained deep walkthrough instructions
+      const firstCallArgs = mockCreate.mock.calls[0][0];
+      const systemMessage = firstCallArgs.messages.find((m: { role: string }) => m.role === 'system');
+      expect(systemMessage?.content).toContain('O usuário solicitou um guia detalhado e aprofundado');
+      expect(systemMessage?.content).toContain('Você pode usar até 800 palavras');
+
+      // Verify high token limit passed to completions API
+      expect(firstCallArgs.max_tokens).toBe(2048);
+
+      // Verify streamed chunk is detailed (> 120 words) and approved by validator
+      const chunkEvent = events.find((e) => e.type === 'chunk');
+      expect(chunkEvent).toBeDefined();
+      const output = chunkEvent?.content ?? '';
+      expect(countWords(output)).toBeGreaterThan(120);
+      expect(countWords(output)).toBeLessThanOrEqual(800);
+      expect(output).toContain('Card Collector');
+      expect(output).toContain('Passiflora');
+      expect(output).toContain('High Stakes');
+      expect(output).toContain('Vegelbud');
+
+      // Verify done event
+      const doneEvent = events.find((e) => e.type === 'done');
+      expect(doneEvent).toBeDefined();
+    });
+
+    it('activates deep walkthrough mode on affirmative follow-up to assistant CTA', async () => {
+      const runner = new PlatinaAgentRunner();
+
+      const mockGwentChunks = {
+        results: [
+          {
+            title: 'The Witcher 3: Wild Hunt - Guia de Cartas de Gwent (Card Collector)',
+            content: 'Para o troféu Card Collector você deve coletar todas as cartas no jogo base.',
+          },
+        ],
+      };
+
+      vi.spyOn(runner, 'executeTool').mockResolvedValue(mockGwentChunks);
+
+      const mockCreate = vi.fn().mockResolvedValueOnce({
+        choices: [
+          {
+            message: {
+              role: 'assistant',
+              content: 'Aqui está o guia completo passo a passo...',
+            },
+          },
+        ],
+      });
+
+      (runner as unknown as { client: { chat: { completions: { create: typeof mockCreate } } } }).client = {
+        chat: { completions: { create: mockCreate } },
+      };
+
+      const history = [
+        {
+          role: 'user' as const,
+          content: 'Como pegar o troféu Card Collector em The Witcher 3?',
+        },
+        {
+          role: 'assistant' as const,
+          content:
+            'Troféu: Card Collector em White Orchard.\nCompre as cartas com Elsa na estalagem antes de sair.\nQuer os detalhes completos e rotas deste troféu?',
+        },
+      ];
+
+      for await (const _ of runner.run('Sim, manda os detalhes', { history })) {
+        // iterate
+      }
+
+      // Verify that deep walkthrough system prompt was set for affirmative follow-up
+      const firstCallArgs = mockCreate.mock.calls[0][0];
+      const systemMessage = firstCallArgs.messages.find((m: { role: string }) => m.role === 'system');
+      expect(systemMessage?.content).toContain('O usuário solicitou um guia detalhado e aprofundado');
+      expect(firstCallArgs.max_tokens).toBe(2048);
+    });
   });
 
   describe('Pre-Flight Grounding Verification Catches Fabricated Advice', () => {

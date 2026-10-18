@@ -19,6 +19,25 @@ describe('SearchGuidesTool Suite', () => {
     }
   });
 
+  it('validates limit allows up to 10 and defaults to 3', async () => {
+    const validWith10 = await searchGuidesTool.execute({
+      query: 'Eileen the Crow',
+      limit: 10,
+    });
+    if ('error' in validWith10) {
+      expect(validWith10.error).not.toContain('Parâmetros inválidos');
+    }
+
+    const invalidWith11 = await searchGuidesTool.execute({
+      query: 'Eileen the Crow',
+      limit: 11,
+    });
+    expect('error' in invalidWith11).toBe(true);
+    if ('error' in invalidWith11) {
+      expect(invalidWith11.error).toContain('Parâmetros inválidos');
+    }
+  });
+
   it('executes semantic retrieval and returns guide chunks', async () => {
     const result = await searchGuidesTool.execute({
       query: 'Eileen the Crow',

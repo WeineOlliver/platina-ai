@@ -5,7 +5,7 @@ export const searchGuidesParamsSchema = z.object({
   query: z.string().min(2).describe('A pergunta de busca ou o nome exato do troféu/chefe/item a pesquisar no guia'),
   game: z.string().optional().describe('Título do jogo para filtrar os guias (ex: Bloodborne, Elden Ring)'),
   missableOnly: z.boolean().optional().describe('Filtrar apenas trechos com avisos de troféus perdíveis'),
-  limit: z.number().min(1).max(5).optional().describe('Quantidade máxima de trechos a retornar'),
+  limit: z.number().min(1).max(10).default(3).describe('Quantidade máxima de trechos a retornar'),
 });
 
 export type SearchGuidesParams = z.input<typeof searchGuidesParamsSchema>;
@@ -37,7 +37,7 @@ export class SearchGuidesTool {
           },
           limit: {
             type: 'integer',
-            description: 'Número máximo de trechos a retornar (padrão: 3)',
+            description: 'Número máximo de trechos a retornar (padrão: 3, máx: 10)',
           },
         },
         required: ['query'],

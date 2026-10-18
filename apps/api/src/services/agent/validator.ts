@@ -58,6 +58,7 @@ export class GroundingValidator {
 
     const fullCorpus = normalize(sources.map((s) => `${s.title}\n${s.content}`).join('\n\n'));
 
+    const supportedClaims: string[] = [];
     const ungroundedClaims: string[] = [];
 
     for (const claim of claims) {
@@ -66,7 +67,34 @@ export class GroundingValidator {
 
       if (!this.isClaimSupported(normalizedClaim, fullCorpus)) {
         ungroundedClaims.push(claim);
+      } else {
+        supportedClaims.push(claim);
       }
+    }
+
+    const totalClaims = supportedClaims.length + ungroundedClaims.length;
+
+    const wordCount = answer.trim().split(/\s+/).filter(Boolean).length;
+    const bulletCount = answer
+      .split('\n')
+      .filter((line) => /^\s*([-*•]|\d+\.)\s+/.test(line)).length;
+    const hasMarkdownTable = /\|.+\|/.test(answer) && /\|[-:\s|]+\|/.test(answer);
+
+    const isDetailed = wordCount > 120 || bulletCount > 3 || hasMarkdownTable;
+
+    if (isDetailed && totalClaims > 0) {
+      const coverage = supportedClaims.length / totalClaims;
+      if (coverage >= 0.75) {
+        return {
+          isValid: true,
+          ungroundedClaims,
+        };
+      }
+      return {
+        isValid: false,
+        ungroundedClaims,
+        reason: `Cobertura insuficiente de afirmações verificadas no guia (${Math.round(coverage * 100)}% < 75%).`,
+      };
     }
 
     if (ungroundedClaims.length > 0) {

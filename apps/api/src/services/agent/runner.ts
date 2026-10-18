@@ -71,20 +71,28 @@ export class PlatinaAgentRunner {
       return;
     }
 
-    const systemPrompt = `Você é o Platina AI Agent, um assistente gamer autônomo especialista em platinas PlayStation.
-Você tem acesso a ferramentas para:
-1. "check_player_progress": consultar os troféus já conquistados e pendentes de um jogador na PSN.
-2. "search_trophy_guides": buscar trechos verificados no banco vetorial de guias de troféus.
+    // Deep Walkthrough Intent Detection
+    const lastAssistantMsg = options.history
+      ?.slice()
+      .reverse()
+      .find((m) => m.role === 'assistant');
 
-Diretrizes do Agente:
-- Se o usuário mencionar um PSN ID ou perguntar o que precisa fazer a seguir em um jogo, chame "check_player_progress" para ver a situação real dele.
-- Se o retorno de "check_player_progress" trouxer "unearned_trophies_summary", USE essa lista de troféus pendentes reais do jogador para responder quais troféus faltam ou qual é o mais fácil/rápido de fazer.
-- Para buscar no banco de guias com "search_trophy_guides", envie SEMPRE o nome exato do troféu curto e limpo (ex: query: "Masterminds", "Kifflom", "Cryptozoologist"), NUNCA concatene a descrição inteira do troféu, palavras como "silver", "bronze" ou textos longos na query de busca.
-- Se você identificou o progresso do jogador e nenhum guia vetorial adicional for necessário (ou a dúvida for apenas sobre a lista de pendências), responda usando os dados retornados de "check_player_progress" de forma tática.
-- Se o usuário responder escolhendo uma opção numérica ou rota (ex: "1", "2", "Rota 1", "Rota 2"), use o histórico da conversa e os dados já obtidos para traçar o plano detalhado dessa rota específica. Chame "search_trophy_guides" apenas se precisar de detalhes de um troféu específico dessa rota.
-- Não execute mais de 2 chamadas de ferramentas na mesma resposta. Seja direto, prático e cite as fontes.
+    const hasAssistantCTA = Boolean(
+      lastAssistantMsg && /quer os detalhes completos/i.test(lastAssistantMsg.content)
+    );
 
-Persona Concisa e Tática (Formato Obrigatório de Resposta):
+    const isAffirmativeFollowUp =
+      hasAssistantCTA && /^(sim|quero|manda|pode mandar|detalhes)/i.test(userMessage.trim());
+
+    const isExplicitDeepWalkthrough =
+      /(detalhad|passo a passo|como pegar cad|todos os|todas as cartas|guia complet|rotas complet)/i.test(userMessage);
+
+    const isDeepWalkthrough = isExplicitDeepWalkthrough || isAffirmativeFollowUp;
+
+    const personaInstructions = isDeepWalkthrough
+      ? `Instruções de Passo a Passo Detalhado (Deep Walkthrough):
+O usuário solicitou um guia detalhado e aprofundado. Apresente um passo a passo completo, estruturado em seções ou tabela, detalhando cada etapa, localização de NPC, missões e cuidados com troféus perdíveis baseando-se estritamente nas fontes verificadas recuperadas. Você pode usar até 800 palavras para fornecer todas as informações necessárias.`
+      : `Persona Concisa e Tática (Formato Obrigatório de Resposta):
 Instruções de Roteamento Adaptativo (Quando o usuário pedir rotas como "melhor rota", "próximos passos" ou "o que fazer agora"):
 Se o jogador não possuir troféus perdíveis de campanha pendentes (ou a campanha já estiver concluída):
 Apresente duas escolhas estratégicas distintas:
@@ -100,6 +108,21 @@ Se o usuário perguntar sobre um troféu específico, mantenha o layout tático 
 
 Orçamento de Resposta (Obrigatório):
 Sua resposta final deve ter no total MENOS DE 120 PALAVRAS.`;
+
+    const systemPrompt = `Você é o Platina AI Agent, um assistente gamer autônomo especialista em platinas PlayStation.
+Você tem acesso a ferramentas para:
+1. "check_player_progress": consultar os troféus já conquistados e pendentes de um jogador na PSN.
+2. "search_trophy_guides": buscar trechos verificados no banco vetorial de guias de troféus.
+
+Diretrizes do Agente:
+- Se o usuário mencionar um PSN ID ou perguntar o que precisa fazer a seguir em um jogo, chame "check_player_progress" para ver a situação real dele.
+- Se o retorno de "check_player_progress" trouxer "unearned_trophies_summary", USE essa lista de troféus pendentes reais do jogador para responder quais troféus faltam ou qual é o mais fácil/rápido de fazer.
+- Para buscar no banco de guias com "search_trophy_guides", envie SEMPRE o nome exato do troféu curto e limpo (ex: query: "Masterminds", "Kifflom", "Cryptozoologist"), NUNCA concatene a descrição inteira do troféu, palavras como "silver", "bronze" ou textos longos na query de busca.${isDeepWalkthrough ? ' No modo detalhado, passe limit: 8 para obter contexto abrangente.' : ''}
+- Se você identificou o progresso do jogador e nenhum guia vetorial adicional for necessário (ou a dúvida for apenas sobre a lista de pendências), responda usando os dados retornados de "check_player_progress" de forma tática.
+- Se o usuário responder escolhendo uma opção numérica ou rota (ex: "1", "2", "Rota 1", "Rota 2"), use o histórico da conversa e os dados já obtidos para traçar o plano detalhado dessa rota específica. Chame "search_trophy_guides" apenas se precisar de detalhes de um troféu específico dessa rota.
+- Não execute mais de 2 chamadas de ferramentas na mesma resposta. Seja direto, prático e cite as fontes.
+
+${personaInstructions}`;
 
     // ponytail: in-memory history slice passed from client; upgrade to persisted session store when multi-device sync is needed.
     const historyMessages: Groq.Chat.ChatCompletionMessageParam[] = (options.history ?? []).map((msg) =>
@@ -182,6 +205,7 @@ Sua resposta final deve ter no total MENOS DE 120 PALAVRAS.`;
                 {
                   model,
                   messages: correctiveMessages,
+                  ...(isDeepWalkthrough ? { max_tokens: 2048 } : {}),
                 },
                 { signal: options.signal }
               )
@@ -220,6 +244,7 @@ Sua resposta final deve ter no total MENOS DE 120 PALAVRAS.`;
               messages,
               tools: this.getAvailableTools(),
               tool_choice: 'auto',
+              ...(isDeepWalkthrough ? { max_tokens: 2048 } : {}),
             },
             { signal: options.signal }
           )
@@ -256,6 +281,10 @@ Sua resposta final deve ter no total MENOS DE 120 PALAVRAS.`;
           toolArgs = JSON.parse(call.function.arguments || '{}');
         } catch {
           toolArgs = {};
+        }
+
+        if (isDeepWalkthrough && toolName === SearchGuidesTool.name) {
+          toolArgs.limit = 8;
         }
 
         yield {
@@ -371,6 +400,7 @@ Sua resposta final deve ter no total MENOS DE 120 PALAVRAS.`;
                 content: 'Sintetize agora a sua resposta final com base em todas as ferramentas que você executou acima.',
               },
             ],
+            ...(isDeepWalkthrough ? { max_tokens: 2048 } : {}),
           },
           { signal: options.signal }
         )
