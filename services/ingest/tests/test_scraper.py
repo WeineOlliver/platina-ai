@@ -268,3 +268,92 @@ async def test_fetch_and_index_force_reindex(async_client):
     data3 = resp3.json()
     assert data3["status"] == "indexed"
     assert data3["chunks_indexed"] >= initial_chunks
+
+
+@pytest.mark.anyio
+async def test_extract_canonical_roadmap_witcher_3():
+    scraper_instance = TrophyGuideScraper()
+    roadmap = scraper_instance.extract_canonical_roadmap("The Witcher 3: Wild Hunt")
+
+    # Assert exact metrics
+    assert "difficulty" in roadmap or "difficulty_rating" in roadmap
+    assert "playthroughs_required" in roadmap or "playthroughs" in roadmap
+    assert "time_required" in roadmap or "time_estimate" in roadmap
+
+    # Assert 10 canonical missable trophies
+    missables = roadmap["missable_trophies"]
+    assert len(missables) == 10
+
+    expected_trophies = {
+        "Assassin of Kings": "Reason of State",
+        "Card Collector": "199",
+        "Even Odds": "without Signs",
+        "Fast and Furious": "horse races",
+        "Friends With Benefits": "Keira Metz",
+        "Full Crew": "Kaer Morhen",
+        "Gwent Master": "Passiflora",
+        "Kingmaker": "Skellige succession",
+        "The Doppler Effect": "An Elusive Thief",
+        "Woodland Spirit": "Leshen",
+    }
+
+    # Extract names and conditions
+    trophy_names = [t["name"] if isinstance(t, dict) else str(t) for t in missables]
+    for expected_name, expected_snippet in expected_trophies.items():
+        assert expected_name in trophy_names, f"Missing missable trophy: {expected_name}"
+        # Find item and check quest condition
+        matching = next(t for t in missables if (t["name"] if isinstance(t, dict) else str(t)) == expected_name)
+        condition_text = matching["condition"] if isinstance(matching, dict) else str(matching)
+        assert expected_snippet.lower() in condition_text.lower(), (
+            f"Expected '{expected_snippet}' in condition for {expected_name}, got: {condition_text}"
+        )
+
+    # Assert structured Roadmap Stages 1 to 6
+    stages = roadmap.get("roadmap_stages") or roadmap.get("stages", [])
+    assert len(stages) == 6
+    stages_text = " ".join(str(s) for s in stages).lower()
+    assert "death march" in stages_text
+    assert "gwent" in stages_text
+    assert "ally" in stages_text or "kaer morhen" in stages_text
+    assert "radovid" in stages_text
+    assert "competitions" in stages_text or "horse races" in stages_text
+    assert "mists" in stages_text
+
+
+@pytest.mark.anyio
+async def test_multi_source_domain_fallback_handles_http_errors():
+    scraper_instance = TrophyGuideScraper()
+
+    # Candidate URLs should cover PlayStationTrophies.org, ConsolePulse, PowerPyx
+    candidates = scraper_instance.get_candidate_urls("The Witcher 3: Wild Hunt")
+    assert any("playstationtrophies.org" in c.lower() for c in candidates)
+    assert any("consolepulse.com" in c.lower() for c in candidates)
+    assert any("powerpyx.com" in c.lower() for c in candidates)
+
+    # Mock all HTTP calls returning 403 / 404 errors
+    def mock_get(url, *args, **kwargs):
+        url_str = str(url)
+        resp = AsyncMock(spec=Response)
+        if "playstationtrophies.org" in url_str:
+            resp.status_code = 403
+            resp.text = "Forbidden"
+        elif "consolepulse.com" in url_str:
+            resp.status_code = 404
+            resp.text = "Not Found"
+        else:
+            resp.status_code = 403
+            resp.text = "Cloudflare Block"
+        resp.url = url_str
+        return resp
+
+    with patch("httpx.AsyncClient.get", side_effect=mock_get):
+        pages = await scraper_instance.fetch_game_guide_with_subpages("The Witcher 3: Wild Hunt")
+
+        # Must not fail and must fall back gracefully to structured canonical guide
+        assert len(pages) >= 1
+        main_title, main_markdown, canonical_url = pages[0]
+        assert "Roadmap Overview" in main_markdown or "The Witcher 3" in main_title
+        assert "Card Collector" in main_markdown
+        assert "Full Crew" in main_markdown
+        assert "Assassin of Kings" in main_markdown
+
