@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Any
-from sqlalchemy import select, func
+import hashlib
+from sqlalchemy import select, func, delete
 from src.database import get_db_session
 from src.models.chunk import GuideChunkModel
 from src.schemas.chunk import IngestGuideRequest, DocumentChunk, FetchAndIndexRequest
@@ -84,37 +85,58 @@ async def reindex_guide(request: IngestGuideRequest):
 async def fetch_and_index_guide(request: FetchAndIndexRequest):
     """
     On-demand web scraper and ingestion pipeline.
-    Checks if guide chunks already exist for the game; if not, fetches/scrapes the guide,
-    chunks it semantically, embeds it, and stores chunks with pgvector and full-text search.
+    Checks if guide chunks already exist for the game; if not (or if force_reindex=True),
+    fetches/scrapes the guide and all discovered subpages, chunks them semantically,
+    embeds them, and stores chunks with pgvector and full-text search.
     """
     try:
-        # 1. Check if game is already indexed
-        async with get_db_session() as session:
-            stmt = select(func.count(GuideChunkModel.id)).where(GuideChunkModel.game.ilike(request.game.strip()))
-            result = await session.execute(stmt)
-            count = result.scalar() or 0
-            if count > 0:
-                return {
-                    "status": "already_indexed",
-                    "chunks_indexed": count,
-                }
+        # 1. Check if game is already indexed (unless force_reindex is True)
+        if not request.force_reindex:
+            async with get_db_session() as session:
+                stmt = select(func.count(GuideChunkModel.id)).where(GuideChunkModel.game.ilike(request.game.strip()))
+                result = await session.execute(stmt)
+                count = result.scalar() or 0
+                if count > 0:
+                    return {
+                        "status": "already_indexed",
+                        "chunks_indexed": count,
+                    }
 
-        # 2. Scrape or generate authoritative structured roadmap
-        markdown_content, canonical_url = await scraper.fetch_guide(request.game, source_url=request.source_url)
+        # 2. Fetch main guide and all discovered subpages
+        pages = await scraper.fetch_game_guide_with_subpages(request.game, source_url=request.source_url)
+        if not pages:
+            raise HTTPException(status_code=400, detail="Não foi possível obter o guia ou subpáginas.")
 
-        # 3. Chunk via semantic markdown chunker
-        ingest_req = IngestGuideRequest(game=request.game, source_url=canonical_url, content=markdown_content)
-        chunks = chunker.chunk_guide(ingest_req)
-        if not chunks:
+        # 3. Chunk each subpage via semantic markdown chunker
+        all_chunks: List[DocumentChunk] = []
+        global_idx = 0
+        for page_title, page_markdown, page_url in pages:
+            ingest_req = IngestGuideRequest(game=request.game, source_url=page_url, content=page_markdown)
+            chunks = chunker.chunk_guide(ingest_req)
+            for c in chunks:
+                c.metadata["page_title"] = page_title
+                c.metadata["page_url"] = page_url
+                # Ensure deterministic unique chunk_id across pages
+                id_raw = f"{request.game}:{page_url}:{c.title}:{global_idx}:{c.content[:50]}"
+                c.chunk_id = hashlib.sha256(id_raw.encode("utf-8")).hexdigest()[:24]
+                global_idx += 1
+            all_chunks.extend(chunks)
+
+        if not all_chunks:
             raise HTTPException(status_code=400, detail="Conteúdo insuficiente para indexação.")
 
         # 4. Embed chunks in batch
-        texts_to_embed = [f"{c.title}\n{c.content}" for c in chunks]
+        texts_to_embed = [f"{c.title}\n{c.content}" for c in all_chunks]
         embeddings = await embedding_service.embed_batch(texts_to_embed)
 
-        # 5. Persist to PostgreSQL (tsv generated column computed automatically)
+        # 5. Persist to PostgreSQL (atomic replace if force_reindex)
+        canonical_url = pages[0][2] if pages else (request.source_url or "local")
         async with get_db_session() as session:
-            for chunk, emb in zip(chunks, embeddings):
+            if request.force_reindex:
+                await session.execute(
+                    delete(GuideChunkModel).where(GuideChunkModel.game.ilike(request.game.strip()))
+                )
+            for chunk, emb in zip(all_chunks, embeddings):
                 record = GuideChunkModel(
                     id=chunk.chunk_id,
                     game=chunk.game,
@@ -130,7 +152,8 @@ async def fetch_and_index_guide(request: FetchAndIndexRequest):
         return {
             "status": "indexed",
             "game": request.game,
-            "chunks_indexed": len(chunks),
+            "chunks_indexed": len(all_chunks),
+            "pages_indexed": len(pages),
             "source_url": canonical_url,
         }
     except Exception as e:

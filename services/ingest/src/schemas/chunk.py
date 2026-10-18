@@ -24,3 +24,4 @@ class IngestGuideRequest(BaseModel):
 class FetchAndIndexRequest(BaseModel):
     game: str = Field(..., min_length=2, max_length=100, description="Game title to fetch and index")
     source_url: Optional[str] = Field(default=None, description="Optional custom source URL for guide")
+    force_reindex: bool = Field(default=False, description="Whether to purge existing chunks and force reindexing")
