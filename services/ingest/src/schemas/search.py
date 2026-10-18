@@ -7,6 +7,7 @@ class SearchQueryRequest(BaseModel):
     game: Optional[str] = Field(default=None, description="Optional game filter")
     missable_only: bool = Field(default=False, description="Filter only chunks flagged as missable")
     limit: int = Field(default=3, ge=1, le=10, description="Number of top chunks to return")
+    min_similarity: float = Field(default=0.65, ge=0.0, le=1.0, description="Minimum similarity threshold cutoff")
 
 
 class SearchResultItem(BaseModel):
