@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Platina AI — Assistente de Platinas</title>
+  <title>Platina AI — Assistente de Platinas Multi-Sessão</title>
   <!-- Marked.js para renderizar Markdown limpo com negrito, listas e links -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <!-- DOMPurify para sanitização de segurança -->
@@ -33,7 +33,7 @@
     }
     .container {
       width: 100%;
-      max-width: 900px;
+      max-width: 960px;
       display: flex;
       flex-direction: column;
       gap: 12px;
@@ -82,6 +82,120 @@
     }
     @keyframes pulse { from { opacity: 0.3; } to { opacity: 1; } }
 
+    /* TAB BAR & SESSIONS */
+    .tabs-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+      flex-shrink: 0;
+    }
+    .tabs-list {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      flex: 1;
+      align-items: center;
+      padding-bottom: 2px;
+    }
+    .tab {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 13px;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+      user-select: none;
+      transition: all 0.15s ease;
+    }
+    .tab:hover {
+      background: var(--card-alt);
+      color: var(--text);
+      border-color: var(--accent);
+    }
+    .tab.active {
+      background: var(--card-alt);
+      color: var(--trophy);
+      border-color: var(--trophy);
+      font-weight: 600;
+    }
+    .tab-close {
+      font-size: 14px;
+      line-height: 1;
+      color: var(--text-muted);
+      padding: 2px 4px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+    .tab-close:hover {
+      background: rgba(248, 81, 73, 0.2);
+      color: var(--danger);
+    }
+    .btn-new-tab {
+      background: var(--card-alt);
+      border: 1px dashed var(--accent);
+      color: var(--accent);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s ease;
+    }
+    .btn-new-tab:hover {
+      background: rgba(88, 166, 255, 0.12);
+      border-style: solid;
+    }
+
+    /* SESSION HEADER CONTROLS */
+    .session-header-bar {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      background: var(--card-alt);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 14px;
+      flex-shrink: 0;
+    }
+    .session-field {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+    }
+    .session-field label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .session-field input {
+      flex: 1;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 6px 10px;
+      font-size: 13px;
+      outline: none;
+      font-family: inherit;
+    }
+    .session-field input:focus {
+      border-color: var(--accent);
+    }
+
     /* CHAT PRINCIPAL */
     .chat-box {
       flex: 1;
@@ -123,6 +237,27 @@
     }
     .msg.user .msg-author { color: #8ec2ff; }
     .msg.assistant .msg-author { color: var(--trophy); }
+
+    /* SSE THOUGHT BUBBLE PILL */
+    .thought-bubble {
+      align-self: flex-start;
+      background: rgba(88, 166, 255, 0.12);
+      border: 1px solid rgba(88, 166, 255, 0.4);
+      color: #79c0ff;
+      border-radius: 20px;
+      padding: 8px 16px;
+      font-size: 13px;
+      line-height: 1.4;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      animation: pulse-thought 2s infinite ease-in-out;
+      margin: 2px 0;
+    }
+    @keyframes pulse-thought {
+      0%, 100% { opacity: 0.85; border-color: rgba(88, 166, 255, 0.4); }
+      50% { opacity: 1; border-color: var(--trophy); color: #f0f6fc; }
+    }
 
     /* FORMATAÇÃO RICA DO CONTEÚDO (MARKDOWN) */
     .content h1, .content h2, .content h3, .content h4 {
@@ -295,27 +430,38 @@
       </div>
       <div class="player-pill">
         <span class="status-dot" id="statusDot"></span>
-        <span>Conta PSN: <strong>OlliverW9</strong></span>
+        <span id="playerPillText">Conta PSN: <strong>OlliverW9</strong></span>
       </div>
     </header>
 
-    <!-- CHAT REAL COM O AGENTE -->
-    <div class="chat-box" id="chatBox">
-      <div class="msg assistant">
-        <div class="msg-author">Platina AI Agent</div>
-        <div class="content">
-          <p>Olá, <strong>OlliverW9</strong>! 🎮</p>
-          <p>Consultei sua conta oficial na <strong>PlayStation Network</strong> em tempo real! Detectei que você já tem <strong>100% no GTA III, Vice City e San Andreas</strong>, e está atualmente com <strong>71% no Grand Theft Auto V (PS5)</strong> com a Platina base já conquistada (57 de 78 troféus)!</p>
-          <p>Você tem 21 troféus pendentes focados nas DLCs de <strong>Golpes (Heists)</strong>, <strong>Doomsday Heist (O Golpe do Juízo Final)</strong> e <strong>Modo Diretor</strong>. Como posso te orientar na sua rota rumo aos 100%?</p>
-        </div>
+    <!-- BARRA DE ABAS / MULTI-SESSÃO -->
+    <div class="tabs-bar">
+      <div class="tabs-list" id="tabsList">
+        <!-- Renderizado dinamicamente -->
+      </div>
+      <button class="btn-new-tab" id="btnNewTab" onclick="createNewSession()">+ Nova Platina</button>
+    </div>
+
+    <!-- CONTROLES DA SESSÃO ATIVA (JOGO E PSN ID) -->
+    <div class="session-header-bar">
+      <div class="session-field">
+        <label for="gameInput">🎮 Jogo Ativo:</label>
+        <input type="text" id="gameInput" placeholder="Ex: Grand Theft Auto V, The Witcher 3: Wild Hunt" oninput="handleGameChange(this.value)" />
+      </div>
+      <div class="session-field" style="max-width: 280px;">
+        <label for="psnIdInput">👤 PSN ID:</label>
+        <input type="text" id="psnIdInput" value="OlliverW9" placeholder="PSN ID" oninput="handlePsnIdChange(this.value)" />
       </div>
     </div>
 
+    <!-- CHAT REAL COM O AGENTE (ISOLADO POR SESSÃO) -->
+    <div class="chat-box" id="chatBox">
+      <!-- Mensagens renderizadas dinamicamente por sessão -->
+    </div>
+
     <!-- BOTÕES DE SUGESTÃO -->
-    <div class="quick-prompts">
-      <button class="quick-btn" onclick="setPrompt('Como faço para completar o troféu Masterminds (Gênio do Crime) no Doomsday Heist sem resetar o progresso?')">💀 Masterminds no Doomsday Heist</button>
-      <button class="quick-btn" onclick="setPrompt('Quais troféus de Golpes do GTA V ainda faltam eu desbloquear?')">🏦 Golpes Pendentes</button>
-      <button class="quick-btn" onclick="setPrompt('Como desbloquear o troféu Cryptozoologist no Modo Diretor?')">🦁 Troféu Criptozoologista</button>
+    <div class="quick-prompts" id="quickPrompts">
+      <!-- Renderizado dinamicamente por jogo -->
     </div>
 
     <!-- CAMPO DE DIGITAÇÃO -->
@@ -339,14 +485,284 @@
   </div>
 
   <script>
+    /**
+     * Interface ChatSession:
+     * id: string;
+     * title: string;
+     * game: string;
+     * history: Array<{ role: 'user' | 'assistant'; content: string }>;
+     * toolLogs: Array<{ title: string; body: string }>;
+     */
+    let sessions = [];
+    let activeSessionId = 's_default';
     let isDetailsOpen = false;
-    const chatHistory = [];
 
     // Configura o Marked.js para quebras de linha normais
     marked.setOptions({
       breaks: true,
       gfm: true
     });
+
+    function getPsnId() {
+      const psnInput = document.getElementById('psnIdInput');
+      return (psnInput && psnInput.value.trim()) || localStorage.getItem('platina_psn_id') || 'OlliverW9';
+    }
+
+    function handlePsnIdChange(val) {
+      const psnId = val.trim() || 'OlliverW9';
+      localStorage.setItem('platina_psn_id', psnId);
+      updatePlayerPill();
+    }
+
+    function updatePlayerPill() {
+      const playerPillText = document.getElementById('playerPillText');
+      if (playerPillText) {
+        playerPillText.innerHTML = `Conta PSN: <strong>${escapeHtml(getPsnId())}</strong>`;
+      }
+    }
+
+    function saveSessions() {
+      localStorage.setItem('platina_sessions', JSON.stringify(sessions));
+      localStorage.setItem('platina_active_session_id', activeSessionId);
+    }
+
+    function loadSessions() {
+      const stored = localStorage.getItem('platina_sessions');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            sessions = parsed;
+          }
+        } catch (e) {
+          console.error('Falha ao restaurar sessões do localStorage:', e);
+        }
+      }
+
+      if (sessions.length === 0) {
+        sessions = [
+          {
+            id: 's_default',
+            title: 'Grand Theft Auto V',
+            game: 'Grand Theft Auto V',
+            history: [],
+            toolLogs: []
+          }
+        ];
+        saveSessions();
+      }
+
+      const storedActiveId = localStorage.getItem('platina_active_session_id');
+      if (storedActiveId && sessions.some(s => s.id === storedActiveId)) {
+        activeSessionId = storedActiveId;
+      } else {
+        activeSessionId = sessions[0].id;
+      }
+
+      const storedPsnId = localStorage.getItem('platina_psn_id') || 'OlliverW9';
+      const psnInput = document.getElementById('psnIdInput');
+      if (psnInput) psnInput.value = storedPsnId;
+      updatePlayerPill();
+    }
+
+    function getActiveSession() {
+      return sessions.find(s => s.id === activeSessionId) || sessions[0];
+    }
+
+    function createNewSession() {
+      const newId = 's_' + Date.now();
+      const hasWitcher = sessions.some(s => s.game === 'The Witcher 3: Wild Hunt');
+      const defaultGame = hasWitcher ? 'Nova Platina' : 'The Witcher 3: Wild Hunt';
+
+      const newSession = {
+        id: newId,
+        title: defaultGame,
+        game: defaultGame,
+        history: [],
+        toolLogs: []
+      };
+
+      sessions.push(newSession);
+      activeSessionId = newId;
+      saveSessions();
+      renderAll();
+    }
+
+    function switchSession(sessionId) {
+      if (activeSessionId === sessionId) return;
+      activeSessionId = sessionId;
+      saveSessions();
+      renderAll();
+    }
+
+    function deleteSession(event, sessionId) {
+      event.stopPropagation();
+      if (sessions.length <= 1) return;
+
+      const index = sessions.findIndex(s => s.id === sessionId);
+      if (index === -1) return;
+
+      if (activeSessionId === sessionId) {
+        const nextActive = index > 0 ? sessions[index - 1].id : sessions[index + 1].id;
+        activeSessionId = nextActive;
+      }
+
+      sessions = sessions.filter(s => s.id !== sessionId);
+      saveSessions();
+      renderAll();
+    }
+
+    function handleGameChange(val) {
+      const session = getActiveSession();
+      session.game = val;
+      session.title = val.trim() || 'Nova Platina';
+      saveSessions();
+      renderTabs();
+      renderQuickPrompts();
+    }
+
+    function renderTabs() {
+      const tabsList = document.getElementById('tabsList');
+      if (!tabsList) return;
+
+      tabsList.innerHTML = '';
+      const showClose = sessions.length > 1;
+
+      sessions.forEach(session => {
+        const tab = document.createElement('div');
+        tab.className = `tab ${session.id === activeSessionId ? 'active' : ''}`;
+        tab.onclick = () => switchSession(session.id);
+
+        const titleSpan = document.createElement('span');
+        titleSpan.textContent = `🎮 ${session.title || session.game || 'Platina'}`;
+        tab.appendChild(titleSpan);
+
+        if (showClose) {
+          const closeBtn = document.createElement('span');
+          closeBtn.className = 'tab-close';
+          closeBtn.textContent = '×';
+          closeBtn.title = 'Fechar sessão';
+          closeBtn.onclick = (e) => deleteSession(e, session.id);
+          tab.appendChild(closeBtn);
+        }
+
+        tabsList.appendChild(tab);
+      });
+    }
+
+    function renderChat() {
+      const chatBox = document.getElementById('chatBox');
+      const session = getActiveSession();
+      if (!chatBox || !session) return;
+
+      chatBox.innerHTML = '';
+
+      if (session.history.length === 0) {
+        const welcomeDiv = document.createElement('div');
+        welcomeDiv.className = 'msg assistant';
+        const isGta = (session.game || '').toLowerCase().includes('grand theft auto');
+
+        if (isGta) {
+          welcomeDiv.innerHTML = `
+            <div class="msg-author">Platina AI Agent</div>
+            <div class="content">
+              <p>Olá, <strong>${escapeHtml(getPsnId())}</strong>! 🎮</p>
+              <p>Consultei sua conta oficial na <strong>PlayStation Network</strong> em tempo real! Detectei que você já tem <strong>100% no GTA III, Vice City e San Andreas</strong>, e está atualmente com <strong>71% no Grand Theft Auto V (PS5)</strong> com a Platina base já conquistada (57 de 78 troféus)!</p>
+              <p>Você tem 21 troféus pendentes focados nas DLCs de <strong>Golpes (Heists)</strong>, <strong>Doomsday Heist (O Golpe do Juízo Final)</strong> e <strong>Modo Diretor</strong>. Como posso te orientar na sua rota rumo aos 100%?</p>
+            </div>
+          `;
+        } else {
+          welcomeDiv.innerHTML = `
+            <div class="msg-author">Platina AI Agent</div>
+            <div class="content">
+              <p>Olá, <strong>${escapeHtml(getPsnId())}</strong>! 🎮</p>
+              <p>Assistente especialista pronto para orientar sua rota rumo à Platina de <strong>${escapeHtml(session.game || 'seu jogo')}</strong>!</p>
+              <p>Se este jogo ainda não constar na base local, buscarei o guia oficial na web e farei a ingestão automática no banco vetorial. O que você gostaria de saber?</p>
+            </div>
+          `;
+        }
+        chatBox.appendChild(welcomeDiv);
+      } else {
+        session.history.forEach(item => {
+          const msgDiv = document.createElement('div');
+          if (item.role === 'user') {
+            msgDiv.className = 'msg user';
+            msgDiv.innerHTML = `<div class="msg-author">Você</div><div class="content">${escapeHtml(item.content)}</div>`;
+          } else {
+            msgDiv.className = 'msg assistant';
+            const rawHtml = marked.parse(item.content);
+            msgDiv.innerHTML = `<div class="msg-author">Platina AI Agent</div><div class="content">${DOMPurify.sanitize(rawHtml)}</div>`;
+          }
+          chatBox.appendChild(msgDiv);
+        });
+      }
+
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function renderToolLogs() {
+      const detailsContent = document.getElementById('detailsContent');
+      const logSummary = document.getElementById('logSummary');
+      const session = getActiveSession();
+      if (!detailsContent || !logSummary || !session) return;
+
+      detailsContent.innerHTML = '';
+
+      if (session.toolLogs && session.toolLogs.length > 0) {
+        session.toolLogs.forEach(log => {
+          appendLogEntry(log.title, log.body);
+        });
+        logSummary.textContent = `⚙️ Execução Interna do Agente (${session.toolLogs.length} eventos registrados)`;
+      } else {
+        detailsContent.innerHTML = '<div style="color: #6e7681;">Nenhuma ferramenta executada ainda nesta sessão. Envie uma mensagem acima para ver o agente chamando a PSN e o banco vetorial em segundo plano.</div>';
+        logSummary.textContent = '⚙️ Execução Interna do Agente (0 chamadas nesta mensagem)';
+      }
+    }
+
+    function renderQuickPrompts() {
+      const container = document.getElementById('quickPrompts');
+      const session = getActiveSession();
+      if (!container || !session) return;
+
+      const gameLower = (session.game || '').toLowerCase();
+      let prompts = [];
+
+      if (gameLower.includes('witcher')) {
+        prompts = [
+          { label: '🃏 Guia do Card Collector', text: 'Quais cartas de Gwent são perdíveis e como completar o troféu Card Collector?' },
+          { label: '⚠️ Troféus Perdíveis (Missable)', text: 'Quais são todos os troféus perdíveis (missable) de The Witcher 3 e quando prestar atenção?' },
+          { label: '⚔️ Platina no Marcha da Morte', text: 'Dicas de build e preparação para zerar no Marcha da Morte sem perder a platina.' }
+        ];
+      } else if (gameLower.includes('bloodborne')) {
+        prompts = [
+          { label: "🗡️ Hunter's Essence", text: "Como pegar todas as armas para o troféu Hunter's Essence sem perder nenhuma?" },
+          { label: '🏰 Cálices de Pthumeru', text: 'Qual o caminho mais rápido nos Cálices para enfrentar a Rainha Yharnam?' },
+          { label: '👑 Finais de Bloodborne', text: 'Como fazer backup de save para pegar os 3 finais em uma única jogada?' }
+        ];
+      } else {
+        prompts = [
+          { label: '💀 Masterminds no Doomsday Heist', text: 'Como faço para completar o troféu Masterminds (Gênio do Crime) no Doomsday Heist sem resetar o progresso?' },
+          { label: '🏦 Golpes Pendentes', text: 'Quais troféus de Golpes do GTA V ainda faltam eu desbloquear?' },
+          { label: '🦁 Troféu Criptozoologista', text: 'Como desbloquear o troféu Cryptozoologist no Modo Diretor?' }
+        ];
+      }
+
+      container.innerHTML = prompts.map(p => 
+        `<button class="quick-btn" onclick="setPrompt('${escapeHtml(p.text)}')">${escapeHtml(p.label)}</button>`
+      ).join('');
+    }
+
+    function renderAll() {
+      const session = getActiveSession();
+      const gameInput = document.getElementById('gameInput');
+      if (gameInput && session) {
+        gameInput.value = session.game || '';
+      }
+      renderTabs();
+      renderChat();
+      renderToolLogs();
+      renderQuickPrompts();
+    }
 
     function toggleDetails() {
       isDetailsOpen = !isDetailsOpen;
@@ -379,6 +795,7 @@
       const text = input.value.trim();
       if (!text) return;
 
+      const session = getActiveSession();
       const chatBox = document.getElementById('chatBox');
       const sendBtn = document.getElementById('sendBtn');
       const statusDot = document.getElementById('statusDot');
@@ -414,9 +831,9 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             message: text,
-            psnId: 'OlliverW9',
-            game: 'Grand Theft Auto V',
-            history: chatHistory
+            psnId: getPsnId(),
+            game: session.game,
+            history: session.history
           })
         });
 
@@ -440,18 +857,33 @@
               try {
                 const event = JSON.parse(line.slice(6));
 
-                // A) Logs técnicos de ferramentas vão para a seção inferior
-                if (event.type === 'tool_call') {
+                // A) Thought event: renderiza pill de status animado no chat
+                if (event.type === 'thought' && event.content) {
+                  const thoughtDiv = document.createElement('div');
+                  thoughtDiv.className = 'thought-bubble';
+                  thoughtDiv.innerHTML = `💡 ${escapeHtml(event.content)}`;
+                  chatBox.insertBefore(thoughtDiv, assistantMsgDiv);
+                  chatBox.scrollTop = chatBox.scrollHeight;
+                }
+                // B) Logs técnicos de ferramentas
+                else if (event.type === 'tool_call') {
                   toolCallCount++;
                   logSummary.textContent = `⚙️ Agente chamou: "${event.toolName}" (${toolCallCount} ferramenta(s) executada(s))`;
-                  appendLogEntry(`🔧 Chamada de Ferramenta: ${event.toolName}`, JSON.stringify(event.toolArgs, null, 2));
+                  const title = `🔧 Chamada de Ferramenta: ${event.toolName}`;
+                  const body = JSON.stringify(event.toolArgs, null, 2);
+                  appendLogEntry(title, body);
+                  session.toolLogs.push({ title, body });
+                  saveSessions();
                 } else if (event.type === 'tool_result') {
-                  appendLogEntry(`📥 Resultado de: ${event.toolName}`, JSON.stringify(event.toolResult, null, 2));
-                } 
-                // B) O texto conversacional é renderizado com Markdown limpo
+                  const title = `📥 Resultado de: ${event.toolName}`;
+                  const body = JSON.stringify(event.toolResult, null, 2);
+                  appendLogEntry(title, body);
+                  session.toolLogs.push({ title, body });
+                  saveSessions();
+                }
+                // C) Chunks de resposta conversacional
                 else if (event.type === 'chunk' && event.content) {
                   assistantFullText += event.content;
-                  // Converte o Markdown em HTML limpo e estilizado
                   const rawHtml = marked.parse(assistantFullText);
                   contentDiv.innerHTML = DOMPurify.sanitize(rawHtml);
                   chatBox.scrollTop = chatBox.scrollHeight;
@@ -464,8 +896,9 @@
         }
 
         if (assistantFullText) {
-          chatHistory.push({ role: 'user', content: text });
-          chatHistory.push({ role: 'assistant', content: assistantFullText });
+          session.history.push({ role: 'user', content: text });
+          session.history.push({ role: 'assistant', content: assistantFullText });
+          saveSessions();
         }
 
         logSummary.textContent = `⚙️ Execução concluída (${toolCallCount} ferramenta(s) executada(s))`;
@@ -487,10 +920,17 @@
     }
 
     function escapeHtml(str) {
-      return str.replace(/[&<>'"]/g, 
+      if (!str) return '';
+      return String(str).replace(/[&<>'"]/g, 
         tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
       );
     }
+
+    // Inicialização ao carregar página
+    window.addEventListener('DOMContentLoaded', () => {
+      loadSessions();
+      renderAll();
+    });
   </script>
 </body>
 </html>
