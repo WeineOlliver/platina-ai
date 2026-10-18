@@ -139,6 +139,118 @@ BENCHMARK_10_SCENARIOS = [
     },
 ]
 
+# Witcher 3 Ground-Truth Multi-Source Canonical Benchmark Cases
+WITCHER_3_BENCHMARK_SCENARIOS = [
+    {
+        "id": "TW3-01",
+        "game": "The Witcher 3: Wild Hunt",
+        "description": "Recrutamento de aliados para Kaer Morhen antes de Isle of Mists",
+        "query": "Full Crew recrute todos os aliados Kaer Morhen Isle of Mists missable",
+        "expected_trophy": "Full Crew",
+        "expected_missable": True,
+        "critical_term": "kaer morhen",
+    },
+    {
+        "id": "TW3-02",
+        "game": "The Witcher 3: Wild Hunt",
+        "description": "Coleta de todas as cartas de Gwent em todas as regiões",
+        "query": "Card Collector todas as cartas de Gwent missable White Orchard Velen Novigrad Skellige",
+        "expected_trophy": "Card Collector",
+        "expected_missable": True,
+        "critical_term": "gwent",
+    },
+    {
+        "id": "TW3-03",
+        "game": "The Witcher 3: Wild Hunt",
+        "description": "Complô contra o Rei Radovid na quest Reason of State",
+        "query": "Assassin of Kings complô contra Radovid Reason of State missable",
+        "expected_trophy": "Assassin of Kings",
+        "expected_missable": True,
+        "critical_term": "radovid",
+    },
+    {
+        "id": "TW3-04",
+        "game": "The Witcher 3: Wild Hunt",
+        "description": "Linha de missões de Keira Metz sem matá-la",
+        "query": "Friends With Benefits linha de missões Keira Metz sem matar missable",
+        "expected_trophy": "Friends With Benefits",
+        "expected_missable": True,
+        "critical_term": "keira",
+    },
+    {
+        "id": "TW3-05",
+        "game": "The Witcher 3: Wild Hunt",
+        "description": "Torneio High Stakes no Passiflora",
+        "query": "Gwent Master torneio High Stakes Passiflora missable",
+        "expected_trophy": "Gwent Master",
+        "expected_missable": True,
+        "critical_term": "passiflora",
+    },
+    {
+        "id": "TW3-06",
+        "game": "The Witcher 3: Wild Hunt",
+        "description": "Linha de sucessão do trono de Skellige apoiando Cerys ou Hjalmar",
+        "query": "Kingmaker sucessão Skellige Cerys Hjalmar missable",
+        "expected_trophy": "Kingmaker",
+        "expected_missable": True,
+        "critical_term": "skellige",
+    },
+    {
+        "id": "TW3-07",
+        "game": "The Witcher 3: Wild Hunt",
+        "description": "Matar 2 contratos de bruxo sem sinais, poções, mutagênicos, óleos ou bombas",
+        "query": "Even Odds matar 2 monstros contratos de bruxo sem sinais pocoes bombas missable",
+        "expected_trophy": "Even Odds",
+        "expected_missable": True,
+        "critical_term": "contratos",
+    },
+    {
+        "id": "TW3-08",
+        "game": "The Witcher 3: Wild Hunt",
+        "description": "Vencer todas as corridas de cavalo em Velen, Novigrad e Skellige",
+        "query": "Fast and Furious vença todas as corridas de cavalo Velen Novigrad Skellige missable",
+        "expected_trophy": "Fast and Furious",
+        "expected_missable": True,
+        "critical_term": "corridas",
+    },
+    {
+        "id": "TW3-09",
+        "game": "The Witcher 3: Wild Hunt",
+        "description": "Contrato de bruxo Um Ladrão Elusivo em Novigrad",
+        "query": "The Doppler Effect contrato Um Ladrão Elusivo Novigrad missable",
+        "expected_trophy": "The Doppler Effect",
+        "expected_missable": True,
+        "critical_term": "novigrad",
+    },
+    {
+        "id": "TW3-10",
+        "game": "The Witcher 3: Wild Hunt",
+        "description": "Contrato Leshen em Skellige ficando do lado de Sven",
+        "query": "Woodland Spirit contrato Leshen Sven Skellige missable",
+        "expected_trophy": "Woodland Spirit",
+        "expected_missable": True,
+        "critical_term": "leshen",
+    },
+    {
+        "id": "TW3-GWENT-01",
+        "game": "The Witcher 3: Wild Hunt",
+        "description": "Cartas perdíveis da estalajadeira do Pomar Branco",
+        "query": "White Orchard innkeeper Elsa cartas de Gwent Pomar Branco taverna missable",
+        "expected_trophy": "White Orchard innkeeper",
+        "expected_missable": True,
+        "critical_term": "pomar branco",
+    },
+    {
+        "id": "TW3-GWENT-02",
+        "game": "The Witcher 3: Wild Hunt",
+        "description": "Carta Dandelion no torneio do baile dos Vegelbud com Triss",
+        "query": "Dandelion in Vegelbud Masquerade baile mascaras Triss torneio Gwent",
+        "expected_trophy": "Dandelion in Vegelbud Masquerade",
+        "expected_missable": True,
+        "critical_term": "vegelbud",
+    },
+]
+
 # Unrelated and out-of-scope queries that must be filtered out
 OUT_OF_SCOPE_QUERIES = [
     "Receita culinária de bolo de cenoura fofinho com cobertura de brigadeiro",
@@ -185,6 +297,13 @@ async def seed_benchmark_gold_guides(async_client):
             "game": "Grand Theft Auto V",
             "source_url": "https://powerpyx.com/gta-5-trophy-guide",
             "content": GOLD_GUIDE_GTA_V,
+        },
+    )
+    await async_client.post(
+        "/api/v1/ingest/fetch-and-index",
+        json={
+            "game": "The Witcher 3: Wild Hunt",
+            "force_reindex": True,
         },
     )
 
@@ -281,3 +400,59 @@ async def test_unrelated_queries_drop_to_zero_results_due_to_similarity_cutoff(a
         data_with_game = response_with_game.json()
         assert data_with_game["total_results"] == 0
         assert len(data_with_game["results"]) == 0
+
+
+@pytest.mark.anyio
+async def test_witcher_3_canonical_roadmap_and_gwent_100_percent_recall(async_client):
+    """
+    Validates that hybrid retrieval (BM25 + pgvector + Reranker) achieves 100% Recall@3
+    across all Witcher 3 canonical missables and Gwent subpage scenarios.
+    """
+    successful_recalls = 0
+    total_scenarios = len(WITCHER_3_BENCHMARK_SCENARIOS)
+
+    for scenario in WITCHER_3_BENCHMARK_SCENARIOS:
+        response = await async_client.post(
+            "/api/v1/ingest/search",
+            json={
+                "query": scenario["query"],
+                "game": scenario["game"],
+                "limit": 3,
+                "min_similarity": 0.65,
+            },
+        )
+        assert response.status_code == 200, f"Search failed for {scenario['id']}"
+        data = response.json()
+
+        results = data.get("results", [])
+        assert len(results) > 0, f"Expected results for scenario {scenario['id']}, got 0"
+
+        # Check Recall@3: Is expected trophy present in top 3 results?
+        top_3_titles = [r["title"].lower() for r in results[:3]]
+        found_in_top_3 = any(scenario["expected_trophy"].lower() in title for title in top_3_titles)
+
+        assert found_in_top_3, (
+            f"Recall@3 failed for {scenario['id']} ({scenario['game']}): "
+            f"Expected '{scenario['expected_trophy']}' in top 3 titles {top_3_titles}"
+        )
+
+        # Quality check: Top hit contains critical operational keyword
+        top_hit = results[0]
+        assert scenario["critical_term"].lower() in top_hit["content"].lower(), (
+            f"Top hit for {scenario['id']} missing critical keyword '{scenario['critical_term']}'"
+        )
+
+        # Cutoff check: Retrieved chunks must satisfy similarity threshold (>= 0.65)
+        assert top_hit["similarity_score"] >= 0.65, (
+            f"Similarity score {top_hit['similarity_score']} below cutoff 0.65 for {scenario['id']}"
+        )
+
+        # Missable flag verification
+        if scenario["expected_missable"]:
+            assert top_hit["is_missable"] is True, f"Expected missable flag for {scenario['id']}"
+
+        successful_recalls += 1
+
+    recall_at_3 = successful_recalls / total_scenarios
+    assert recall_at_3 == 1.0, f"Expected 100% Recall@3 for Witcher 3, got {recall_at_3 * 100:.1f}%"
+

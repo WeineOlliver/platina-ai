@@ -485,6 +485,27 @@ Atenção: Este troféu é missable (perdível)! Para conquistá-lo, você preci
 ### 4. High Stakes tournament in Passiflora (Torneio Apostas Altas no Passiflora)
 - Missão: High Stakes (Apostas Altas).
 - Detalhes: Atenção: Torneio perdível (missable)! O torneio High Stakes tournament in Passiflora no bordel Passiflora em Novigrad exige 1000 coroas e um baralho forte. Você enfrentará Bernard Tulle, Sasha, Finneas e o Conde Tybalt. Salve o jogo antes de cada confronto; qualquer derrota desqualifica Geralt e perde as cartas exclusivas dos líderes.
+
+## Distribuição Regional de Cartas de Gwent (Card Locations by Region)
+
+### White Orchard (Pomar Branco)
+- Estalajadeira (White Orchard innkeeper): Vende cartas de Foltest, Catapult, Decoy e Blue Stripes Commando antes de sair.
+- Erudito na Taverna: Carta Zoltan Chivay ganha na partida tutorial de Gwent.
+
+### Velen (No Man's Land)
+- Poleiro do Corvo (Crow's Perch): Barão Sanguinário (Zoltan/Baron in Velen) concede a carta Sigismund Dijkstra.
+- Jogadores de Velen: Venda de cartas e partidas contra o adivinho (Soothsayer), o artesão de barcos de Oreton e Haddy em Midcopse.
+
+### Novigrad
+- Propriedade dos Vegelbud: Torneio durante o baile de máscaras com Triss para obter a carta Dandelion in Vegelbud Masquerade.
+- Passiflora: Torneio de Apostas Altas (High Stakes tournament in Passiflora) para conquistar as 4 cartas de líderes exclusivas.
+- Jogadores da Cidade Grande: Partidas contra Vivaldi, Marquesa Serenity e Dijkstra.
+- Thaler: Carta lendária Geralt de Rívia obtida na missão Um Complô Mortal.
+
+### Skellige
+- Estilo Skellige (Gwent: Skellige Style): Ermion concede a carta Leshen, Crach an Craite concede Draug, Gremist e Sjusta em Kaer Trolde.
+- Madman Lugos: Carta Vampire: Katakan deve ser obtida antes dos eventos finais em Kaer Muire.
+- Missão Terapia de Choque (Shock Therapy): Concedida por druidas em Gedyneith garantindo a carta neutra Iorveth.
 """
 
     async def fetch_game_guide_with_subpages(
