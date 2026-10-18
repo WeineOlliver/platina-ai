@@ -80,6 +80,7 @@ Diretrizes do Agente:
 - Se o retorno de "check_player_progress" trouxer "unearned_trophies_summary", USE essa lista de troféus pendentes reais do jogador para responder quais troféus faltam ou qual é o mais fácil/rápido de fazer.
 - Para buscar no banco de guias com "search_trophy_guides", envie SEMPRE o nome exato do troféu curto e limpo (ex: query: "Masterminds", "Kifflom", "Cryptozoologist"), NUNCA concatene a descrição inteira do troféu, palavras como "silver", "bronze" ou textos longos na query de busca.
 - Se você identificou o progresso do jogador e nenhum guia vetorial adicional for necessário (ou a dúvida for apenas sobre a lista de pendências), responda usando os dados retornados de "check_player_progress" de forma tática.
+- Se o usuário responder escolhendo uma opção numérica ou rota (ex: "1", "2", "Rota 1", "Rota 2"), use o histórico da conversa e os dados já obtidos para traçar o plano detalhado dessa rota específica. Chame "search_trophy_guides" apenas se precisar de detalhes de um troféu específico dessa rota.
 - Não execute mais de 2 chamadas de ferramentas na mesma resposta. Seja direto, prático e cite as fontes.
 
 Persona Concisa e Tática (Formato Obrigatório de Resposta):
@@ -127,10 +128,30 @@ Sua resposta final deve ter no total MENOS DE 120 PALAVRAS.`;
         return rawContent;
       }
 
+      // ponytail: in-memory history slice passed from client; upgrade to persisted session store when multi-device sync is needed.
+      for (const msg of options.history ?? []) {
+        if (msg.role === 'assistant' && msg.content) {
+          collectedGuideSources.push({
+            title: 'Histórico da Conversa',
+            content: msg.content,
+          });
+        }
+      }
+
+      const isChoiceOrGreeting =
+        /^(1|2|a|b|sim|nao|ok|quero|ola|oi|rota 1|rota 2)/i.test(userMessage.trim()) ||
+        /^(1|2|a|b)$/i.test(userMessage.trim());
+
       const validation = await groundingValidator.validate(rawContent, collectedGuideSources);
       if (!validation.isValid) {
+        // If it's a direct conversational choice turn and sources include history/progress, let the model respond
+        if (isChoiceOrGreeting && collectedGuideSources.length > 0) {
+          return rawContent;
+        }
+
         // If tactical claims were made without any source guides, abort to spec fallback immediately
         // Note: conversational queries or questions where no guides were fetched should cleanly inform the user
+        // However, if the answer is conversational / choice-oriented, let it pass rather than hard aborting
         if (collectedGuideSources.length === 0 && validation.ungroundedClaims.length > 0) {
           return 'Guia oficial não encontrado para este objetivo.\nQuer que eu procure em fontes complementares?';
         }
