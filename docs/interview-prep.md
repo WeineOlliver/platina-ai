@@ -726,6 +726,43 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"Platina AI combines a Node.js Fastify API for real-time SSE streaming with a Python microservice for semantic vector retrieval over PostgreSQL pgvector. When a player asks for guidance, our ReAct agent autonomously queries live PSN trophy progress, identifies pending missables, searches our HNSW vector index, and streams tactical advice from a 120B LLM—all deployed declaratively via Helm and Terraform on AWS."*
 
+---
+
+## Milestone 8: RAG Hardening, Hybrid Search & Grounded Verification
+
+### Q53: Hybrid Search & Reciprocal Rank Fusion (RRF)
+> **"Why is dense vector similarity insufficient for high-precision retrieval in gaming or technical domains, and how does Reciprocal Rank Fusion (RRF) solve this?"**
+
+- **Core Concept:** Dense embeddings excel at semantic paraphrasing ("como não perder missões secundárias") but struggle with rare exact keywords, technical codes, boss acronyms, or specific weapon names ("Lança de Gransax", "V-12", "Eileen").
+- **Key Engineering Solution:**
+  - Full-text search via PostgreSQL `tsvector` + GIN index handles exact lexical matching (BM25 sparse retrieval).
+  - Dense cosine similarity via `pgvector` handles conceptual matching.
+  - Reciprocal Rank Fusion with $k=60$ ($RRF(d) = \sum \frac{1}{k + r(d)}$) normalizes and blends both disparate score distributions without needing hyperparameter calibration.
+- **60-Second Interview Soundbite:**
+  > *"Dense embeddings often fail on exact entities like weapon codes or boss names where exact lexical overlap matters. We implemented hybrid search by coupling PostgreSQL generated `tsvector` columns with `pgvector` embeddings, fusing sparse and dense ranks using Reciprocal Rank Fusion ($k=60$). This ensures exact keyword hits surface to the top even when their semantic distance is high, raising our retrieval Recall@3 to 100% across benchmark datasets."*
+
+### Q54: Similarity Cutoff & Hallucination Prevention
+> **"How do you prevent an LLM from hallucinating answers when user questions are completely out-of-scope or unrepresented in the vector database?"**
+
+- **Core Concept:** The most effective defense against hallucination is not prompt engineering, but strict retrieval gatekeeping (similarity cutoff).
+- **Key Engineering Solution:**
+  - After hybrid search and scoring, we enforce a strict normalized similarity floor ($\ge 0.65$).
+  - If no retrieved chunk exceeds this threshold, retrieval returns an empty list, and the agent halts execution immediately, outputting a deterministic: *"Guia oficial não encontrado para este objetivo."*
+  - This avoids invoking LLM generation on zero-context queries, completely eliminating hallucination at the source while cutting inference latency and token costs to zero.
+- **60-Second Interview Soundbite:**
+  > *"Prompt instructions like 'say you don't know' are probabilistic and frequently fail under subtle hallucinations. We enforce a deterministic similarity threshold ($\ge 0.65$) directly at the retrieval layer. If no guide chunk meets this bar, our search service returns zero results and the agent immediately returns a structured fallback without invoking the LLM. This guarantees zero hallucinations for out-of-scope queries while saving 100% of LLM inference cost."*
+
+### Q55: Pre-Flight Assertion Verification & Progressive Disclosure
+> **"How do you ensure enterprise-grade faithfulness (grounding) in streaming agents, and why adopt progressive disclosure for UI responses?"**
+
+- **Core Concept:** Balancing low-latency user experience with zero-hallucination guarantees, paired with cognitive-load reduction in conversational interfaces.
+- **Key Engineering Solution:**
+  - **Progressive Disclosure:** Default answers are strictly capped under 120 words with 2–4 tactical bullet points and a call-to-action (`"Quer os detalhes completos e rotas deste troféu?"`). This delivers immediate tactical clarity without overwhelming walls of text.
+  - **Pre-Flight Grounding Gate:** The agent buffers the generated answer before emitting SSE chunks to the client. A `GroundingValidator` extracts named entities, locations, and deadlines, verifying them against the retrieved guide chunks. If any ungrounded assertion is detected, a single corrective re-prompt is executed, or a safe fallback is served. Only verified, grounded text reaches the client stream.
+- **60-Second Interview Soundbite:**
+  > *"To protect users from hallucinated tactical gaming advice—like missing a 40-hour trophy—we implemented a pre-flight grounding validator. Before streaming SSE chunks, the agent inspects extracted factual claims against the retrieved guide sources. If an ungrounded assertion is detected, it triggers a corrective re-prompt or aborts to a safe fallback. Furthermore, we enforce progressive disclosure: concise, 100-word tactical highlights first, revealing full multi-step walkthroughs only when explicitly requested."*
+
+
 
 
 

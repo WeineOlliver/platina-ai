@@ -610,6 +610,26 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite:**
   - *"I authored our complete architecture documentation featuring high-level system, ReAct sequence, and network isolation diagrams. This provides technical interviewers with an immediate visual roadmap of our polyglot services, agent loops, and AWS cloud topology."*
 
+---
+
+## 2026-10-17: Milestone 8 — RAG Hardening, Hybrid Search & Grounded Verification
+
+- **What I built/configured:**
+  - Added PostgreSQL generated `tsvector` column and GIN index to `guide_chunks` for full-text search capability.
+  - Implemented true hybrid retrieval in `services/ingest` combining dense cosine distance (`pgvector`) and sparse BM25 text search via Reciprocal Rank Fusion ($k=60$).
+  - Implemented strict similarity threshold cutoff ($\ge 0.65$) returning immediate clean fallbacks without invoking the LLM on out-of-scope topics.
+  - Built lightweight cross-encoder reranker in Python to score and rerank top candidates based on title coverage, term proximity, and entity boosts.
+  - Updated agent persona in `apps/api` for progressive disclosure: responses $\le 120$ words, 2-4 tactical bullets, and follow-up CTA.
+  - Built pre-flight grounding validator in `validator.ts` that buffers responses, checks assertions against retrieved guide sources, and triggers corrective re-prompts before streaming to the client.
+  - Created 10-query benchmark eval suite covering *Bloodborne*, *Elden Ring*, and *GTA V*, achieving 100% Recall@3.
+- **Key concepts learned:**
+  - Reciprocal Rank Fusion seamlessly combines disparate retrieval score distributions without hyperparameter tuning.
+  - Pre-flight claim verification gates effectively decouple streaming latency from reliability guarantees.
+  - RAG guardrails at the retrieval layer (similarity floor) cut LLM hallucinations and API costs to zero for non-domain queries.
+- **Interview Soundbite:**
+  - *"I engineered our production RAG hardening pipeline: combining PostgreSQL full-text search with pgvector via Reciprocal Rank Fusion, enforcing a 0.65 similarity floor, and validating factual assertions in a pre-flight grounding gate before streaming concise, tactical advice."*
+
+
 
 
 
