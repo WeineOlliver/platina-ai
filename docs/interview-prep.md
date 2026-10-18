@@ -775,38 +775,18 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"Relying on an LLM to categorize unearned trophies dynamically inside the prompt introduces latency, increases token spend, and invites hallucinations where missable or grindy requirements are misjudged. We enforce deterministic bucketing at the database and microservice tier: structured categories in PostgreSQL feed into explicit Python buckets like `quick_cleanup` and `heavy_grind`. This guarantees 100% testable categorization logic, slashes prompt token bloat, and provides deterministically grounded telemetry for our agent's dual-route tactical planning."*
 
+---
 
+## Milestone 10: Multi-Model Fallback Cascade & High Availability
 
+### Q57: High Availability in LLM Systems: Multi-Model Fallback Cascades
+> **"How do you design a high-availability AI system resilient against API rate limits (HTTP 429) or transient provider outages on free or constrained tiers?"**
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+- **Core Concept:** Model Fallback Cascade pattern (`openai/gpt-oss-120b` -> `llama-3.3-70b-versatile` -> `llama-3.1-8b-instant`). Rather than failing completely when an upstream LLM hits a tier rate limit or transient service outage, the inference pipeline gracefully degrades to lower-cost/higher-rate-limit alternatives in an ordered cascade.
+- **Key Engineering Solution:**
+  - **Transient vs. Non-Transient Classification:** Errors are inspected for status codes and error messages. Non-transient errors (HTTP 400 Bad Request, 401 Unauthorized, 403 Forbidden) fail fast immediately, avoiding wasteful retries on unrecoverable client or credential faults. Transient errors (HTTP 429 Rate Limit, HTTP 5xx Server Errors, and provider-specific rate limit messages like "rate limit reached", "tokens per day") trigger fallback to the next model in sequence.
+  - **Graceful Performance & Cost Degradation:** The cascade starts with high-capacity reasoning (`openai/gpt-oss-120b`), degrades to balanced versatile inference (`llama-3.3-70b-versatile`), and bottoms out at high-throughput ultra-low-latency execution (`llama-3.1-8b-instant`).
+  - **Structured Observability:** Intermediate fallback transitions emit structured warning logs with source and destination models along with root cause error context, allowing real-time alerting without user-facing failures.
+- **60-Second Interview Soundbite:**
+  > *"When relying on constrained or free LLM tiers, rate limits (HTTP 429) and upstream 5xx outages are inevitable. To ensure high availability, I implemented an automated Multi-Model Fallback Cascade (`openai/gpt-oss-120b` -> `llama-3.3-70b-versatile` -> `llama-3.1-8b-instant`). We distinguish transient from non-transient errors: client errors like 400, 401, or 403 fail fast immediately, while 429s or 5xx server issues dynamically degrade to the next model in the cascade with structured warning logs. This guarantees continuous uptime, preserves user experience, and maximizes throughput without manual intervention."*
 

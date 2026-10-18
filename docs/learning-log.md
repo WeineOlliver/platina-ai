@@ -645,39 +645,21 @@ This document tracks technical learnings, design decisions, and system design in
 - **Interview Soundbite (How to explain this in 60s):**
   - *"I implemented the Tactical Trophy Route Planner across our polyglot architecture. Rather than relying on non-deterministic LLM prompting to categorize trophies, we store structured categories in PostgreSQL and bucket unearned trophies deterministically in Python FastAPI into quick-cleanup and heavy-grind collections. The Node.js ReAct agent consumes these buckets to dynamically generate dual-route tactical advice—offering players both a fast-track route and a comprehensive platinum roadmap with zero hallucination risk."*
 
+---
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+### [2026-10-18] — Milestone 10: Resilient Multi-Model Fallback Cascade (High Availability)
+- **What I built/configured:**
+  - Implemented generic `executeWithModelCascade` in `apps/api/src/services/llm/fallback.ts` using the Model Fallback Cascade pattern (`DEFAULT_MODEL_CASCADE`: `openai/gpt-oss-120b` -> `llama-3.3-70b-versatile` -> `llama-3.1-8b-instant`).
+  - Added transient vs. non-transient error classification: immediate fail-fast on client errors (`400`, `401`, `403`), and automatic degraded fallback retry on transient errors (`429`, `5xx`, and text matches like `'rate limit reached'`, `'tokens per day'`, `'rate_limit_exceeded'`).
+  - Integrated model fallback execution into `AgentRunner.plan()` and `AgentRunner.execute()`, ensuring both tool selection and final streaming token synthesis survive provider rate limits.
+  - Added structured warning logging on transitions (`logger.warn({ err, from, to })`) for real-time observability and alerting.
+  - Authored comprehensive test suite in `apps/api/src/services/llm/fallback.test.ts` verifying primary model success, 429 fallback recovery, 500 error fallback, fail-fast on 401/403, and complete cascade exhaustion.
+- **Key concepts learned:**
+  - High availability in generative AI requires tiered graceful degradation across model families rather than brittle binary failure.
+  - Distinguishing transient (rate limits, network partitions, 5xx outages) from non-transient (bad requests, bad credentials) errors avoids cascading futile retries.
+  - Standardized cascade wrappers decouple fault tolerance from agent reasoning and streaming generation logic.
+- **Problems faced & how they were solved:**
+  - Providers (like Groq) sometimes return rate limit errors as standard Error instances with message strings rather than structured HTTP status codes on client libraries. Solved by inspecting both numeric status codes (`status` / `statusCode`) and text pattern markers (`rate limit reached`, `tokens per day`).
+- **Interview Soundbite (How to explain this in 60s):**
+  - *"To achieve high availability against LLM rate limits and provider outages, I engineered a resilient Multi-Model Fallback Cascade in our Fastify API. When our primary 120B model encounters a 429 rate limit or 5xx server error, the system automatically falls back to Llama-3.3-70B and then Llama-3.1-8B while logging structured telemetry. It fails fast on 400/401/403 client errors to prevent wasteful retries. This ensures uninterrupted agent execution and zero downtime for end users even on constrained API tiers."*
 
