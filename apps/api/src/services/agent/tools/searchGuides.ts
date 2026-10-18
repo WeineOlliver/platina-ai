@@ -54,11 +54,23 @@ export class SearchGuidesTool {
     const { query, game, missableOnly, limit } = validated.data;
 
     try {
-      const results = await ingestionClient.searchGuides(query, {
+      const searchParams = {
+        query,
         game,
         missable_only: missableOnly,
         limit,
-      });
+      };
+
+      let results = await ingestionClient.search(searchParams);
+
+      if (results.length === 0 && game) {
+        try {
+          await ingestionClient.fetchAndIndex(game);
+          results = await ingestionClient.search(searchParams);
+        } catch {
+          // Graceful fallback if on-demand ingestion fails
+        }
+      }
 
       return { results };
     } catch (err: unknown) {

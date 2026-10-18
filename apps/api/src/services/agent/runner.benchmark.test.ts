@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import { PlatinaAgentRunner, type AgentStepEvent } from './runner.js';
 import { groundingValidator, type SourceDocument } from './validator.js';
 import { env } from '../../config/env.js';
+import { ingestionClient } from '../ingestion/client.js';
 
 function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
@@ -190,6 +191,86 @@ describe('Platina AI Agent Runner Benchmark Suite', () => {
       // Assert done event
       const doneEvent = events.find((e) => e.type === 'done');
       expect(doneEvent).toBeDefined();
+    });
+
+    it('emits thought SSE event when searchGuidesTool encounters an unindexed game', async () => {
+      const runner = new PlatinaAgentRunner();
+
+      const mockCreate = vi
+        .fn()
+        .mockResolvedValueOnce({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                tool_calls: [
+                  {
+                    id: 'call_search_w3',
+                    function: {
+                      name: 'search_trophy_guides',
+                      arguments: JSON.stringify({ query: 'Card Collector', game: 'The Witcher 3: Wild Hunt' }),
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content:
+                  'Troféu: Card Collector em Velen.\n- Colete todas as cartas de Gwent no jogo base.\nQuer os detalhes completos e rotas deste troféu?',
+              },
+            },
+          ],
+        });
+
+      (runner as unknown as { client: { chat: { completions: { create: typeof mockCreate } } } }).client = {
+        chat: { completions: { create: mockCreate } },
+      };
+
+      const searchSpy = vi
+        .spyOn(ingestionClient, 'search')
+        .mockResolvedValueOnce([]) // probe in runner
+        .mockResolvedValueOnce([]) // initial search in searchGuidesTool
+        .mockResolvedValueOnce([
+          {
+            id: 'c1',
+            game: 'The Witcher 3: Wild Hunt',
+            title: 'Card Collector',
+            content: 'Colete todas as cartas de Gwent no jogo base.',
+            is_missable: true,
+            similarity_score: 0.9,
+          },
+        ]);
+
+      const fetchAndIndexSpy = vi
+        .spyOn(ingestionClient, 'fetchAndIndex')
+        .mockResolvedValueOnce({
+          status: 'indexed',
+          chunks_indexed: 10,
+          game: 'The Witcher 3: Wild Hunt',
+        });
+
+      const events: AgentStepEvent[] = [];
+      for await (const event of runner.run('Como pegar o troféu Card Collector em The Witcher 3?')) {
+        events.push(event);
+      }
+
+      const thoughtEvent = events.find(
+        (e) =>
+          e.type === 'thought' &&
+          e.content ===
+            '📥 Jogo inédito detectado: obtendo e indexando guia oficial comunitário (PowerPyx/PSNProfiles) no banco de dados...'
+      );
+      expect(thoughtEvent).toBeDefined();
+      expect(fetchAndIndexSpy).toHaveBeenCalledWith('The Witcher 3: Wild Hunt');
+
+      searchSpy.mockRestore();
+      fetchAndIndexSpy.mockRestore();
     });
 
     it('Grand Theft Auto V - Post-Story Routing (OlliverHunter 71%)', async () => {

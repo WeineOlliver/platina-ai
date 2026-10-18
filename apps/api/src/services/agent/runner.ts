@@ -7,6 +7,7 @@ import {
   type PlayerProgressResult,
 } from './tools/playerProgress.js';
 import { searchGuidesTool, SearchGuidesTool, type SearchGuidesParams } from './tools/searchGuides.js';
+import { ingestionClient } from '../ingestion/client.js';
 import { groundingValidator } from './validator.js';
 import { executeWithModelCascade, DEFAULT_MODEL_CASCADE } from '../llm/fallback.js';
 
@@ -262,6 +263,24 @@ Sua resposta final deve ter no total MENOS DE 120 PALAVRAS.`;
           toolName,
           toolArgs,
         };
+
+        if (toolName === SearchGuidesTool.name && typeof toolArgs.game === 'string' && toolArgs.game.trim()) {
+          const game = toolArgs.game.trim();
+          const query = typeof toolArgs.query === 'string' && toolArgs.query.trim().length >= 2 ? toolArgs.query.trim() : 'guia';
+          const probe = await ingestionClient.search({
+            query,
+            game,
+            missable_only: Boolean(toolArgs.missableOnly),
+            limit: 1,
+          });
+          if (probe.length === 0) {
+            yield {
+              type: 'thought',
+              content:
+                '📥 Jogo inédito detectado: obtendo e indexando guia oficial comunitário (PowerPyx/PSNProfiles) no banco de dados...',
+            };
+          }
+        }
 
         let resultData: unknown;
         try {

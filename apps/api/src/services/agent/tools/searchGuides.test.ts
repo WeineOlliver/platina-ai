@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { searchGuidesTool, SearchGuidesTool } from './searchGuides.js';
+import { ingestionClient } from '../../ingestionClient.js';
 
 describe('SearchGuidesTool Suite', () => {
   it('has valid tool declaration matching function calling schemas', () => {
@@ -31,5 +32,44 @@ describe('SearchGuidesTool Suite', () => {
     } else {
       expect(Array.isArray(result.results)).toBe(true);
     }
+  });
+
+  it('triggers on-demand fetchAndIndex and re-queries when search yields 0 chunks for a game', async () => {
+    const mockChunk = {
+      id: 'chunk_w3_1',
+      game: 'The Witcher 3: Wild Hunt',
+      title: 'Guia do Troféu Card Collector',
+      content: 'Colete todas as cartas de Gwent no jogo base.',
+      is_missable: true,
+      similarity_score: 0.92,
+    };
+
+    const searchSpy = vi
+      .spyOn(ingestionClient as unknown as { search: (...args: unknown[]) => Promise<unknown> }, 'search')
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([mockChunk]);
+
+    const fetchAndIndexSpy = vi
+      .spyOn(ingestionClient as unknown as { fetchAndIndex: (...args: unknown[]) => Promise<unknown> }, 'fetchAndIndex')
+      .mockResolvedValueOnce({
+        status: 'indexed',
+        chunks_indexed: 15,
+        game: 'The Witcher 3: Wild Hunt',
+      });
+
+    const result = await searchGuidesTool.execute({
+      query: 'Card Collector',
+      game: 'The Witcher 3: Wild Hunt',
+    });
+
+    expect(fetchAndIndexSpy).toHaveBeenCalledWith('The Witcher 3: Wild Hunt');
+    expect(searchSpy).toHaveBeenCalledTimes(2);
+    expect('results' in result).toBe(true);
+    if ('results' in result) {
+      expect(result.results).toEqual([mockChunk]);
+    }
+
+    searchSpy.mockRestore();
+    fetchAndIndexSpy.mockRestore();
   });
 });
