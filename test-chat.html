@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Platina AI — Assistente de Platinas Multi-Sessão</title>
+  <title>Platina AI — Assistente de Platinas PlayStation</title>
   <!-- Marked.js para renderizar Markdown limpo com negrito, listas e links -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <!-- DOMPurify para sanitização de segurança -->
@@ -59,6 +59,30 @@
       color: var(--text-muted);
       margin: 0;
       font-size: 13px;
+    }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .btn-lang {
+      background: var(--card-alt);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      user-select: none;
+      transition: all 0.15s ease;
+    }
+    .btn-lang:hover {
+      border-color: var(--accent);
+      color: var(--accent);
     }
     .player-pill {
       background: var(--card-alt);
@@ -452,12 +476,15 @@
   <div class="container">
     <header>
       <div class="header-left">
-        <h1>🏆 Platina AI</h1>
-        <p>Assistente especialista em troféus PlayStation com RAG & ReAct Agent</p>
+        <h1 id="headerTitle">🏆 Platina AI</h1>
+        <p id="headerSubtitle">Agente ReAct Autônomo com RAG Híbrido e Sincronização PSN</p>
       </div>
-      <div class="player-pill">
-        <span class="status-dot" id="statusDot"></span>
-        <span id="playerPillText">Conta PSN: <strong>OlliverW9</strong></span>
+      <div class="header-right">
+        <button class="btn-lang" id="btnLangToggle" onclick="toggleLanguage()">🌐 EN</button>
+        <div class="player-pill">
+          <span class="status-dot" id="statusDot"></span>
+          <span id="playerPillText">Conta PSN: <strong>OlliverW9</strong></span>
+        </div>
       </div>
     </header>
 
@@ -520,6 +547,64 @@
      * history: Array<{ role: 'user' | 'assistant'; content: string }>;
      * toolLogs: Array<{ title: string; body: string }>;
      */
+    const I18N = {
+      pt: {
+        title: 'Platina AI — Assistente de Platinas PlayStation',
+        headerTitle: '🏆 Platina AI',
+        subtitle: 'Agente ReAct Autônomo com RAG Híbrido e Sincronização PSN',
+        psnAccount: 'Conta PSN:',
+        newTab: '+ Nova Platina',
+        defaultTabTitle: 'Nova Platina',
+        gameInputLabel: '🎮 Jogo Ativo:',
+        gameInputPlaceholder: 'Ex: Grand Theft Auto V, The Witcher 3: Wild Hunt',
+        psnIdLabel: '👤 PSN ID:',
+        textareaPlaceholder: 'Digite sua mensagem para o Platina AI (pressione Enter para enviar)...',
+        sendBtn: 'Enviar',
+        logSummaryPrefix: '⚙️ Execução Interna do Agente',
+        logSummaryEmpty: '⚙️ Execução Interna do Agente (0 chamadas nesta mensagem)',
+        logSummaryEvents: (count) => `⚙️ Execução Interna do Agente (${count} eventos registrados)`,
+        logSummaryThinking: '⚙️ Executando raciocínio do Agente...',
+        logSummaryToolCall: (name, count) => `⚙️ Agente chamou: "${name}" (${count} ferramenta(s) executada(s))`,
+        logSummaryDone: (count) => `⚙️ Execução concluída (${count} ferramenta(s) executada(s))`,
+        toolDetailsToggleView: '▼ Ver chamadas de ferramentas (Tools)',
+        toolDetailsToggleHide: '▲ Ocultar chamadas de ferramentas',
+        emptyLogs: 'Nenhuma ferramenta executada ainda nesta sessão. Envie uma mensagem acima para ver o agente chamando a PSN e o banco vetorial em segundo plano.',
+        welcomeTitle: 'Olá, Caçador de Troféus! 🏆',
+        welcomeSubtitle: 'Qual jogo você deseja consultar ou platinar hoje?',
+        you: 'Você',
+        thinking: 'Pensando...',
+        btnLangText: '🌐 EN'
+      },
+      en: {
+        title: 'Platina AI — PlayStation Trophy Hunting Assistant',
+        headerTitle: '🏆 Platina AI',
+        subtitle: 'Autonomous ReAct Agent with Hybrid RAG & PSN Sync',
+        psnAccount: 'PSN Account:',
+        newTab: '+ New Game',
+        defaultTabTitle: 'New Game',
+        gameInputLabel: '🎮 Active Game:',
+        gameInputPlaceholder: 'e.g. The Witcher 3: Wild Hunt, Grand Theft Auto V',
+        psnIdLabel: '👤 PSN ID:',
+        textareaPlaceholder: 'Type your message for Platina AI (press Enter to send)...',
+        sendBtn: 'Send',
+        logSummaryPrefix: '⚙️ Internal Agent Execution',
+        logSummaryEmpty: '⚙️ Internal Agent Execution (0 calls in this message)',
+        logSummaryEvents: (count) => `⚙️ Internal Agent Execution (${count} events recorded)`,
+        logSummaryThinking: '⚙️ Agent is reasoning...',
+        logSummaryToolCall: (name, count) => `⚙️ Agent called: "${name}" (${count} tool(s) executed)`,
+        logSummaryDone: (count) => `⚙️ Execution completed (${count} tool(s) executed)`,
+        toolDetailsToggleView: '▼ View Tool Calls (Tools)',
+        toolDetailsToggleHide: '▲ Hide Tool Calls (Tools)',
+        emptyLogs: 'No tools executed yet in this session. Send a message above to see the agent calling PSN and vector database.',
+        welcomeTitle: 'Hello, Trophy Hunter! 🏆',
+        welcomeSubtitle: 'Which game would you like to platinum today?',
+        you: 'You',
+        thinking: 'Thinking...',
+        btnLangText: '🌐 PT'
+      }
+    };
+
+    let currentLang = localStorage.getItem('platina_lang') || 'pt';
     let sessions = [];
     let activeSessionId = 's_default';
     let isDetailsOpen = false;
@@ -544,8 +629,56 @@
     function updatePlayerPill() {
       const playerPillText = document.getElementById('playerPillText');
       if (playerPillText) {
-        playerPillText.innerHTML = `Conta PSN: <strong>${escapeHtml(getPsnId())}</strong>`;
+        const t = I18N[currentLang] || I18N.pt;
+        playerPillText.innerHTML = `${t.psnAccount} <strong>${escapeHtml(getPsnId())}</strong>`;
       }
+    }
+
+    function applyTranslations() {
+      const t = I18N[currentLang] || I18N.pt;
+      document.title = t.title;
+      document.documentElement.lang = currentLang === 'pt' ? 'pt-BR' : 'en';
+
+      const headerTitle = document.getElementById('headerTitle');
+      if (headerTitle) headerTitle.textContent = t.headerTitle;
+
+      const headerSubtitle = document.getElementById('headerSubtitle');
+      if (headerSubtitle) headerSubtitle.textContent = t.subtitle;
+
+      const btnLang = document.getElementById('btnLangToggle');
+      if (btnLang) btnLang.textContent = t.btnLangText;
+
+      const btnNewTab = document.getElementById('btnNewTab');
+      if (btnNewTab) btnNewTab.textContent = t.newTab;
+
+      const gameInput = document.getElementById('gameInput');
+      if (gameInput) gameInput.placeholder = t.gameInputPlaceholder;
+
+      const gameLabel = document.querySelector('label[for="gameInput"]');
+      if (gameLabel) gameLabel.textContent = t.gameInputLabel;
+
+      const psnLabel = document.querySelector('label[for="psnIdInput"]');
+      if (psnLabel) psnLabel.textContent = t.psnIdLabel;
+
+      const userInput = document.getElementById('userInput');
+      if (userInput) userInput.placeholder = t.textareaPlaceholder;
+
+      const sendBtn = document.getElementById('sendBtn');
+      if (sendBtn) sendBtn.textContent = t.sendBtn;
+
+      const toggleIcon = document.getElementById('toggleIcon');
+      if (toggleIcon) {
+        toggleIcon.textContent = isDetailsOpen ? t.toolDetailsToggleHide : t.toolDetailsToggleView;
+      }
+
+      updatePlayerPill();
+    }
+
+    function toggleLanguage() {
+      currentLang = currentLang === 'pt' ? 'en' : 'pt';
+      localStorage.setItem('platina_lang', currentLang);
+      applyTranslations();
+      renderAll();
     }
 
     function saveSessions() {
@@ -570,7 +703,7 @@
         sessions = [
           {
             id: 's_default',
-            title: 'Nova Platina',
+            title: (I18N[currentLang] || I18N.pt).defaultTabTitle,
             game: '',
             history: [],
             toolLogs: []
@@ -600,7 +733,7 @@
       const newId = 's_' + Date.now();
       const newSession = {
         id: newId,
-        title: 'Nova Platina',
+        title: (I18N[currentLang] || I18N.pt).defaultTabTitle,
         game: '',
         history: [],
         toolLogs: []
@@ -639,7 +772,7 @@
     function handleGameChange(val) {
       const session = getActiveSession();
       session.game = val;
-      session.title = val.trim() || 'Nova Platina';
+      session.title = val.trim() || (I18N[currentLang] || I18N.pt).defaultTabTitle;
       saveSessions();
       renderTabs();
       renderQuickPrompts();
@@ -651,6 +784,7 @@
 
       tabsList.innerHTML = '';
       const showClose = sessions.length > 1;
+      const defaultTitle = (I18N[currentLang] || I18N.pt).defaultTabTitle;
 
       sessions.forEach(session => {
         const tab = document.createElement('div');
@@ -658,14 +792,15 @@
         tab.onclick = () => switchSession(session.id);
 
         const titleSpan = document.createElement('span');
-        titleSpan.textContent = `🎮 ${session.title || session.game || 'Platina'}`;
+        const displayTitle = session.game || (session.title && session.title !== 'Nova Platina' && session.title !== 'New Game' ? session.title : defaultTitle);
+        titleSpan.textContent = `🎮 ${displayTitle}`;
         tab.appendChild(titleSpan);
 
         if (showClose) {
           const closeBtn = document.createElement('span');
           closeBtn.className = 'tab-close';
           closeBtn.textContent = '×';
-          closeBtn.title = 'Fechar sessão';
+          closeBtn.title = currentLang === 'en' ? 'Close session' : 'Fechar sessão';
           closeBtn.onclick = (e) => deleteSession(e, session.id);
           tab.appendChild(closeBtn);
         }
@@ -680,6 +815,7 @@
       if (!chatBox || !session) return;
 
       chatBox.innerHTML = '';
+      const t = I18N[currentLang] || I18N.pt;
 
       if (session.history.length === 0) {
         const welcomeDiv = document.createElement('div');
@@ -687,8 +823,8 @@
         welcomeDiv.innerHTML = `
           <div class="msg-author">Platina AI Agent</div>
           <div class="content">
-            <p>Olá, Caçador de Troféus! 🏆</p>
-            <p>Qual jogo você deseja consultar ou platinar hoje?</p>
+            <p>${escapeHtml(t.welcomeTitle)}</p>
+            <p>${escapeHtml(t.welcomeSubtitle)}</p>
             <div class="onboarding-chips">
               <button class="chip-btn" onclick="selectGameAndSend('The Witcher 3: Wild Hunt')">⚔️ The Witcher 3: Wild Hunt</button>
               <button class="chip-btn" onclick="selectGameAndSend('Grand Theft Auto V')">🚗 Grand Theft Auto V</button>
@@ -704,8 +840,8 @@
         welcomeDiv.innerHTML = `
           <div class="msg-author">Platina AI Agent</div>
           <div class="content">
-            <p>Olá, Caçador de Troféus! 🏆</p>
-            <p>Qual jogo você deseja consultar ou platinar hoje?</p>
+            <p>${escapeHtml(t.welcomeTitle)}</p>
+            <p>${escapeHtml(t.welcomeSubtitle)}</p>
           </div>
         `;
         chatBox.appendChild(welcomeDiv);
@@ -714,7 +850,7 @@
           const msgDiv = document.createElement('div');
           if (item.role === 'user') {
             msgDiv.className = 'msg user';
-            msgDiv.innerHTML = `<div class="msg-author">Você</div><div class="content">${escapeHtml(item.content)}</div>`;
+            msgDiv.innerHTML = `<div class="msg-author">${t.you}</div><div class="content">${escapeHtml(item.content)}</div>`;
           } else {
             msgDiv.className = 'msg assistant';
             const rawHtml = marked.parse(item.content);
@@ -734,15 +870,16 @@
       if (!detailsContent || !logSummary || !session) return;
 
       detailsContent.innerHTML = '';
+      const t = I18N[currentLang] || I18N.pt;
 
       if (session.toolLogs && session.toolLogs.length > 0) {
         session.toolLogs.forEach(log => {
           appendLogEntry(log.title, log.body);
         });
-        logSummary.textContent = `⚙️ Execução Interna do Agente (${session.toolLogs.length} eventos registrados)`;
+        logSummary.textContent = t.logSummaryEvents(session.toolLogs.length);
       } else {
-        detailsContent.innerHTML = '<div style="color: #6e7681;">Nenhuma ferramenta executada ainda nesta sessão. Envie uma mensagem acima para ver o agente chamando a PSN e o banco vetorial em segundo plano.</div>';
-        logSummary.textContent = '⚙️ Execução Interna do Agente (0 chamadas nesta mensagem)';
+        detailsContent.innerHTML = `<div style="color: #6e7681;">${t.emptyLogs}</div>`;
+        logSummary.textContent = t.logSummaryEmpty;
       }
     }
 
@@ -777,25 +914,41 @@
       let prompts = [];
 
       if (gameLower.includes('witcher')) {
-        prompts = [
+        prompts = currentLang === 'en' ? [
+          { label: '🃏 Card Collector Guide', text: 'Which Gwent cards are missable and how to complete the Card Collector trophy?' },
+          { label: '⚠️ Missable Trophies', text: 'What are all missable trophies in The Witcher 3 and when to watch out for them?' },
+          { label: '⚔️ Death March Walkthrough', text: 'Build and preparation tips for beating the game on Death March without missing the platinum.' }
+        ] : [
           { label: '🃏 Guia do Card Collector', text: 'Quais cartas de Gwent são perdíveis e como completar o troféu Card Collector?' },
           { label: '⚠️ Troféus Perdíveis (Missable)', text: 'Quais são todos os troféus perdíveis (missable) de The Witcher 3 e quando prestar atenção?' },
           { label: '⚔️ Platina no Marcha da Morte', text: 'Dicas de build e preparação para zerar no Marcha da Morte sem perder a platina.' }
         ];
       } else if (gameLower.includes('bloodborne')) {
-        prompts = [
+        prompts = currentLang === 'en' ? [
+          { label: "🗡️ Hunter's Essence", text: "How to acquire all weapons for the Hunter's Essence trophy without missing any?" },
+          { label: '🏰 Pthumeru Chalices', text: 'What is the fastest route in the Chalice Dungeons to reach Queen Yharnam?' },
+          { label: '👑 Bloodborne Endings', text: 'How to use cloud save backup to unlock all 3 endings in a single playthrough?' }
+        ] : [
           { label: "🗡️ Hunter's Essence", text: "Como pegar todas as armas para o troféu Hunter's Essence sem perder nenhuma?" },
           { label: '🏰 Cálices de Pthumeru', text: 'Qual o caminho mais rápido nos Cálices para enfrentar a Rainha Yharnam?' },
           { label: '👑 Finais de Bloodborne', text: 'Como fazer backup de save para pegar os 3 finais em uma única jogada?' }
         ];
       } else if (gameLower.includes('elden')) {
-        prompts = [
+        prompts = currentLang === 'en' ? [
+          { label: '🗡️ Legendary Armaments', text: 'Which legendary armaments are missable in Elden Ring?' },
+          { label: '👑 Elden Ring Endings', text: 'How to unlock all endings in a single playthrough using save backups?' },
+          { label: '🧙 Legendary Sorceries & Incantations', text: 'Which legendary spells and incantations are missable?' }
+        ] : [
           { label: '🗡️ Armamentos Lendários', text: 'Quais armamentos lendários são perdíveis em Elden Ring?' },
           { label: '👑 Finais de Elden Ring', text: 'Como desbloquear todos os finais na mesma jogada com backup de save?' },
           { label: '🧙 Feitiços e Encantamentos', text: 'Quais feitiços e encantamentos lendários são perdíveis?' }
         ];
       } else if (gameLower.includes('grand theft auto') || gameLower.includes('gta')) {
-        prompts = [
+        prompts = currentLang === 'en' ? [
+          { label: '💀 Masterminds in Doomsday Heist', text: 'How do I complete the Masterminds trophy in Doomsday Heist without resetting progress?' },
+          { label: '🏦 Remaining Heist Trophies', text: 'Which GTA V Heist trophies am I still missing?' },
+          { label: '🦁 Cryptozoologist Trophy', text: 'How to unlock the Cryptozoologist trophy in Director Mode?' }
+        ] : [
           { label: '💀 Masterminds no Doomsday Heist', text: 'Como faço para completar o troféu Masterminds (Gênio do Crime) no Doomsday Heist sem resetar o progresso?' },
           { label: '🏦 Golpes Pendentes', text: 'Quais troféus de Golpes do GTA V ainda faltam eu desbloquear?' },
           { label: '🦁 Troféu Criptozoologista', text: 'Como desbloquear o troféu Cryptozoologist no Modo Diretor?' }
@@ -839,12 +992,13 @@
       isDetailsOpen = !isDetailsOpen;
       const content = document.getElementById('detailsContent');
       const icon = document.getElementById('toggleIcon');
+      const t = I18N[currentLang] || I18N.pt;
       if (isDetailsOpen) {
         content.classList.add('open');
-        icon.textContent = '▲ Ocultar chamadas de ferramentas';
+        icon.textContent = t.toolDetailsToggleHide;
       } else {
         content.classList.remove('open');
-        icon.textContent = '▼ Ver chamadas de ferramentas (Tools)';
+        icon.textContent = t.toolDetailsToggleView;
       }
     }
 
@@ -866,6 +1020,7 @@
       const text = (typeof customText === 'string' ? customText : input.value).trim();
       if (!text) return;
 
+      const t = I18N[currentLang] || I18N.pt;
       const session = getActiveSession();
       const chatBox = document.getElementById('chatBox');
       const sendBtn = document.getElementById('sendBtn');
@@ -876,7 +1031,7 @@
       // Auto-game binding na primeira mensagem da sessão
       if (session.history.length === 0) {
         const detected = detectGame(text);
-        const chosenGame = detected || (session.game && session.game !== 'Nova Platina' ? session.game : text);
+        const chosenGame = detected || (session.game && session.game !== 'Nova Platina' && session.game !== 'New Game' ? session.game : text);
         session.game = chosenGame;
         session.title = chosenGame;
         const gameInput = document.getElementById('gameInput');
@@ -893,21 +1048,21 @@
       // 1. Renderiza mensagem do usuário no chat
       const userMsgDiv = document.createElement('div');
       userMsgDiv.className = 'msg user';
-      userMsgDiv.innerHTML = `<div class="msg-author">Você</div><div class="content">${escapeHtml(text)}</div>`;
+      userMsgDiv.innerHTML = `<div class="msg-author">${t.you}</div><div class="content">${escapeHtml(text)}</div>`;
       chatBox.appendChild(userMsgDiv);
       chatBox.scrollTop = chatBox.scrollHeight;
 
       // 2. Cria balão de resposta do agente
       const assistantMsgDiv = document.createElement('div');
       assistantMsgDiv.className = 'msg assistant';
-      assistantMsgDiv.innerHTML = `<div class="msg-author">Platina AI Agent</div><div class="content"><em>Pensando...</em></div>`;
+      assistantMsgDiv.innerHTML = `<div class="msg-author">Platina AI Agent</div><div class="content"><em>${t.thinking}</em></div>`;
       chatBox.appendChild(assistantMsgDiv);
       const contentDiv = assistantMsgDiv.querySelector('.content');
 
       // Limpa os logs técnicos inferiores da mensagem anterior
       detailsContent.innerHTML = '';
       let toolCallCount = 0;
-      logSummary.textContent = '⚙️ Executando raciocínio do Agente...';
+      logSummary.textContent = t.logSummaryThinking;
 
       sendBtn.disabled = true;
       statusDot.className = 'status-dot active';
@@ -920,7 +1075,8 @@
             message: text,
             psnId: getPsnId(),
             game: session.game,
-            history: session.history
+            history: session.history,
+            lang: currentLang
           })
         });
 
@@ -955,14 +1111,14 @@
                 // B) Logs técnicos de ferramentas
                 else if (event.type === 'tool_call') {
                   toolCallCount++;
-                  logSummary.textContent = `⚙️ Agente chamou: "${event.toolName}" (${toolCallCount} ferramenta(s) executada(s))`;
-                  const title = `🔧 Chamada de Ferramenta: ${event.toolName}`;
+                  logSummary.textContent = t.logSummaryToolCall(event.toolName, toolCallCount);
+                  const title = currentLang === 'en' ? `🔧 Tool Call: ${event.toolName}` : `🔧 Chamada de Ferramenta: ${event.toolName}`;
                   const body = JSON.stringify(event.toolArgs, null, 2);
                   appendLogEntry(title, body);
                   session.toolLogs.push({ title, body });
                   saveSessions();
                 } else if (event.type === 'tool_result') {
-                  const title = `📥 Resultado de: ${event.toolName}`;
+                  const title = currentLang === 'en' ? `📥 Result from: ${event.toolName}` : `📥 Resultado de: ${event.toolName}`;
                   const body = JSON.stringify(event.toolResult, null, 2);
                   appendLogEntry(title, body);
                   session.toolLogs.push({ title, body });
@@ -988,7 +1144,7 @@
           saveSessions();
         }
 
-        logSummary.textContent = `⚙️ Execução concluída (${toolCallCount} ferramenta(s) executada(s))`;
+        logSummary.textContent = t.logSummaryDone(toolCallCount);
       } catch (err) {
         contentDiv.innerHTML = `<p style="color: var(--danger)">❌ Ocorreu um erro: ${escapeHtml(err.message)}</p>`;
       } finally {
@@ -1016,6 +1172,7 @@
     // Inicialização ao carregar página
     window.addEventListener('DOMContentLoaded', () => {
       loadSessions();
+      applyTranslations();
       renderAll();
     });
   </script>
