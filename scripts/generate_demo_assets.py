@@ -11,12 +11,12 @@ os.makedirs(RECORDING_DIR, exist_ok=True)
 
 FFMPEG_BIN = shutil.which("ffmpeg") or "/opt/homebrew/bin/ffmpeg"
 
-async def type_and_send(page, text: str, typing_delay: int = 18):
+async def type_and_send(page, text: str, typing_delay: int = 12):
     await page.click("#userInput")
     for char in text:
         await page.keyboard.type(char, delay=typing_delay)
-        await asyncio.sleep(0.004)
-    await asyncio.sleep(0.3)
+        await asyncio.sleep(0.002)
+    await asyncio.sleep(0.2)
     await page.click("#sendBtn")
 
 async def record_demo():
@@ -36,55 +36,70 @@ async def record_demo():
         await page.goto("http://localhost:3000/ui")
         await page.wait_for_selector("#chatBox")
 
-        # Ensure fresh state with initial onboarding greeting
-        await page.wait_for_selector(".onboarding-chips", timeout=10000)
-        print("Onboarding greeting loaded.")
-        await asyncio.sleep(1.5)
+        # 1. Wait for page load and toggle to English mode
+        print("Checking language toggle button...")
+        btn_lang = await page.wait_for_selector("#btnLangToggle", timeout=10000)
+        btn_text = (await btn_lang.inner_text()).strip()
+        print(f"Current toggle button text: '{btn_text}'")
+        if "EN" in btn_text:
+            await asyncio.sleep(0.4)
+            print("Clicking #btnLangToggle to switch UI to English...")
+            await btn_lang.click()
+            await asyncio.sleep(0.5)
 
-        # 1. User initiates game session with The Witcher 3: Wild Hunt
-        prompt_1 = "The Witcher 3: Wild Hunt"
-        print(f"1. User initiates game: '{prompt_1}'")
-        await type_and_send(page, prompt_1, typing_delay=22)
+        # 2. Verify English welcome message appears
+        welcome_el = await page.wait_for_selector(".msg.assistant .content", timeout=5000)
+        welcome_text = await welcome_el.inner_text()
+        print(f"Welcome message displayed:\n{welcome_text}")
+        assert "Hello, Trophy Hunter! 🏆" in welcome_text, f"Unexpected welcome: {welcome_text}"
+        assert "Which game would you like to platinum today?" in welcome_text, f"Unexpected subtitle: {welcome_text}"
 
-        # Wait for agent 1-turn player briefing stream to finish
-        print("Waiting for single-turn player status briefing...")
-        await page.wait_for_selector(".msg.assistant", timeout=30000)
+        # 3. Click recommendation chip for 'The Witcher 3: Wild Hunt'
+        await page.wait_for_selector(".onboarding-chips", timeout=5000)
+        print("Clicking recommendation chip for 'The Witcher 3: Wild Hunt'...")
+        await asyncio.sleep(0.4)
+        chip = page.locator(".chip-btn", has_text="The Witcher 3: Wild Hunt")
+        await chip.click()
+
+        # 4. Wait for instant single-turn player briefing in English
+        print("Waiting for player status briefing...")
+        await asyncio.sleep(0.5)
         await page.wait_for_function(
             "document.getElementById('sendBtn').disabled === false",
             timeout=60000
         )
         print("Player status briefing complete!")
-        await asyncio.sleep(2.5)
+        await asyncio.sleep(1.8)
 
-        # 2. User asks for missable trophies
-        prompt_2 = "quais são os troféus missáveis de the witcher 3?"
-        print(f"2. User asks: '{prompt_2}'")
-        await type_and_send(page, prompt_2, typing_delay=18)
+        # 5. Type and send missables question in English
+        prompt_2 = "Which missable trophies should I watch out for in The Witcher 3?"
+        print(f"User asks: '{prompt_2}'")
+        await type_and_send(page, prompt_2, typing_delay=12)
 
         # Wait for structured missables table & recommendations stream
         print("Waiting for missables response...")
-        await asyncio.sleep(1.0)
+        await asyncio.sleep(0.5)
         await page.wait_for_function(
             "document.getElementById('sendBtn').disabled === false",
             timeout=60000
         )
         print("Missables response complete!")
-        await asyncio.sleep(3.0)
+        await asyncio.sleep(2.0)
 
-        # 3. User asks for deep details walkthrough
-        prompt_3 = "sim, me dê os detalhes de cada um desses troféus missáveis"
-        print(f"3. User asks follow-up: '{prompt_3}'")
-        await type_and_send(page, prompt_3, typing_delay=18)
+        # 6. Type and send step-by-step walkthrough question in English
+        prompt_3 = "Can you give me the step-by-step walkthrough for each missable trophy?"
+        print(f"User asks follow-up: '{prompt_3}'")
+        await type_and_send(page, prompt_3, typing_delay=12)
 
-        # Wait for detailed walkthrough stream
+        # Wait for deep walkthrough stream
         print("Waiting for deep walkthrough response...")
-        await asyncio.sleep(1.5)
+        await asyncio.sleep(0.5)
         await page.wait_for_function(
             "document.getElementById('sendBtn').disabled === false",
             timeout=60000
         )
         print("Deep walkthrough complete!")
-        await asyncio.sleep(3.5)
+        await asyncio.sleep(2.2)
 
         # Close page to flush and save video
         video_path = await page.video.path()
