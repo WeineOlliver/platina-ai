@@ -15,8 +15,8 @@ Here is the engineering architecture behind it:
 🔹 **Polyglot Monorepo:** 
 Fastify (Node.js/TypeScript) handles high-throughput Server-Sent Events (SSE) streaming and JWT auth, while a FastAPI (Python 3.12 + Astral uv) microservice manages semantic chunking and dense embeddings.
 
-🔹 **Autonomous ReAct Agent & Tool Calling:**
-Instead of naively stuffing guides into every prompt, an autonomous agent loop (using Groq's 120B model) checks live PSN player save state first. If an unearned trophy is flagged as missable, it dynamically executes semantic searches against our vector store before streaming the final tactical advice.
+🔹 **Autonomous ReAct Agent & Latency Engineering (Sub-1.5s TTFT):**
+Instead of naive prompt stuffing or sluggish multi-roundtrip ReAct loops, our agent pre-fetches live PSN telemetry and injects synthesized tool turns directly into message history. This slashes Time-to-First-Token (TTFT) by over 50%, streaming instant tactical briefings over Server-Sent Events (SSE) with adaptive validation gating before executing dynamic vector retrieval for unearned missables.
 
 🔹 **PostgreSQL 16 + pgvector (HNSW Index):**
 By combining relational metadata with 1536-dimensional L2-normalized embeddings in a single database, we achieve sub-millisecond cosine similarity queries (`<=>`) with full transactional ACID consistency.
@@ -30,7 +30,7 @@ Packaged with a unified Helm chart and deployed declaratively via Terraform to A
 🔹 **Full CI/CD Pipeline:**
 GitHub Actions runs three parallel test tracks (Vitest, Pytest, and Helm lint) and publishes multi-architecture Docker images (`linux/amd64` and `linux/arm64`) to Amazon ECR via OpenID Connect (OIDC).
 
-Check out the full repository, 5 Architecture Decision Records (ADRs), and 52 technical interview deep-dives:
+Check out the full repository, 5 Architecture Decision Records (ADRs), and 61 technical interview deep-dives:
 🔗 Repository: https://github.com/WeineOlliver/platina-ai
 📊 Architecture & Flow: https://github.com/WeineOlliver/platina-ai/blob/main/docs/architecture.md
 

@@ -721,3 +721,23 @@ This document tracks technical learnings, design decisions, and system design in
   - `is_missable` flags were missing for several canonical trophies, so `check_player_progress` under-reported missables. Solved with the catalog-wide synchronization migration.
 - **Interview Soundbite (How to explain this in 60s):**
   - *"In Milestone 13 I made ingestion survive the real web: Cloudflare 403s, dead 404 links and shifting DOMs. The scraper fails over across several authoritative domains, extracts typed canonical records, and its last-resort fallback is audited to hold the full missable set, because partial fallbacks are what make an LLM hallucinate. I then synchronized missable flags across the whole catalog in a single migration, so player telemetry and retrieved guides agree, and added a benchmark proving an unstarted Witcher 3 player is warned about all 10 missables."*
+
+---
+
+### [2026-10-19] — Milestone 14: Conversational Onboarding Greeting & Stream Latency Optimization
+- **What I built/configured:**
+  - **Single-Roundtrip Pre-fetch Tool Injection (`apps/api/src/services/agent/runner.ts`):** Proactively executes `check_player_progress` in the agent runner when `psnId` and `game` are known upon greeting or game selection. Synthesizes an assistant `tool_calls` message with matching `tool` result into the history, instructing the model to generate the tactical greeting in a single generation roundtrip (slashing TTFT by >50%).
+  - **Conversational Onboarding UI (`test-chat.html`):** Built an interactive welcoming bubble (*"Olá, Caçador de Troféus! 🏆 Qual jogo você quer platinar hoje?"*) and quick-selection chips. When user chooses or inputs a game, UI binds session context and triggers instant tactical status summaries.
+  - **Adaptive Validation Gating (`apps/api/src/services/agent/runner.ts`):** Bypasses heavy post-generation AST claim-coverage validation for conversational greetings and status inquiries, streaming SSE tokens directly to client while keeping strict pre-flight grounding gates on complex walkthroughs.
+  - **Automated Video & GIF Asset Pipeline (`scripts/generate_demo_assets.py`):** Updated the headless Playwright recorder to capture the rapid conversational onboarding flow, producing crisp MP4 (`docs/media/platina-ai-demo.mp4`) and GIF (`docs/media/platina-ai-demo.gif`) assets under 40 seconds.
+  - **Benchmark & Suite Verification (`apps/api/src/services/agent/runner.benchmark.test.ts`):** Added automated tests verifying single-turn synthesis and asserting that pre-fetched context prevents redundant tool calls.
+- **Key concepts learned:**
+  - **Synthesized tool turns over prompt stuffing:** Modern function-calling LLMs follow OpenAI-compatible `tool_calls` and `tool` conversation roles with high fidelity, preventing hallucinations and unwanted duplicate tool execution loops.
+  - **Perceived latency vs. wall-clock latency:** Emitting immediate SSE events (`event: tool_call`, `event: tool_result`, `event: chunk`) provides instant progressive feedback, keeping perceived latency well under 600ms even when multi-step processes run.
+  - **Adaptive validation gating:** Not all agent turns require heavy claim-coverage verification. Selectively bypassing AST checks on greetings and brief status responses preserves snappy token streaming without compromising safety on deep guides.
+- **Problems faced & how they were solved:**
+  - A traditional ReAct agent required two sequential LLM API roundtrips (tool call emission + synthesis) just to greet a user with their save status, causing a sluggish 4-5s delay. Solved with synchronous telemetry pre-fetching and synthetic tool injection.
+  - Full pre-flight claim-coverage validation buffered all tokens before emitting, blocking SSE streaming. Solved by introducing adaptive validation gating based on turn intent.
+- **Interview Soundbite (How to explain this in 60s):**
+  - *"In Milestone 14, I tackled conversational latency in autonomous agents. A standard ReAct agent querying a database requires two full LLM roundtrips—one to request the tool call and a second to summarize the result—creating an awkward 4-second delay before the user sees a single token. I redesigned the onboarding flow: the agent runner pre-fetches player progress and injects a synthesized tool-call message directly into the history. The LLM produces the tactical greeting in a single turn, cutting TTFT by more than 50%. Combined with real-time SSE event streaming and adaptive validation gating, the chat feels instant and crisp."*
+

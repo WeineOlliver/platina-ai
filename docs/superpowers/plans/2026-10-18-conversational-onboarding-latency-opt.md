@@ -27,10 +27,10 @@
 - `run(userMessage, options)`: If `options.game` or game inferred from `userMessage` and `options.psnId` are present on initial greeting/status turn, runner executes `check_player_progress` synchronously prior to LLM call, appending tool message directly to history.
 - LLM executes in 1 roundtrip instead of 2 turns (Tool Call -> Tool Result -> LLM Synthesis).
 
-- [ ] **Step 1: Write Vitest test asserting single-turn synthesis when game and PSN progress are pre-fetched**
-- [ ] **Step 2: Implement pre-fetch tool injection and stream acceleration in `runner.ts`**
-- [ ] **Step 3: Run `npm test` in `apps/api` to verify 100% pass**
-- [ ] **Step 4: Commit changes**
+- [x] **Step 1: Write Vitest test asserting single-turn synthesis when game and PSN progress are pre-fetched**
+- [x] **Step 2: Implement pre-fetch tool injection and stream acceleration in `runner.ts`**
+- [x] **Step 3: Run `npm test` in `apps/api` to verify 100% pass**
+- [x] **Step 4: Commit changes**
 
 ---
 
@@ -43,9 +43,9 @@
 - `renderChatBox()`: If session has empty history, display agent welcome bubble: *"Olá, Caçador de Troféus! 🏆 Qual jogo você quer platinar hoje?"*
 - When user submits the first message with a game name (e.g. "The Witcher 3: Wild Hunt" or "GTA V"), UI auto-detects game, updates `#gameInput`, and triggers the status summary flow.
 
-- [ ] **Step 1: Update `test-chat.html` with initial onboarding greeting and auto-game binding**
-- [ ] **Step 2: Test manually in browser / verify DOM elements**
-- [ ] **Step 3: Commit changes**
+- [x] **Step 1: Update `test-chat.html` with initial onboarding greeting and auto-game binding**
+- [x] **Step 2: Test manually in browser / verify DOM elements**
+- [x] **Step 3: Commit changes**
 
 ---
 
@@ -55,9 +55,9 @@
 - Modify: `scripts/generate_demo_assets.py`
 - Output: `docs/media/platina-ai-demo.mp4` & `docs/media/platina-ai-demo.gif`
 
-- [ ] **Step 1: Update `generate_demo_assets.py` to record the onboarding sequence: welcome message -> user types game -> instant tactical summary -> user asks for missables -> deep walkthrough**
-- [ ] **Step 2: Run `generate_demo_assets.py` and verify generated MP4 (< 40s) and GIF**
-- [ ] **Step 3: Commit updated media and script**
+- [x] **Step 1: Update `generate_demo_assets.py` to record the onboarding sequence: welcome message -> user types game -> instant tactical summary -> user asks for missables -> deep walkthrough**
+- [x] **Step 2: Run `generate_demo_assets.py` and verify generated MP4 (< 40s) and GIF**
+- [x] **Step 3: Commit updated media and script**
 
 ---
 
@@ -67,6 +67,6 @@
 - Modify: `docs/interview-prep.md`
 - Modify: `docs/learning-log.md`
 
-- [ ] **Step 1: Add Q61 in `docs/interview-prep.md`: "Optimizing Time-to-First-Token (TTFT) and Reducing Tool-Call Roundtrips in Conversational RAG Agents"**
-- [ ] **Step 2: Document Milestone 14 in `docs/learning-log.md`**
-- [ ] **Step 3: Commit and push**
+- [x] **Step 1: Add Q61 in `docs/interview-prep.md`: "Optimizing Time-to-First-Token (TTFT) and Reducing Tool-Call Roundtrips in Conversational RAG Agents"**
+- [x] **Step 2: Document Milestone 14 in `docs/learning-log.md`**
+- [x] **Step 3: Commit and push**
