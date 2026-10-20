@@ -20,6 +20,7 @@ const agentQuerySchema = z.object({
       })
     )
     .optional(),
+  lang: z.enum(['en', 'pt']).optional().default('pt'),
 });
 
 export const agentRoutes: FastifyPluginAsync = async (app) => {
@@ -46,12 +47,12 @@ export const agentRoutes: FastifyPluginAsync = async (app) => {
       return reply.badRequest(validation.error.message);
     }
 
-    const { message, psnId, game, history } = validation.data;
-    request.log.info({ message, psnId, game, historyLength: history?.length }, '📨 Executando agent run');
+    const { message, psnId, game, history, lang } = validation.data;
+    request.log.info({ message, psnId, game, historyLength: history?.length, lang }, '📨 Executando agent run');
     const promptWithContext = [
-      psnId ? `PSN ID do jogador: ${psnId}` : null,
-      game ? `Jogo: ${game}` : null,
-      `Mensagem do usuário: ${message}`,
+      psnId ? (lang === 'en' ? `Player PSN ID: ${psnId}` : `PSN ID do jogador: ${psnId}`) : null,
+      game ? (lang === 'en' ? `Game: ${game}` : `Jogo: ${game}`) : null,
+      lang === 'en' ? `User message: ${message}` : `Mensagem do usuário: ${message}`,
     ]
       .filter(Boolean)
       .join('\n');
@@ -81,6 +82,7 @@ export const agentRoutes: FastifyPluginAsync = async (app) => {
         ...(history ? { history } : {}),
         ...(game ? { game } : {}),
         ...(psnId ? { psnId } : {}),
+        lang,
       });
 
       for await (const event of generator) {

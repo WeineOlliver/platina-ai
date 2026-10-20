@@ -193,6 +193,92 @@ describe('Platina AI Agent Runner Benchmark Suite', () => {
       expect(doneEvent).toBeDefined();
     });
 
+    it('generates English response when lang: "en" is passed', async () => {
+      const runner = new PlatinaAgentRunner();
+
+      const mockGuideSources = {
+        results: [
+          {
+            title: "Trophy: Hunter's Essence (Bloodborne)",
+            content:
+              "For the Hunter's Essence trophy you must collect all hunter weapons. Talk to Eileen the Crow in Central Yharnam before defeating Rom to receive the Blade of Mercy.",
+          },
+        ],
+      };
+
+      vi.spyOn(runner, 'executeTool').mockResolvedValue(mockGuideSources);
+
+      const tacticalAnswerEn = [
+        "Trophy: Hunter's Essence in Central Yharnam.",
+        "- Talk to Eileen the Crow in Central Yharnam before defeating Rom to obtain the Blade of Mercy.",
+        "Would you like the complete details and routes for this trophy?",
+      ].join('\n');
+
+      const mockCreate = vi
+        .fn()
+        // Step 1: LLM decides to search trophy guides
+        .mockResolvedValueOnce({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                tool_calls: [
+                  {
+                    id: 'call_search_en_1',
+                    function: {
+                      name: 'search_trophy_guides',
+                      arguments: JSON.stringify({ query: 'Hunter\'s Essence', game: 'Bloodborne' }),
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        })
+        // Step 2: LLM receives search result and generates English tactical advice
+        .mockResolvedValueOnce({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: tacticalAnswerEn,
+              },
+            },
+          ],
+        });
+
+      (runner as unknown as { client: { chat: { completions: { create: typeof mockCreate } } } }).client = {
+        chat: { completions: { create: mockCreate } },
+      };
+
+      const events: AgentStepEvent[] = [];
+      for await (const event of runner.run('How do I get Hunter\'s Essence in Bloodborne?', { lang: 'en' })) {
+        events.push(event);
+      }
+
+      // Verify system prompt was configured in English
+      const firstCallArgs = mockCreate.mock.calls[0][0];
+      const systemMessage = firstCallArgs.messages.find((m: { role: string }) => m.role === 'system');
+      expect(systemMessage?.content).toContain('You are Platina AI Agent, an autonomous PlayStation trophy hunting specialist.');
+      expect(systemMessage?.content).toContain('Would you like the complete details and routes for this trophy?');
+
+      // Verify tool call dispatched
+      const toolCallEvent = events.find((e) => e.type === 'tool_call');
+      expect(toolCallEvent).toBeDefined();
+      expect(toolCallEvent?.toolName).toBe('search_trophy_guides');
+
+      // Verify chunk content in English
+      const chunkEvent = events.find((e) => e.type === 'chunk');
+      expect(chunkEvent).toBeDefined();
+      const output = chunkEvent?.content ?? '';
+      expect(output).toContain("Trophy: Hunter's Essence in Central Yharnam.");
+      expect(output).toContain('Would you like the complete details and routes for this trophy?');
+      expect(countWords(output)).toBeLessThanOrEqual(120);
+
+      const doneEvent = events.find((e) => e.type === 'done');
+      expect(doneEvent).toBeDefined();
+    });
+
     it('emits thought SSE event when searchGuidesTool encounters an unindexed game', async () => {
       const runner = new PlatinaAgentRunner();
 
@@ -877,6 +963,68 @@ describe('Platina AI Agent Runner Benchmark Suite', () => {
       expect(chunkEvent?.content).not.toContain('Radahn');
       expect(chunkEvent?.content).toContain('Central Yharnam');
       expect(chunkEvent?.content).toContain('Quer os detalhes completos e rotas deste troféu?');
+    });
+
+    it('returns English ungrounded fallback when no guide found for specific trophy query', async () => {
+      const runner = new PlatinaAgentRunner();
+
+      const emptyResults = {
+        total_results: 0,
+        results: [],
+      };
+
+      vi.spyOn(runner, 'executeTool').mockResolvedValue(emptyResults);
+
+      const hallucinatedAnswer = [
+        "Trophy: Mystery Armament in Unknown Land.",
+        "- Defeat the boss at Level 99 to unlock this weapon.",
+        "Would you like the complete details and routes for this trophy?",
+      ].join('\n');
+
+      const mockCreate = vi
+        .fn()
+        .mockResolvedValueOnce({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                tool_calls: [
+                  {
+                    id: 'call_search_en_empty',
+                    function: {
+                      name: 'search_trophy_guides',
+                      arguments: JSON.stringify({ query: 'Mystery Armament', game: 'Bloodborne' }),
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: hallucinatedAnswer,
+              },
+            },
+          ],
+        });
+
+      (runner as unknown as { client: { chat: { completions: { create: typeof mockCreate } } } }).client = {
+        chat: { completions: { create: mockCreate } },
+      };
+
+      const events: AgentStepEvent[] = [];
+      for await (const event of runner.run('How to unlock Mystery Armament trophy?', { lang: 'en' })) {
+        events.push(event);
+      }
+
+      const chunkEvent = events.find((e) => e.type === 'chunk');
+      expect(chunkEvent?.content).toBe(
+        'Official guide not found for this objective.\nWould you like me to search complementary sources?'
+      );
     });
   });
 });

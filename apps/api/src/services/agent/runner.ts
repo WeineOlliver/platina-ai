@@ -26,6 +26,7 @@ export interface RunAgentOptions {
   history?: Array<{ role: 'user' | 'assistant'; content: string }> | undefined;
   game?: string;
   psnId?: string;
+  lang?: 'en' | 'pt';
 }
 
 function extractGameFromText(text: string): string | undefined {
@@ -40,34 +41,50 @@ function extractGameFromText(text: string): string | undefined {
     }
   }
 
+  const inMatch = text.match(/\bin\s+([A-Z0-9][A-Za-z0-9\s:'-]+?)(?:\?|\.|\n|$|,|;)/);
+  if (inMatch?.[1]) {
+    const candidate = inMatch[1].trim();
+    if (!/^(1|2|general|brief|high|low|second|first)\b/i.test(candidate)) {
+      return candidate;
+    }
+  }
+
   return undefined;
 }
 
 function addPlayerProgressToSources(
   pData: Partial<PlayerProgressResult>,
-  collectedGuideSources: Array<{ content: string; title: string }>
+  collectedGuideSources: Array<{ content: string; title: string }>,
+  lang: 'en' | 'pt' = 'pt'
 ) {
+  const isEn = lang === 'en';
   const summaryParts: string[] = [];
-  if (pData.game) summaryParts.push(`Jogo: ${pData.game}`);
+  if (pData.game) summaryParts.push(isEn ? `Game: ${pData.game}` : `Jogo: ${pData.game}`);
   if (pData.pending_missable_trophies?.length) {
     summaryParts.push(
-      `Troféus perdíveis pendentes: ${pData.pending_missable_trophies.map((t) => t.trophy_name).join(', ')}`
+      isEn
+        ? `Pending missable trophies: ${pData.pending_missable_trophies.map((t) => t.trophy_name).join(', ')}`
+        : `Troféus perdíveis pendentes: ${pData.pending_missable_trophies.map((t) => t.trophy_name).join(', ')}`
     );
   }
   if (pData.unearned_trophies_summary?.length) {
-    summaryParts.push(`Lista de troféus pendentes:\n${pData.unearned_trophies_summary.slice(0, 10).join('\n')}`);
+    summaryParts.push(
+      isEn
+        ? `Pending unearned trophies list:\n${pData.unearned_trophies_summary.slice(0, 10).join('\n')}`
+        : `Lista de troféus pendentes:\n${pData.unearned_trophies_summary.slice(0, 10).join('\n')}`
+    );
   }
   if (summaryParts.length > 0) {
     collectedGuideSources.push({
-      title: `Progresso PSN (${pData.game || 'Geral'})`,
+      title: isEn ? `PSN Progress (${pData.game || 'General'})` : `Progresso PSN (${pData.game || 'Geral'})`,
       content: summaryParts.join('\n'),
     });
   }
 
-  const gameName = pData.game || 'Geral';
+  const gameName = pData.game || (isEn ? 'General' : 'Geral');
   if (pData.quick_cleanup_trophies?.length) {
     collectedGuideSources.push({
-      title: `Progresso PSN (${gameName}) - Troféus Rápidos (Limpeza)`,
+      title: isEn ? `PSN Progress (${gameName}) - Quick Cleanup Trophies` : `Progresso PSN (${gameName}) - Troféus Rápidos (Limpeza)`,
       content: pData.quick_cleanup_trophies
         .map(
           (t) =>
@@ -79,7 +96,7 @@ function addPlayerProgressToSources(
 
   if (pData.heavy_grind_trophies?.length) {
     collectedGuideSources.push({
-      title: `Progresso PSN (${gameName}) - Troféus de Grind Pesado`,
+      title: isEn ? `PSN Progress (${gameName}) - Heavy Grind Trophies` : `Progresso PSN (${gameName}) - Troféus de Grind Pesado`,
       content: pData.heavy_grind_trophies
         .map(
           (t) =>
@@ -124,12 +141,16 @@ export class PlatinaAgentRunner {
 
   async *run(userMessage: string, options: RunAgentOptions = {}): AsyncGenerator<AgentStepEvent> {
     const maxSteps = options.maxSteps ?? 5;
+    const lang = options.lang || (/\b(what|which|how|trophies|missable|cards|guide|tell me|details)\b/i.test(userMessage) ? 'en' : 'pt');
+    const isEn = lang === 'en';
 
     // Fallback if no LLM client is configured
     if (!this.client || env.AI_PROVIDER === 'mock' || process.env.AI_PROVIDER === 'mock') {
       yield {
         type: 'chunk',
-        content: `[Platina Agent - Mock] Analisando sua solicitação: "${userMessage}".\nPara ativar o loop completo de ferramentas com o modelo de 120B parâmetros, configure o GROQ_API_KEY no arquivo .env.`,
+        content: isEn
+          ? `[Platina Agent - Mock] Analyzing your request: "${userMessage}".\nTo enable full tool loop with the 120B parameter model, configure GROQ_API_KEY in the .env file.`
+          : `[Platina Agent - Mock] Analisando sua solicitação: "${userMessage}".\nPara ativar o loop completo de ferramentas com o modelo de 120B parâmetros, configure o GROQ_API_KEY no arquivo .env.`,
       };
       yield { type: 'done' };
       return;
@@ -142,21 +163,41 @@ export class PlatinaAgentRunner {
       .find((m) => m.role === 'assistant');
 
     const hasAssistantCTA = Boolean(
-      lastAssistantMsg && /quer os detalhes completos/i.test(lastAssistantMsg.content)
+      lastAssistantMsg && /(quer os detalhes completos|want the complete details|would you like the complete details)/i.test(lastAssistantMsg.content)
     );
 
     const isAffirmativeFollowUp =
-      hasAssistantCTA && /^(sim|quero|manda|pode mandar|detalhes)/i.test(userMessage.trim());
+      hasAssistantCTA && /^(sim|quero|manda|pode mandar|detalhes|yes|sure|send|details)/i.test(userMessage.trim());
 
     const isExplicitDeepWalkthrough =
-      /(detalhad|passo a passo|como pegar cad|todos os|todas as cartas|guia complet|rotas complet|quais pontos|cada carta|uma por uma|onde pegar)/i.test(userMessage);
+      /(detalhad|passo a passo|como pegar cad|todos os|todas as cartas|guia complet|rotas complet|quais pontos|cada carta|uma por uma|onde pegar|detailed|step by step|how to get|all trophies|all cards|complete guide|complete routes|every card|one by one|where to get)/i.test(userMessage);
 
     const isDeepWalkthrough = isExplicitDeepWalkthrough || isAffirmativeFollowUp;
 
-    const personaInstructions = isDeepWalkthrough
-      ? `Instruções de Passo a Passo Detalhado (Deep Walkthrough):
+    const personaInstructions = isEn
+      ? (isDeepWalkthrough
+        ? `Detailed Step-by-Step Instructions (Deep Walkthrough):
+The user requested a detailed, in-depth guide. Present a complete walkthrough, structured in sections or bullet points, detailing each step, NPC location, quests, and missable trophy precautions strictly based on retrieved verified sources. You may use up to 800 words to provide all necessary details. Respond in clear, professional English.`
+        : `Concise Tactical Persona (Mandatory Output Format):
+Adaptive Routing Instructions (When the user asks for routes like "best route", "next steps", or "what to do now"):
+If the player has no pending campaign missable trophies (or the campaign is already completed):
+Present two distinct strategic choices:
+- Option 1 (Speed): List 2-3 quick trophies from "quick_cleanup_trophies" to score trophies quickly.
+- Option 2 (Foundation / Grind): List 1-2 heavy trophies from "heavy_grind_trophies" to advance difficult milestones.
+- Conclude strictly with the Call to Action: "Which route would you prefer to tackle first?"
+
+Single Trophy Lookup Format:
+If the user asks about a specific trophy, maintain a tactical 3-part layout:
+- Line 1: Target trophy + location (e.g. "Trophy: [Name] in [Location].").
+- Lines 2-3 (or 2-4): Immediate tactical action to avoid missing it (immediate step, critical condition, or point of no return).
+- Final line: Call to action offering full walkthrough: "Would you like the complete details and routes for this trophy?"
+
+Response Budget (Mandatory):
+Your final response must have in total LESS THAN 120 WORDS. Respond in clear, professional English.`)
+      : (isDeepWalkthrough
+        ? `Instruções de Passo a Passo Detalhado (Deep Walkthrough):
 O usuário solicitou um guia detalhado e aprofundado. Apresente um passo a passo completo, estruturado em seções ou tabela, detalhando cada etapa, localização de NPC, missões e cuidados com troféus perdíveis baseando-se estritamente nas fontes verificadas recuperadas. Você pode usar até 800 palavras para fornecer todas as informações necessárias.`
-      : `Persona Concisa e Tática (Formato Obrigatório de Resposta):
+        : `Persona Concisa e Tática (Formato Obrigatório de Resposta):
 Instruções de Roteamento Adaptativo (Quando o usuário pedir rotas como "melhor rota", "próximos passos" ou "o que fazer agora"):
 Se o jogador não possuir troféus perdíveis de campanha pendentes (ou a campanha já estiver concluída):
 Apresente duas escolhas estratégicas distintas:
@@ -171,20 +212,41 @@ Se o usuário perguntar sobre um troféu específico, mantenha o layout tático 
 - Linha final: Call to action oferecendo walkthrough completo: "Quer os detalhes completos e rotas deste troféu?"
 
 Orçamento de Resposta (Obrigatório):
-Sua resposta final deve ter no total MENOS DE 120 PALAVRAS.`;
+Sua resposta final deve ter no total MENOS DE 120 PALAVRAS.`);
 
     const targetPsnId = options.psnId?.trim();
     const targetGame = (options.game || (targetPsnId ? extractGameFromText(userMessage) : undefined))?.trim();
     const shouldPrefetch = Boolean(targetPsnId && targetGame);
 
     const prefetchPromptAddition = shouldPrefetch
-      ? `\n\nDiretriz de Execução Imediata (Single Roundtrip):
+      ? (isEn
+        ? `\n\nImmediate Execution Directive (Single Roundtrip):
+The progress for player "${targetPsnId}" in "${targetGame}" has already been queried and injected via the "check_player_progress" tool.
+DO NOT execute the "check_player_progress" tool again.
+DIRECTLY generate the greeting and tactical briefing (or status response) in a single turn based on already available data.`
+        : `\n\nDiretriz de Execução Imediata (Single Roundtrip):
 O progresso do jogador "${targetPsnId}" em "${targetGame}" já foi consultado e os dados estão injetados na conversa via ferramenta "check_player_progress".
 NÃO execute a ferramenta "check_player_progress" novamente.
-Gere DIRETAMENTE a saudação e o briefing tático (ou resposta de status) em 1 único turno com base nos dados já disponíveis.`
+Gere DIRETAMENTE a saudação e o briefing tático (ou resposta de status) em 1 único turno com base nos dados já disponíveis.`)
       : '';
 
-    const systemPrompt = `Você é o Platina AI Agent, um assistente gamer autônomo especialista em platinas PlayStation.
+    const systemPrompt = isEn
+      ? `You are Platina AI Agent, an autonomous PlayStation trophy hunting specialist.
+You have access to tools to:
+1. "check_player_progress": check earned and pending trophies for a player on PSN.
+2. "search_trophy_guides": search verified excerpts in the trophy guide vector database.
+
+Agent Guidelines:
+- If the user mentions a PSN ID or asks what to do next in a game, call "check_player_progress" to inspect their actual progress.
+- If "check_player_progress" returns "unearned_trophies_summary", USE this list of actual pending trophies to answer what is missing or easiest/fastest to achieve.
+- When searching guides with "search_trophy_guides", ALWAYS send the clean, exact short trophy name (e.g. query: "Card Collector", "Masterminds", "Kifflom", "Cryptozoologist"), NEVER concatenate descriptions, words like "silver", "bronze", or long text into the search query.${isDeepWalkthrough ? ' In detailed mode, pass limit: 8 to obtain comprehensive context.' : ''}
+- When the user asks about cards, collectibles, or detailed steps for a trophy, call "search_trophy_guides" using the trophy name in English and limit: 8.
+- If player progress was identified and no additional guide search is required (or the query is purely about pending list), respond tactically using "check_player_progress" data.
+- If the user selects a numbered option or route (e.g. "1", "2", "Option 1", "Option 2"), use conversation history and gathered data to map out that route. Call "search_trophy_guides" only if specific trophy details are needed.
+- Do not make more than 2 tool calls in the same response. Be direct, practical, cite sources, and respond in clear, professional English.${prefetchPromptAddition}
+
+${personaInstructions}`
+      : `Você é o Platina AI Agent, um assistente gamer autônomo especialista em platinas PlayStation.
 Você tem acesso a ferramentas para:
 1. "check_player_progress": consultar os troféus já conquistados e pendentes de um jogador na PSN.
 2. "search_trophy_guides": buscar trechos verificados no banco vetorial de guias de troféus.
@@ -248,7 +310,8 @@ ${personaInstructions}`;
       if (prefetchResult && typeof prefetchResult === 'object') {
         addPlayerProgressToSources(
           prefetchResult as Partial<PlayerProgressResult>,
-          collectedGuideSources
+          collectedGuideSources,
+          lang
         );
       }
 
@@ -286,7 +349,7 @@ ${personaInstructions}`;
       for (const msg of options.history ?? []) {
         if (msg.role === 'assistant' && msg.content) {
           collectedGuideSources.push({
-            title: 'Histórico da Conversa',
+            title: isEn ? 'Conversation History' : 'Histórico da Conversa',
             content: msg.content,
           });
         }
@@ -295,10 +358,12 @@ ${personaInstructions}`;
       const isChoiceOrGreeting =
         shouldPrefetch ||
         Boolean(options.psnId) ||
-        /^(1|2|a|b|sim|nao|ok|quero|ola|oi|rota 1|rota 2)/i.test(userMessage.trim()) ||
+        /^(1|2|a|b|sim|nao|ok|quero|ola|oi|rota 1|rota 2|yes|no|option 1|option 2|route 1|route 2|hello|hi)/i.test(userMessage.trim()) ||
         /^(1|2|a|b)$/i.test(userMessage.trim()) ||
         userMessage.includes('Mensagem do usuário: 1') ||
         userMessage.includes('Mensagem do usuário: 2') ||
+        userMessage.includes('User message: 1') ||
+        userMessage.includes('User message: 2') ||
         Boolean(options.history && options.history.length > 0);
 
       const validation = await groundingValidator.validate(rawContent, collectedGuideSources);
@@ -327,7 +392,9 @@ ${personaInstructions}`;
         // Note: conversational queries or questions where no guides were fetched should cleanly inform the user
         // However, if the answer is conversational / choice-oriented, let it pass rather than hard aborting
         if (collectedGuideSources.length === 0 && validation.ungroundedClaims.length > 0) {
-          return 'Guia oficial não encontrado para este objetivo.\nQuer que eu procure em fontes complementares?';
+          return isEn
+            ? 'Official guide not found for this objective.\nWould you like me to search complementary sources?'
+            : 'Guia oficial não encontrado para este objetivo.\nQuer que eu procure em fontes complementares?';
         }
 
         try {
@@ -336,8 +403,9 @@ ${personaInstructions}`;
             { role: 'assistant', content: rawContent },
             {
               role: 'user',
-              content:
-                'A resposta anterior continha afirmações não sustentadas pelo guia. Reescreva de forma estritamente ancorada apenas nos fatos verificados do guia.',
+              content: isEn
+                ? 'The previous response contained claims not supported by the guide. Rewrite strictly anchored only in verified guide facts in English.'
+                : 'A resposta anterior continha afirmações não sustentadas pelo guia. Reescreva de forma estritamente ancorada apenas nos fatos verificados do guia.',
             },
           ];
 
@@ -364,7 +432,9 @@ ${personaInstructions}`;
         } catch {
           // If corrective re-prompt fails, provide a safe grounded fallback rather than hallucinated advice
         }
-        return 'Guia oficial não encontrado para este objetivo.\nQuer que eu procure em fontes complementares?';
+        return isEn
+          ? 'Official guide not found for this objective.\nWould you like me to search complementary sources?'
+          : 'Guia oficial não encontrado para este objetivo.\nQuer que eu procure em fontes complementares?';
       }
 
       return rawContent;
@@ -395,7 +465,7 @@ ${personaInstructions}`;
 
       const choice = completion.choices[0];
       if (!choice) {
-        yield { type: 'error', error: 'Nenhuma resposta retornada pelo modelo.' };
+        yield { type: 'error', error: isEn ? 'No response returned by the model.' : 'Nenhuma resposta retornada pelo modelo.' };
         return;
       }
 
@@ -448,8 +518,9 @@ ${personaInstructions}`;
           if (probe.length === 0) {
             yield {
               type: 'thought',
-              content:
-                '📥 Jogo inédito detectado: obtendo e indexando guia oficial comunitário (PowerPyx/PSNProfiles) no banco de dados...',
+              content: isEn
+                ? '📥 Unindexed game detected: fetching and indexing community official guide (PowerPyx/PSNProfiles) in database...'
+                : '📥 Jogo inédito detectado: obtendo e indexando guia oficial comunitário (PowerPyx/PSNProfiles) no banco de dados...',
             };
           }
         }
@@ -467,7 +538,7 @@ ${personaInstructions}`;
             for (const item of results) {
               if (item?.content) {
                 collectedGuideSources.push({
-                  title: item.title || 'Guia de Troféus',
+                  title: item.title || (isEn ? 'Trophy Guide' : 'Guia de Troféus'),
                   content: item.content,
                 });
               }
@@ -492,7 +563,7 @@ ${personaInstructions}`;
                   for (const ex of exResults) {
                     if (ex?.content && !collectedGuideSources.some((s) => s.title === ex.title)) {
                       collectedGuideSources.push({
-                        title: ex.title || 'Subguia de Cartas',
+                        title: ex.title || (isEn ? 'Cards Subguide' : 'Subguia de Cartas'),
                         content: ex.content,
                       });
                     }
@@ -504,7 +575,7 @@ ${personaInstructions}`;
         }
 
         if (toolName === PlayerProgressTool.name && resultData && typeof resultData === 'object') {
-          addPlayerProgressToSources(resultData as Partial<PlayerProgressResult>, collectedGuideSources);
+          addPlayerProgressToSources(resultData as Partial<PlayerProgressResult>, collectedGuideSources, lang);
         }
 
         yield {
@@ -533,7 +604,9 @@ ${personaInstructions}`;
               ...messages,
               {
                 role: 'user',
-                content: 'Sintetize agora a sua resposta final com base em todas as ferramentas que você executou acima.',
+                content: isEn
+                  ? 'Synthesize now your final response in English based on all the tools you executed above.'
+                  : 'Sintetize agora a sua resposta final com base em todas as ferramentas que você executou acima.',
               },
             ],
             ...(isDeepWalkthrough ? { max_tokens: 2048 } : {}),
@@ -545,7 +618,12 @@ ${personaInstructions}`;
     const verifiedContent = await verifyAndStreamAnswer(fallbackRawContent, messages);
     yield {
       type: 'chunk',
-      content: verifiedContent || fallbackRawContent || '\n[Aviso: O agente concluiu a coleta de dados das ferramentas.]',
+      content:
+        verifiedContent ||
+        fallbackRawContent ||
+        (isEn
+          ? '\n[Notice: Agent finished gathering data from tools.]'
+          : '\n[Aviso: O agente concluiu a coleta de dados das ferramentas.]'),
     };
     yield { type: 'done' };
   }
