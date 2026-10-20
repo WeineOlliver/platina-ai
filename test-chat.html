@@ -372,6 +372,33 @@
       border-color: var(--accent);
       background: var(--card-alt);
     }
+    .onboarding-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .chip-btn {
+      background: var(--card);
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      border-radius: 18px;
+      padding: 7px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+      user-select: none;
+    }
+    .chip-btn:hover {
+      background: var(--accent);
+      color: #0b0f17;
+      font-weight: 600;
+      transform: translateY(-1px);
+    }
 
     /* PAINEL INFERIOR: O QUE O AGENTE CHAMOU (TOOLS) */
     .details-box {
@@ -543,8 +570,8 @@
         sessions = [
           {
             id: 's_default',
-            title: 'Grand Theft Auto V',
-            game: 'Grand Theft Auto V',
+            title: 'Nova Platina',
+            game: '',
             history: [],
             toolLogs: []
           }
@@ -571,13 +598,10 @@
 
     function createNewSession() {
       const newId = 's_' + Date.now();
-      const hasWitcher = sessions.some(s => s.game === 'The Witcher 3: Wild Hunt');
-      const defaultGame = hasWitcher ? 'Nova Platina' : 'The Witcher 3: Wild Hunt';
-
       const newSession = {
         id: newId,
-        title: defaultGame,
-        game: defaultGame,
+        title: 'Nova Platina',
+        game: '',
         history: [],
         toolLogs: []
       };
@@ -660,29 +684,32 @@
       if (session.history.length === 0) {
         const welcomeDiv = document.createElement('div');
         welcomeDiv.className = 'msg assistant';
-        const isGta = (session.game || '').toLowerCase().includes('grand theft auto');
-
-        if (isGta) {
-          welcomeDiv.innerHTML = `
-            <div class="msg-author">Platina AI Agent</div>
-            <div class="content">
-              <p>Olá, <strong>${escapeHtml(getPsnId())}</strong>! 🎮</p>
-              <p>Consultei sua conta oficial na <strong>PlayStation Network</strong> em tempo real! Detectei que você já tem <strong>100% no GTA III, Vice City e San Andreas</strong>, e está atualmente com <strong>71% no Grand Theft Auto V (PS5)</strong> com a Platina base já conquistada (57 de 78 troféus)!</p>
-              <p>Você tem 21 troféus pendentes focados nas DLCs de <strong>Golpes (Heists)</strong>, <strong>Doomsday Heist (O Golpe do Juízo Final)</strong> e <strong>Modo Diretor</strong>. Como posso te orientar na sua rota rumo aos 100%?</p>
+        welcomeDiv.innerHTML = `
+          <div class="msg-author">Platina AI Agent</div>
+          <div class="content">
+            <p>Olá, Caçador de Troféus! 🏆</p>
+            <p>Qual jogo você deseja consultar ou platinar hoje?</p>
+            <div class="onboarding-chips">
+              <button class="chip-btn" onclick="selectGameAndSend('The Witcher 3: Wild Hunt')">⚔️ The Witcher 3: Wild Hunt</button>
+              <button class="chip-btn" onclick="selectGameAndSend('Grand Theft Auto V')">🚗 Grand Theft Auto V</button>
+              <button class="chip-btn" onclick="selectGameAndSend('Elden Ring')">💍 Elden Ring</button>
+              <button class="chip-btn" onclick="selectGameAndSend('Bloodborne')">🩸 Bloodborne</button>
             </div>
-          `;
-        } else {
-          welcomeDiv.innerHTML = `
-            <div class="msg-author">Platina AI Agent</div>
-            <div class="content">
-              <p>Olá, <strong>${escapeHtml(getPsnId())}</strong>! 🎮</p>
-              <p>Assistente especialista pronto para orientar sua rota rumo à Platina de <strong>${escapeHtml(session.game || 'seu jogo')}</strong>!</p>
-              <p>Se este jogo ainda não constar na base local, buscarei o guia oficial na web e farei a ingestão automática no banco vetorial. O que você gostaria de saber?</p>
-            </div>
-          `;
-        }
+          </div>
+        `;
         chatBox.appendChild(welcomeDiv);
       } else {
+        const welcomeDiv = document.createElement('div');
+        welcomeDiv.className = 'msg assistant';
+        welcomeDiv.innerHTML = `
+          <div class="msg-author">Platina AI Agent</div>
+          <div class="content">
+            <p>Olá, Caçador de Troféus! 🏆</p>
+            <p>Qual jogo você deseja consultar ou platinar hoje?</p>
+          </div>
+        `;
+        chatBox.appendChild(welcomeDiv);
+
         session.history.forEach(item => {
           const msgDiv = document.createElement('div');
           if (item.role === 'user') {
@@ -719,6 +746,28 @@
       }
     }
 
+    function detectGame(text) {
+      if (!text) return null;
+      const lower = text.toLowerCase();
+      if (lower.includes('witcher')) return 'The Witcher 3: Wild Hunt';
+      if (lower.includes('grand theft auto') || lower.includes('gta')) return 'Grand Theft Auto V';
+      if (lower.includes('elden ring') || lower.includes('elden')) return 'Elden Ring';
+      if (lower.includes('bloodborne')) return 'Bloodborne';
+      return null;
+    }
+
+    function selectGameAndSend(gameName) {
+      const session = getActiveSession();
+      session.game = gameName;
+      session.title = gameName;
+      const gameInput = document.getElementById('gameInput');
+      if (gameInput) gameInput.value = gameName;
+      renderTabs();
+      renderQuickPrompts();
+      saveSessions();
+      sendChatMessage(gameName);
+    }
+
     function renderQuickPrompts() {
       const container = document.getElementById('quickPrompts');
       const session = getActiveSession();
@@ -739,17 +788,39 @@
           { label: '🏰 Cálices de Pthumeru', text: 'Qual o caminho mais rápido nos Cálices para enfrentar a Rainha Yharnam?' },
           { label: '👑 Finais de Bloodborne', text: 'Como fazer backup de save para pegar os 3 finais em uma única jogada?' }
         ];
-      } else {
+      } else if (gameLower.includes('elden')) {
+        prompts = [
+          { label: '🗡️ Armamentos Lendários', text: 'Quais armamentos lendários são perdíveis em Elden Ring?' },
+          { label: '👑 Finais de Elden Ring', text: 'Como desbloquear todos os finais na mesma jogada com backup de save?' },
+          { label: '🧙 Feitiços e Encantamentos', text: 'Quais feitiços e encantamentos lendários são perdíveis?' }
+        ];
+      } else if (gameLower.includes('grand theft auto') || gameLower.includes('gta')) {
         prompts = [
           { label: '💀 Masterminds no Doomsday Heist', text: 'Como faço para completar o troféu Masterminds (Gênio do Crime) no Doomsday Heist sem resetar o progresso?' },
           { label: '🏦 Golpes Pendentes', text: 'Quais troféus de Golpes do GTA V ainda faltam eu desbloquear?' },
           { label: '🦁 Troféu Criptozoologista', text: 'Como desbloquear o troféu Cryptozoologist no Modo Diretor?' }
         ];
+      } else {
+        prompts = [
+          { label: '⚔️ The Witcher 3', text: 'The Witcher 3: Wild Hunt' },
+          { label: '🚗 Grand Theft Auto V', text: 'Grand Theft Auto V' },
+          { label: '💍 Elden Ring', text: 'Elden Ring' },
+          { label: '🩸 Bloodborne', text: 'Bloodborne' }
+        ];
       }
 
       container.innerHTML = prompts.map(p => 
-        `<button class="quick-btn" onclick="setPrompt('${escapeHtml(p.text)}')">${escapeHtml(p.label)}</button>`
+        `<button class="quick-btn" onclick="handleQuickPromptClick('${escapeHtml(p.text)}')">${escapeHtml(p.label)}</button>`
       ).join('');
+    }
+
+    function handleQuickPromptClick(text) {
+      const session = getActiveSession();
+      if (session && session.history.length === 0) {
+        selectGameAndSend(text);
+      } else {
+        setPrompt(text);
+      }
     }
 
     function renderAll() {
@@ -790,9 +861,9 @@
       }
     }
 
-    async function sendChatMessage() {
+    async function sendChatMessage(customText) {
       const input = document.getElementById('userInput');
-      const text = input.value.trim();
+      const text = (typeof customText === 'string' ? customText : input.value).trim();
       if (!text) return;
 
       const session = getActiveSession();
@@ -802,12 +873,28 @@
       const detailsContent = document.getElementById('detailsContent');
       const logSummary = document.getElementById('logSummary');
 
+      // Auto-game binding na primeira mensagem da sessão
+      if (session.history.length === 0) {
+        const detected = detectGame(text);
+        const chosenGame = detected || (session.game && session.game !== 'Nova Platina' ? session.game : text);
+        session.game = chosenGame;
+        session.title = chosenGame;
+        const gameInput = document.getElementById('gameInput');
+        if (gameInput) gameInput.value = chosenGame;
+        renderTabs();
+        renderQuickPrompts();
+        saveSessions();
+      }
+
+      if (typeof customText !== 'string' || input.value === customText) {
+        input.value = '';
+      }
+
       // 1. Renderiza mensagem do usuário no chat
       const userMsgDiv = document.createElement('div');
       userMsgDiv.className = 'msg user';
       userMsgDiv.innerHTML = `<div class="msg-author">Você</div><div class="content">${escapeHtml(text)}</div>`;
       chatBox.appendChild(userMsgDiv);
-      input.value = '';
       chatBox.scrollTop = chatBox.scrollHeight;
 
       // 2. Cria balão de resposta do agente
