@@ -79,6 +79,8 @@ export const agentRoutes: FastifyPluginAsync = async (app) => {
       const generator = platinaAgentRunner.run(promptWithContext, {
         signal: abortController.signal,
         ...(history ? { history } : {}),
+        ...(game ? { game } : {}),
+        ...(psnId ? { psnId } : {}),
       });
 
       for await (const event of generator) {

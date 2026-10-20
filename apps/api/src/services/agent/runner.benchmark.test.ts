@@ -382,6 +382,101 @@ describe('Platina AI Agent Runner Benchmark Suite', () => {
       expect(doneEvent).toBeDefined();
     });
 
+    it('executes in a single LLM roundtrip when game and psnId are provided on a new game greeting request', async () => {
+      const runner = new PlatinaAgentRunner();
+
+      const mockProgressResult = {
+        psn_id: 'OlliverHunter',
+        game: 'Grand Theft Auto V',
+        platform: 'PS5',
+        total_trophies: 51,
+        unlocked_count: 36,
+        completion_percentage: 71,
+        pending_count: 15,
+        pending_missables_count: 0,
+        pending_missable_trophies: [],
+        quick_cleanup_trophies: [
+          { trophy_name: 'Vinewood Visionary', trophy_type: 'bronze', chapter_or_location: 'Modo Diretor' },
+        ],
+        heavy_grind_trophies: [
+          { trophy_name: 'Masterminds', trophy_type: 'silver', chapter_or_location: 'Golpe do Juízo Final' },
+        ],
+        unearned_trophies_summary: [
+          'Vinewood Visionary (bronze): Crie e exporte um vídeo usando o Modo Diretor.',
+        ],
+      };
+
+      const executeToolSpy = vi.spyOn(runner, 'executeTool').mockResolvedValue(mockProgressResult);
+
+      const greetingAnswer = [
+        'Campanha concluída! Você tem 71% dos troféus e nenhum troféu perdível pendente.',
+        '- Opção 1 (Velocidade): Troféu Vinewood Visionary no Modo Diretor.',
+        '- Opção 2 (Fundação / Grind Pesado): Troféu Masterminds no Golpe do Juízo Final.',
+        'Qual rota você prefere encarar primeiro?',
+      ].join('\n');
+
+      const mockCreate = vi.fn().mockResolvedValueOnce({
+        choices: [
+          {
+            message: {
+              role: 'assistant',
+              content: greetingAnswer,
+            },
+          },
+        ],
+      });
+
+      (runner as unknown as { client: { chat: { completions: { create: typeof mockCreate } } } }).client = {
+        chat: { completions: { create: mockCreate } },
+      };
+
+      const events: AgentStepEvent[] = [];
+      for await (const event of runner.run('Olá, acabei de iniciar o acompanhamento.', {
+        psnId: 'OlliverHunter',
+        game: 'Grand Theft Auto V',
+      })) {
+        events.push(event);
+      }
+
+      // Assert playerProgressTool was pre-fetched before dispatching completion
+      expect(executeToolSpy).toHaveBeenCalledWith('check_player_progress', {
+        psnId: 'OlliverHunter',
+        game: 'Grand Theft Auto V',
+      });
+
+      // Assert pre-fetch tool events were emitted
+      const toolCallEvent = events.find((e) => e.type === 'tool_call');
+      expect(toolCallEvent).toBeDefined();
+      expect(toolCallEvent?.toolName).toBe('check_player_progress');
+
+      const toolResultEvent = events.find((e) => e.type === 'tool_result');
+      expect(toolResultEvent).toBeDefined();
+      expect(toolResultEvent?.toolName).toBe('check_player_progress');
+
+      // Assert single LLM roundtrip execution
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+
+      // Assert messages passed to LLM included synthesized pre-fetch tool turn
+      const firstCallArgs = mockCreate.mock.calls[0][0];
+      const assistantPreTurn = firstCallArgs.messages.find(
+        (m: { role: string; tool_calls?: Array<{ function: { name: string } }> }) =>
+          m.role === 'assistant' && m.tool_calls?.[0]?.function?.name === 'check_player_progress'
+      );
+      expect(assistantPreTurn).toBeDefined();
+
+      const toolPreTurn = firstCallArgs.messages.find(
+        (m: { role: string; tool_call_id?: string }) => m.role === 'tool' && m.tool_call_id?.startsWith('call_prefetch_progress')
+      );
+      expect(toolPreTurn).toBeDefined();
+
+      // Assert output chunk and done
+      const chunkEvent = events.find((e) => e.type === 'chunk');
+      expect(chunkEvent?.content).toBe(greetingAnswer);
+
+      const doneEvent = events.find((e) => e.type === 'done');
+      expect(doneEvent).toBeDefined();
+    });
+
     it('generates deep walkthrough for Gwent cards with high token limit when detailed guide is requested', async () => {
       const runner = new PlatinaAgentRunner();
 

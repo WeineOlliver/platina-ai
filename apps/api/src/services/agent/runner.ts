@@ -24,6 +24,70 @@ export interface RunAgentOptions {
   maxSteps?: number;
   signal?: AbortSignal;
   history?: Array<{ role: 'user' | 'assistant'; content: string }> | undefined;
+  game?: string;
+  psnId?: string;
+}
+
+function extractGameFromText(text: string): string | undefined {
+  const explicitMatch = text.match(/(?:Jogo|Game):\s*([^\n\r]+)/i);
+  if (explicitMatch?.[1]) return explicitMatch[1].trim();
+
+  const emMatch = text.match(/\bem\s+([A-Z0-9][A-Za-z0-9\s:'-]+?)(?:\?|\.|\n|$|,|;)/);
+  if (emMatch?.[1]) {
+    const candidate = emMatch[1].trim();
+    if (!/^(1|2|geral|breve|alta|baixa|segundo|primeiro)\b/i.test(candidate)) {
+      return candidate;
+    }
+  }
+
+  return undefined;
+}
+
+function addPlayerProgressToSources(
+  pData: Partial<PlayerProgressResult>,
+  collectedGuideSources: Array<{ content: string; title: string }>
+) {
+  const summaryParts: string[] = [];
+  if (pData.game) summaryParts.push(`Jogo: ${pData.game}`);
+  if (pData.pending_missable_trophies?.length) {
+    summaryParts.push(
+      `Troféus perdíveis pendentes: ${pData.pending_missable_trophies.map((t) => t.trophy_name).join(', ')}`
+    );
+  }
+  if (pData.unearned_trophies_summary?.length) {
+    summaryParts.push(`Lista de troféus pendentes:\n${pData.unearned_trophies_summary.slice(0, 10).join('\n')}`);
+  }
+  if (summaryParts.length > 0) {
+    collectedGuideSources.push({
+      title: `Progresso PSN (${pData.game || 'Geral'})`,
+      content: summaryParts.join('\n'),
+    });
+  }
+
+  const gameName = pData.game || 'Geral';
+  if (pData.quick_cleanup_trophies?.length) {
+    collectedGuideSources.push({
+      title: `Progresso PSN (${gameName}) - Troféus Rápidos (Limpeza)`,
+      content: pData.quick_cleanup_trophies
+        .map(
+          (t) =>
+            `- ${t.trophy_name}${t.trophy_type ? ` [${t.trophy_type}]` : ''}${t.chapter_or_location ? `: ${t.chapter_or_location}` : ''}`
+        )
+        .join('\n'),
+    });
+  }
+
+  if (pData.heavy_grind_trophies?.length) {
+    collectedGuideSources.push({
+      title: `Progresso PSN (${gameName}) - Troféus de Grind Pesado`,
+      content: pData.heavy_grind_trophies
+        .map(
+          (t) =>
+            `- ${t.trophy_name}${t.trophy_type ? ` [${t.trophy_type}]` : ''}${t.chapter_or_location ? `: ${t.chapter_or_location}` : ''}`
+        )
+        .join('\n'),
+    });
+  }
 }
 
 // Insight: Agent ReAct Loop (Reasoning + Acting).
@@ -109,6 +173,17 @@ Se o usuário perguntar sobre um troféu específico, mantenha o layout tático 
 Orçamento de Resposta (Obrigatório):
 Sua resposta final deve ter no total MENOS DE 120 PALAVRAS.`;
 
+    const targetPsnId = options.psnId?.trim();
+    const targetGame = (options.game || (targetPsnId ? extractGameFromText(userMessage) : undefined))?.trim();
+    const shouldPrefetch = Boolean(targetPsnId && targetGame);
+
+    const prefetchPromptAddition = shouldPrefetch
+      ? `\n\nDiretriz de Execução Imediata (Single Roundtrip):
+O progresso do jogador "${targetPsnId}" em "${targetGame}" já foi consultado e os dados estão injetados na conversa via ferramenta "check_player_progress".
+NÃO execute a ferramenta "check_player_progress" novamente.
+Gere DIRETAMENTE a saudação e o briefing tático (ou resposta de status) em 1 único turno com base nos dados já disponíveis.`
+      : '';
+
     const systemPrompt = `Você é o Platina AI Agent, um assistente gamer autônomo especialista em platinas PlayStation.
 Você tem acesso a ferramentas para:
 1. "check_player_progress": consultar os troféus já conquistados e pendentes de um jogador na PSN.
@@ -121,7 +196,7 @@ Diretrizes do Agente:
 - Quando o usuário perguntar sobre cartas, colecionáveis ou passos detalhados de um troféu, chame "search_trophy_guides" usando o nome do troféu em inglês (ex: query: "Card Collector" para troféu de cartas de Gwent) e limit: 8.
 - Se você identificou o progresso do jogador e nenhum guia vetorial adicional for necessário (ou a dúvida for apenas sobre a lista de pendências), responda usando os dados retornados de "check_player_progress" de forma tática.
 - Se o usuário responder escolhendo uma opção numérica ou rota (ex: "1", "2", "Rota 1", "Rota 2"), use o histórico da conversa e os dados já obtidos para traçar o plano detalhado dessa rota específica. Chame "search_trophy_guides" apenas se precisar de detalhes de um troféu específico dessa rota.
-- Não execute mais de 2 chamadas de ferramentas na mesma resposta. Seja direto, prático e cite as fontes.
+- Não execute mais de 2 chamadas de ferramentas na mesma resposta. Seja direto, prático e cite as fontes.${prefetchPromptAddition}
 
 ${personaInstructions}`;
 
@@ -145,6 +220,60 @@ ${personaInstructions}`;
 
     const collectedGuideSources: Array<{ content: string; title: string }> = [];
 
+    if (shouldPrefetch && targetPsnId && targetGame) {
+      if (options.signal?.aborted) return;
+
+      yield {
+        type: 'tool_call',
+        toolName: PlayerProgressTool.name,
+        toolArgs: { psnId: targetPsnId, game: targetGame },
+      };
+
+      let prefetchResult: unknown;
+      try {
+        prefetchResult = await this.executeTool(PlayerProgressTool.name, {
+          psnId: targetPsnId,
+          game: targetGame,
+        });
+      } catch (err: unknown) {
+        prefetchResult = { error: err instanceof Error ? err.message : String(err) };
+      }
+
+      yield {
+        type: 'tool_result',
+        toolName: PlayerProgressTool.name,
+        toolResult: prefetchResult,
+      };
+
+      if (prefetchResult && typeof prefetchResult === 'object') {
+        addPlayerProgressToSources(
+          prefetchResult as Partial<PlayerProgressResult>,
+          collectedGuideSources
+        );
+      }
+
+      const prefetchCallId = `call_prefetch_progress_${Date.now()}`;
+      messages.push({
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          {
+            id: prefetchCallId,
+            type: 'function',
+            function: {
+              name: PlayerProgressTool.name,
+              arguments: JSON.stringify({ psnId: targetPsnId, game: targetGame }),
+            },
+          },
+        ],
+      });
+      messages.push({
+        role: 'tool',
+        tool_call_id: prefetchCallId,
+        content: JSON.stringify(prefetchResult),
+      });
+    }
+
     const verifyAndStreamAnswer = async (
       rawContent: string,
       currentMessages: Groq.Chat.ChatCompletionMessageParam[]
@@ -164,6 +293,8 @@ ${personaInstructions}`;
       }
 
       const isChoiceOrGreeting =
+        shouldPrefetch ||
+        Boolean(options.psnId) ||
         /^(1|2|a|b|sim|nao|ok|quero|ola|oi|rota 1|rota 2)/i.test(userMessage.trim()) ||
         /^(1|2|a|b)$/i.test(userMessage.trim()) ||
         userMessage.includes('Mensagem do usuário: 1') ||
@@ -373,42 +504,7 @@ ${personaInstructions}`;
         }
 
         if (toolName === PlayerProgressTool.name && resultData && typeof resultData === 'object') {
-          const pData = resultData as Partial<PlayerProgressResult>;
-          const summaryParts: string[] = [];
-          if (pData.game) summaryParts.push(`Jogo: ${pData.game}`);
-          if (pData.pending_missable_trophies?.length) {
-            summaryParts.push(
-              `Troféus perdíveis pendentes: ${pData.pending_missable_trophies.map((t) => t.trophy_name).join(', ')}`
-            );
-          }
-          if (pData.unearned_trophies_summary?.length) {
-            summaryParts.push(`Lista de troféus pendentes:\n${pData.unearned_trophies_summary.slice(0, 10).join('\n')}`);
-          }
-          if (summaryParts.length > 0) {
-            collectedGuideSources.push({
-              title: `Progresso PSN (${pData.game || 'Geral'})`,
-              content: summaryParts.join('\n'),
-            });
-          }
-
-          const gameName = pData.game || 'Geral';
-          if (pData.quick_cleanup_trophies?.length) {
-            collectedGuideSources.push({
-              title: `Progresso PSN (${gameName}) - Troféus Rápidos (Limpeza)`,
-              content: pData.quick_cleanup_trophies
-                .map((t) => `- ${t.trophy_name}${t.trophy_type ? ` [${t.trophy_type}]` : ''}${t.chapter_or_location ? `: ${t.chapter_or_location}` : ''}`)
-                .join('\n'),
-            });
-          }
-
-          if (pData.heavy_grind_trophies?.length) {
-            collectedGuideSources.push({
-              title: `Progresso PSN (${gameName}) - Troféus de Grind Pesado`,
-              content: pData.heavy_grind_trophies
-                .map((t) => `- ${t.trophy_name}${t.trophy_type ? ` [${t.trophy_type}]` : ''}${t.chapter_or_location ? `: ${t.chapter_or_location}` : ''}`)
-                .join('\n'),
-            });
-          }
+          addPlayerProgressToSources(resultData as Partial<PlayerProgressResult>, collectedGuideSources);
         }
 
         yield {
