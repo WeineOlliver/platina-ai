@@ -1,37 +1,47 @@
-# Platina AI: High-Impact LinkedIn Post Draft
+# Platina AI: High-Impact LinkedIn Post
 
 ---
 
-### Option 1: Engineering & Architecture Focus (Recommended for Global Senior Roles)
+## 📱 Post Content (Copy-Paste Ready)
 
-Ever lost 40+ hours in a game because you missed a single conversation with an NPC before entering a boss room?
+Most RAG pipelines break when real-time data hides behind Cloudflare anti-bot walls or requires live account telemetry. Out-of-the-box LLMs hallucinate guide steps and invent non-existent items.
 
-In games like Bloodborne and Elden Ring, "missable trophies" permanently lock you out of a Platinum unless you start an entire new playthrough.
+The pain point? Missable trophies. In The Witcher 3, missing 1 of 199 Gwent cards permanently burns 80+ hours of gameplay on a ruined Platinum run.
 
-To solve this, I built **Platina AI** 🏆—an autonomous AI assistant that synchronizes live PlayStation Network trophy telemetry with verified walkthrough vector embeddings.
+I built Platina AI—an autonomous assistant syncing live PSN telemetry with verified walkthroughs to guarantee zero-spoiler, zero-miss trophy routes:
 
-Here is the engineering architecture behind it:
+• Sub-1.5s TTFT via Context Pre-fetching: Injects synthesized PSN tool turns upfront, bypassing multi-roundtrip ReAct loops.
+• Resilient Scraping vs. Cloudflare WAF: Fast HTTP extraction with automated Playwright Chromium fallback on 403 challenges.
+• Pre-Flight Grounding Validator: Pre-checks guide prerequisites before opening the SSE stream—zero hallucinated steps.
+• $0 Dev Cost Multi-Model Cascade: Dynamic fallback tier (gpt-oss-120b → gpt-oss-20b → qwen-27b) handling 429 TPD quota exhaustion.
+• Hybrid RAG: Reciprocal Rank Fusion (RRF) combining dense pgvector embeddings with sparse BM25 tsvector search.
 
-🔹 **Polyglot Monorepo:** 
-Fastify (Node.js/TypeScript) handles high-throughput Server-Sent Events (SSE) streaming and JWT auth, while a FastAPI (Python 3.12 + Astral uv) microservice manages semantic chunking and dense embeddings.
+Stack: TypeScript/Fastify • Python/FastAPI • PostgreSQL 16 (pgvector) • Docker • k3s on AWS Graviton
 
-🔹 **Autonomous ReAct Agent & Latency Engineering (Sub-1.5s TTFT):**
-Instead of naive prompt stuffing or sluggish multi-roundtrip ReAct loops, our agent pre-fetches live PSN telemetry and injects synthesized tool turns directly into message history. This slashes Time-to-First-Token (TTFT) by over 50%, streaming instant tactical briefings over Server-Sent Events (SSE) with adaptive validation gating before executing dynamic vector retrieval for unearned missables.
+Repo, 5 ADRs, and 61 technical interview prep deep-dives in the first comment 👇 How do you handle Cloudflare WAF fallbacks in your ingestion pipelines?
 
-🔹 **PostgreSQL 16 + pgvector (HNSW Index):**
-By combining relational metadata with 1536-dimensional L2-normalized embeddings in a single database, we achieve sub-millisecond cosine similarity queries (`<=>`) with full transactional ACID consistency.
+#SoftwareEngineering #SystemDesign #RAG #AI #FullStack #TypeScript #Python #DevOps
 
-🔹 **Open Model Context Protocol (MCP):**
-I built a standalone MCP server (`@platina-ai/mcp-server`), allowing developers to connect Platina AI directly to Claude Desktop or Cursor over standard `stdio` JSON-RPC.
+---
 
-🔹 **Enterprise Cloud & FinOps ($1.00 USD Cap):**
-Packaged with a unified Helm chart and deployed declaratively via Terraform to AWS (3-tier multi-AZ VPC, RDS, and certified k3s on EC2 Graviton). By running k3s instead of managed EKS, I slashed cloud infrastructure costs by over 90% while enforcing a hard $1.00 USD monthly budget cap with automated teardown automation.
+## 💬 First Comment (Copy-Paste Ready)
 
-🔹 **Full CI/CD Pipeline:**
-GitHub Actions runs three parallel test tracks (Vitest, Pytest, and Helm lint) and publishes multi-architecture Docker images (`linux/amd64` and `linux/arm64`) to Amazon ECR via OpenID Connect (OIDC).
+🔗 Full repository & documentation:
+https://github.com/WeineOlliver/platina-ai
 
-Check out the full repository, 5 Architecture Decision Records (ADRs), and 61 technical interview deep-dives:
-🔗 Repository: https://github.com/WeineOlliver/platina-ai
-📊 Architecture & Flow: https://github.com/WeineOlliver/platina-ai/blob/main/docs/architecture.md
+📚 61 Technical Interview Prep Deep-Dives & ADRs:
+https://github.com/WeineOlliver/platina-ai/blob/main/docs/interview-prep.md
+https://github.com/WeineOlliver/platina-ai/blob/main/docs/architecture.md
 
-#SoftwareEngineering #NodeJS #TypeScript #Python #Kubernetes #Terraform #AWS #RAG #AI #MCP #SystemDesign
+🎥 Demo video & architecture assets:
+https://github.com/WeineOlliver/platina-ai/tree/main/docs/media
+
+---
+
+## 📋 Publication Checklist & Best Practices
+
+- [ ] **Optimal Timing:** Schedule for **Tuesday at 10:00 BRT / 9:00 EDT** (peak window for US/EU engineering leaders & technical recruiters).
+- [ ] **Native Video Attachment:** Attach `docs/media/platina-ai-demo.mp4` directly to the post (MP4 H.264, web-optimized with faststart, ~35s).
+- [ ] **Zero Links in Body:** Ensure no external URLs are in the post body (prevents LinkedIn algorithm downranking).
+- [ ] **Immediate First Comment:** Post the prepared first comment within 30 seconds of publication.
+- [ ] **Golden Hour Engagement:** Respond to all comments within the first 60 minutes to maximize reach velocity.
