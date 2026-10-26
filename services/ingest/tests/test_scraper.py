@@ -643,5 +643,92 @@ async def test_fetch_and_index_syncs_missables_from_html_dom_classes(async_clien
                 await session.execute(delete(GuideChunkModel).where(GuideChunkModel.game.ilike(game_title)))
 
 
+@pytest.mark.anyio
+async def test_missables_sync_does_not_update_unrelated_games_when_game_not_in_player_games(async_client):
+    from sqlalchemy import text
+
+    pid = "ply_shared_test"
+    gid1 = "pg_shared_game_1"
+    gid2 = "pg_shared_game_2"
+    tid1 = "tr_shared_1"
+    tid2 = "tr_shared_2"
+    trophy_name = "Common Shared Trophy"
+
+    # Setup 2 existing games with the same trophy name
+    async with get_db_session() as session:
+        await session.execute(
+            text("INSERT INTO players (id, psn_id, email) VALUES (:pid, :psn, :email) ON CONFLICT DO NOTHING"),
+            {"pid": pid, "psn": "shared_player", "email": "shared@test.com"},
+        )
+        await session.execute(
+            text("INSERT INTO player_games (id, player_id, game_title) VALUES (:gid, :pid, :game) ON CONFLICT DO NOTHING"),
+            {"gid": gid1, "pid": pid, "game": "Existing Game One"},
+        )
+        await session.execute(
+            text("INSERT INTO player_games (id, player_id, game_title) VALUES (:gid, :pid, :game) ON CONFLICT DO NOTHING"),
+            {"gid": gid2, "pid": pid, "game": "Existing Game Two"},
+        )
+        await session.execute(
+            text(
+                "INSERT INTO player_trophies (id, player_game_id, trophy_name, trophy_type, trophy_category, is_missable) "
+                "VALUES (:tid, :gid, :tname, 'bronze', 'standard', false) "
+                "ON CONFLICT (player_game_id, trophy_name) DO UPDATE SET is_missable = false, trophy_category = 'standard'"
+            ),
+            {"tid": tid1, "gid": gid1, "tname": trophy_name},
+        )
+        await session.execute(
+            text(
+                "INSERT INTO player_trophies (id, player_game_id, trophy_name, trophy_type, trophy_category, is_missable) "
+                "VALUES (:tid, :gid, :tname, 'bronze', 'standard', false) "
+                "ON CONFLICT (player_game_id, trophy_name) DO UPDATE SET is_missable = false, trophy_category = 'standard'"
+            ),
+            {"tid": tid2, "gid": gid2, "tname": trophy_name},
+        )
+
+    # Ingest a guide for a 3rd game that does NOT exist in player_games
+    unregistered_game = "Nonexistent Game Three"
+    mock_guide_md = f"""# {unregistered_game} Guide
+## Troféus Perdíveis (Missable Trophies)
+### {trophy_name}
+Atenção: Troféu perdível (missable)!
+"""
+    mock_pages = [("Guide Title", mock_guide_md, "https://example.com/guide3", f"<html><body>{mock_guide_md}</body></html>")]
+
+    try:
+        with patch("src.services.scraper.scraper.fetch_game_guide_with_subpages", return_value=mock_pages):
+            resp = await async_client.post(
+                "/api/v1/ingest/fetch-and-index",
+                json={"game": unregistered_game, "force_reindex": True},
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["trophies_updated"] == 0
+
+            # Verify neither existing game's trophy was modified
+            async with get_db_session() as session:
+                res1 = await session.execute(
+                    text("SELECT is_missable, trophy_category FROM player_trophies WHERE id = :tid"),
+                    {"tid": tid1},
+                )
+                row1 = res1.fetchone()
+                assert row1[0] is False, "Game 1 trophy should NOT be marked missable"
+                assert row1[1] == "standard"
+
+                res2 = await session.execute(
+                    text("SELECT is_missable, trophy_category FROM player_trophies WHERE id = :tid"),
+                    {"tid": tid2},
+                )
+                row2 = res2.fetchone()
+                assert row2[0] is False, "Game 2 trophy should NOT be marked missable"
+                assert row2[1] == "standard"
+    finally:
+        async with get_db_session() as session:
+            await session.execute(text("DELETE FROM player_trophies WHERE id IN (:tid1, :tid2)"), {"tid1": tid1, "tid2": tid2})
+            await session.execute(text("DELETE FROM player_games WHERE id IN (:gid1, :gid2)"), {"gid1": gid1, "gid2": gid2})
+            await session.execute(text("DELETE FROM players WHERE id = :pid"), {"pid": pid})
+            await session.execute(text("DELETE FROM guide_chunks WHERE game ILIKE :game"), {"game": unregistered_game})
+
+
+
 
 

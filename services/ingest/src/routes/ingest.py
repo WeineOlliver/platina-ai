@@ -1,7 +1,10 @@
 from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Any
 import hashlib
+import logging
 from sqlalchemy import select, func, delete, update
+
+logger = logging.getLogger(__name__)
 from src.database import get_db_session
 from src.models.chunk import GuideChunkModel
 from src.models.player import PlayerGameModel, PlayerTrophyModel
@@ -174,21 +177,24 @@ async def fetch_and_index_guide(request: FetchAndIndexRequest):
                 pg_res = await session.execute(pg_stmt)
                 game_ids = [r[0] for r in pg_res.fetchall()]
 
-                lower_names = [m.lower().strip() for m in discovered_missables]
-                update_stmt = (
-                    update(PlayerTrophyModel)
-                    .where(
-                        func.lower(PlayerTrophyModel.trophy_name).in_(lower_names)
+                if not game_ids:
+                    logger.warning("Nenhum player_game encontrado para o jogo '%s'; pulando sync de missáveis.", request.game)
+                    updated_count = 0
+                else:
+                    lower_names = [m.lower().strip() for m in discovered_missables]
+                    update_stmt = (
+                        update(PlayerTrophyModel)
+                        .where(
+                            func.lower(PlayerTrophyModel.trophy_name).in_(lower_names),
+                            PlayerTrophyModel.player_game_id.in_(game_ids),
+                        )
+                        .values(
+                            is_missable=True,
+                            trophy_category="missable"
+                        )
                     )
-                )
-                if game_ids:
-                    update_stmt = update_stmt.where(PlayerTrophyModel.player_game_id.in_(game_ids))
-                update_stmt = update_stmt.values(
-                    is_missable=True,
-                    trophy_category="missable"
-                )
-                res = await session.execute(update_stmt)
-                updated_count = res.rowcount or 0
+                    res = await session.execute(update_stmt)
+                    updated_count = res.rowcount or 0
 
         return {
             "status": "indexed",
