@@ -25,3 +25,5 @@ class SearchResponse(BaseModel):
     query: str
     total_results: int
     results: List[SearchResultItem]
+    retrieval_latency_ms: float = 0.0
+    reranker_latency_ms: float = 0.0

@@ -1,3 +1,4 @@
+import time
 from typing import List, Dict, Any, Optional
 from sqlalchemy import select, and_, func
 from src.schemas.search import SearchQueryRequest, SearchResultItem, SearchResponse
@@ -14,6 +15,7 @@ class VectorSearchService:
     """
 
     async def search(self, request: SearchQueryRequest) -> SearchResponse:
+        t_retrieval_start = time.perf_counter()
         # 1. Embed user query into vector space
         query_vector = await embedding_service.embed_query(request.query)
 
@@ -117,8 +119,10 @@ class VectorSearchService:
             )
             for item in candidate_pool
         ]
+        retrieval_latency_ms = round((time.perf_counter() - t_retrieval_start) * 1000.0, 2)
 
         # 9. Cross-Scoring Reranker
+        t_rerank_start = time.perf_counter()
         results = reranker_service.rerank(
             query=request.query,
             candidates=candidate_items,
@@ -127,11 +131,14 @@ class VectorSearchService:
 
         # Enforce minimum similarity cutoff post-reranking
         results = [r for r in results if r.similarity_score >= request.min_similarity]
+        reranker_latency_ms = round((time.perf_counter() - t_rerank_start) * 1000.0, 2)
 
         return SearchResponse(
             query=request.query,
             total_results=len(results),
             results=results,
+            retrieval_latency_ms=retrieval_latency_ms,
+            reranker_latency_ms=reranker_latency_ms,
         )
 
 
