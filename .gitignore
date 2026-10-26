@@ -1,6 +1,7 @@
 # Operating Systems
 .DS_Store
 Thumbs.db
+.superpowers/
 
 # Node.js
 node_modules/
@@ -70,3 +71,8 @@ terraform.rc
 *.swp
 *.swo
 *~
+
+# Golden Evaluation Artifacts
+services/ingest/tests/golden/snapshots/
+services/ingest/tests/eval/results/
+tests/eval/results/
