@@ -603,7 +603,7 @@ class TrophyGuideScraper:
 
     async def fetch_game_guide_with_subpages(
         self, game: str, source_url: Optional[str] = None
-    ) -> list[tuple[str, str, str]]:
+    ) -> list[tuple[str, str, str, str]]:
         slug = self.compute_slug(game)
 
         async def _fetch_html(client: httpx.AsyncClient, url: str) -> Optional[str]:
@@ -619,7 +619,7 @@ class TrophyGuideScraper:
                 pass
             return None
 
-        async def _fetch_subpage(client: httpx.AsyncClient, url: str) -> Optional[Tuple[str, str, str]]:
+        async def _fetch_subpage(client: httpx.AsyncClient, url: str) -> Optional[Tuple[str, str, str, str]]:
             html = await _fetch_html(client, url)
             if html:
                 md = self._html_to_markdown(html)
@@ -627,7 +627,7 @@ class TrophyGuideScraper:
                     soup = BeautifulSoup(html, "html.parser")
                     title_tag = soup.find("h1") or soup.find("title")
                     title = title_tag.get_text().strip() if title_tag else "Guia de Troféus"
-                    return (title, md, url)
+                    return (title, md, url, html)
             return None
 
         # 1. Fetch main page (source_url or candidate remote URLs from discover_guide_urls)
@@ -655,7 +655,7 @@ class TrophyGuideScraper:
                 main_title_tag = main_soup.find("h1") or main_soup.find("title")
                 main_title = main_title_tag.get_text().strip() if main_title_tag else f"{game} — Trophy Guide & Roadmap"
                 main_markdown = self._html_to_markdown(main_html)
-                pages: list[tuple[str, str, str]] = [(main_title, main_markdown, main_url)]
+                pages: list[tuple[str, str, str, str]] = [(main_title, main_markdown, main_url, main_html)]
 
                 subpage_urls = self.discover_subpages(main_html, main_url)
                 if subpage_urls:
@@ -670,10 +670,12 @@ class TrophyGuideScraper:
         canonical_url = f"https://www.powerpyx.com/{slug}-trophy-guide-roadmap/"
         main_title = f"Guia de Platina: {game} — Roadmap Overview"
         main_markdown = self.generate_fallback_roadmap(game, slug)
-        return [(main_title, main_markdown, canonical_url)]
+        return [(main_title, main_markdown, canonical_url, f"<html><body>{main_markdown}</body></html>")]
 
     async def fetch_guide(self, game: str, source_url: Optional[str] = None) -> Tuple[str, str]:
         pages = await self.fetch_game_guide_with_subpages(game, source_url)
+        if not pages:
+            return "", ""
         return pages[0][1], pages[0][2]
 
 

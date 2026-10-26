@@ -111,7 +111,7 @@ async def fetch_and_index_guide(request: FetchAndIndexRequest):
         # 3. Chunk each subpage via semantic markdown chunker
         all_chunks: List[DocumentChunk] = []
         global_idx = 0
-        for page_title, page_markdown, page_url in pages:
+        for page_title, page_markdown, page_url, _ in pages:
             ingest_req = IngestGuideRequest(game=request.game, source_url=page_url, content=page_markdown)
             chunks = chunker.chunk_guide(ingest_req)
             for c in chunks:
@@ -152,8 +152,8 @@ async def fetch_and_index_guide(request: FetchAndIndexRequest):
 
         # 6. Extract missable trophies from parsed pages & roadmap DOM, then update player_trophies
         discovered_missables: set[str] = set()
-        for page_title, page_markdown, page_url in pages:
-            dom_data = scraper.parse_roadmap_dom(page_markdown, base_url=page_url)
+        for page_title, page_markdown, page_url, page_html in pages:
+            dom_data = scraper.parse_roadmap_dom(page_html, base_url=page_url)
             for m in dom_data.get("missable_trophies", []):
                 discovered_missables.add(m)
 

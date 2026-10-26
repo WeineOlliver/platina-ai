@@ -264,7 +264,7 @@ async def test_fetch_game_guide_subpages_generic_fallback():
     pages = await scraper_instance.fetch_game_guide_with_subpages("Test Scraped Game")
 
     assert len(pages) == 1
-    title, markdown, url = pages[0]
+    title, markdown, url, html = pages[0]
     assert "test-scraped-game" in url
     assert "Roadmap Overview" in title
     assert "Passos da Platina" in markdown
@@ -365,7 +365,7 @@ async def test_multi_source_domain_fallback_handles_http_errors():
 
         # Must not fail and must fall back gracefully to structured canonical guide
         assert len(pages) >= 1
-        main_title, main_markdown, canonical_url = pages[0]
+        main_title, main_markdown, canonical_url, html = pages[0]
         assert "Roadmap Overview" in main_markdown or "Test Scraped Game" in main_title
         assert "Passos da Platina" in main_markdown
 
@@ -530,7 +530,7 @@ async def test_fetch_game_guide_with_subpages_browser_fallback_on_403():
 
         assert mock_browser.called
         assert len(pages) >= 1
-        title, md, url = pages[0]
+        title, md, url, html = pages[0]
         assert "Protected Game Trophy Guide" in title
         assert "Roadmap content successfully rendered" in md
         assert url == test_url
@@ -573,7 +573,7 @@ async def test_fetch_and_index_syncs_player_trophies_missables(async_client):
 Atenção: Troféu perdível (missable)! Não avance antes de coletar.
 """
 
-    mock_pages = [("Guide Title", mock_guide_markdown, "https://example.com/guide")]
+    mock_pages = [("Guide Title", mock_guide_markdown, "https://example.com/guide", f"<html><body>{mock_guide_markdown}</body></html>")]
 
     try:
         with patch("src.services.scraper.scraper.fetch_game_guide_with_subpages", return_value=mock_pages):
@@ -602,6 +602,46 @@ Atenção: Troféu perdível (missable)! Não avance antes de coletar.
             await session.execute(text("DELETE FROM player_games WHERE id = :gid"), {"gid": player_game_id})
             await session.execute(text("DELETE FROM players WHERE id = :pid"), {"pid": player_id})
             await session.execute(text("DELETE FROM guide_chunks WHERE game ILIKE :game"), {"game": game_title})
+
+
+@pytest.mark.anyio
+async def test_fetch_and_index_syncs_missables_from_html_dom_classes(async_client):
+    game_title = "HTML Missable Test Game"
+    test_url = "https://www.powerpyx.com/html-missable-game-trophy-guide-roadmap/"
+    html_fixture = """
+    <html>
+      <head><title>HTML Missable Test Game Trophy Guide</title></head>
+      <body>
+        <h1>HTML Missable Test Game Trophy Guide</h1>
+        <p>Complete roadmap overview.</p>
+        <table class="trophy-list">
+          <tr class="trophy-row">
+            <td class="title"><a class="title">Collector of Ancient Coins</a></td>
+            <td><span class="tag missable">Missable</span></td>
+          </tr>
+        </table>
+      </body>
+    </html>
+    """
+
+    mock_resp = AsyncMock(spec=Response)
+    mock_resp.status_code = 200
+    mock_resp.text = html_fixture
+    mock_resp.url = test_url
+
+    with patch("httpx.AsyncClient.get", return_value=mock_resp):
+        try:
+            resp = await async_client.post(
+                "/api/v1/ingest/fetch-and-index",
+                json={"game": game_title, "source_url": test_url, "force_reindex": True},
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            assert "Collector of Ancient Coins" in data.get("missables_synced", [])
+        finally:
+            async with get_db_session() as session:
+                await session.execute(delete(GuideChunkModel).where(GuideChunkModel.game.ilike(game_title)))
+
 
 
 
