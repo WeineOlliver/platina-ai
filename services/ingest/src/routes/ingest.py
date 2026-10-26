@@ -109,7 +109,7 @@ async def fetch_and_index_guide(request: FetchAndIndexRequest):
         # 2. Fetch main guide and all discovered subpages
         pages = await scraper.fetch_game_guide_with_subpages(request.game, source_url=request.source_url)
         if not pages:
-            raise HTTPException(status_code=400, detail="Não foi possível obter o guia ou subpáginas.")
+            raise HTTPException(status_code=400, detail=f"Guia não encontrado para {request.game}.")
 
         # 3. Chunk each subpage via semantic markdown chunker
         all_chunks: List[DocumentChunk] = []

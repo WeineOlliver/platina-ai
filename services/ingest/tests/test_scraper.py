@@ -4,7 +4,7 @@ from unittest.mock import patch, AsyncMock
 from src.main import create_app
 from src.database import get_db_session
 from src.models.chunk import GuideChunkModel
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, func
 from src.services.scraper import TrophyGuideScraper, scraper
 
 
@@ -77,15 +77,12 @@ async def test_cleanup_fixture_preserves_witcher_chunks():
 
 
 @pytest.mark.anyio
-async def test_scraper_fallback_structured_roadmap():
+async def test_scraper_returns_empty_when_no_guide_found():
     scraper_instance = TrophyGuideScraper()
     markdown, canonical_url = await scraper_instance.fetch_guide("Test Scraped Game")
 
-    assert "test-scraped-game" in canonical_url
-    assert "Roadmap Overview" in markdown
-    assert "Tempo" in markdown
-    assert "Dificuldade" in markdown
-    assert "Passos da Platina" in markdown
+    assert markdown == ""
+    assert canonical_url == ""
 
 
 @pytest.mark.anyio
@@ -119,28 +116,31 @@ async def test_scraper_fetches_source_url_with_html_parsing():
 @pytest.mark.anyio
 async def test_fetch_and_index_new_game_and_idempotent_skip(async_client):
     game_name = "Test Scraped Game"
+    mock_md = "# Test Scraped Game\n\nDetailed overview of the game roadmap and platinum trophy guide."
+    mock_pages = [("Test Scraped Game Guide", mock_md, "https://powerpyx.com/test-scraped-game", f"<html><body>{mock_md}</body></html>")]
 
-    # 1. First call: game is not indexed yet -> should scrape, chunk, embed, index
-    response1 = await async_client.post(
-        "/api/v1/ingest/fetch-and-index",
-        json={"game": game_name},
-    )
-    assert response1.status_code == 200
-    data1 = response1.json()
-    assert data1["status"] == "indexed"
-    assert data1["game"] == game_name
-    assert data1["chunks_indexed"] >= 1
-    assert "test-scraped-game" in data1["source_url"]
+    with patch("src.services.scraper.scraper.fetch_game_guide_with_subpages", return_value=mock_pages):
+        # 1. First call: game is not indexed yet -> should scrape, chunk, embed, index
+        response1 = await async_client.post(
+            "/api/v1/ingest/fetch-and-index",
+            json={"game": game_name},
+        )
+        assert response1.status_code == 200
+        data1 = response1.json()
+        assert data1["status"] == "indexed"
+        assert data1["game"] == game_name
+        assert data1["chunks_indexed"] >= 1
+        assert "test-scraped-game" in data1["source_url"]
 
-    # 2. Second call: game is already indexed -> should return already_indexed with chunk count
-    response2 = await async_client.post(
-        "/api/v1/ingest/fetch-and-index",
-        json={"game": game_name},
-    )
-    assert response2.status_code == 200
-    data2 = response2.json()
-    assert data2["status"] == "already_indexed"
-    assert data2["chunks_indexed"] == data1["chunks_indexed"]
+        # 2. Second call: game is already indexed -> should return already_indexed with chunk count
+        response2 = await async_client.post(
+            "/api/v1/ingest/fetch-and-index",
+            json={"game": game_name},
+        )
+        assert response2.status_code == 200
+        data2 = response2.json()
+        assert data2["status"] == "already_indexed"
+        assert data2["chunks_indexed"] == data1["chunks_indexed"]
 
 
 @pytest.mark.anyio
@@ -263,44 +263,43 @@ async def test_fetch_game_guide_subpages_generic_fallback():
     scraper_instance = TrophyGuideScraper()
     pages = await scraper_instance.fetch_game_guide_with_subpages("Test Scraped Game")
 
-    assert len(pages) == 1
-    title, markdown, url, html = pages[0]
-    assert "test-scraped-game" in url
-    assert "Roadmap Overview" in title
-    assert "Passos da Platina" in markdown
+    assert len(pages) == 0
 
 
 @pytest.mark.anyio
 async def test_fetch_and_index_force_reindex(async_client):
     game_name = "Test Scraped Game"
+    mock_md = "# Test Scraped Game\n\nDetailed overview of the game roadmap and platinum trophy guide."
+    mock_pages = [("Test Scraped Game Guide", mock_md, "https://powerpyx.com/test-scraped-game", f"<html><body>{mock_md}</body></html>")]
 
-    # 1. First indexing
-    resp1 = await async_client.post(
-        "/api/v1/ingest/fetch-and-index",
-        json={"game": game_name},
-    )
-    assert resp1.status_code == 200
-    data1 = resp1.json()
-    assert data1["status"] == "indexed"
-    initial_chunks = data1["chunks_indexed"]
+    with patch("src.services.scraper.scraper.fetch_game_guide_with_subpages", return_value=mock_pages):
+        # 1. First indexing
+        resp1 = await async_client.post(
+            "/api/v1/ingest/fetch-and-index",
+            json={"game": game_name},
+        )
+        assert resp1.status_code == 200
+        data1 = resp1.json()
+        assert data1["status"] == "indexed"
+        initial_chunks = data1["chunks_indexed"]
 
-    # 2. Subsequent call without force_reindex returns already_indexed
-    resp2 = await async_client.post(
-        "/api/v1/ingest/fetch-and-index",
-        json={"game": game_name, "force_reindex": False},
-    )
-    assert resp2.status_code == 200
-    assert resp2.json()["status"] == "already_indexed"
+        # 2. Subsequent call without force_reindex returns already_indexed
+        resp2 = await async_client.post(
+            "/api/v1/ingest/fetch-and-index",
+            json={"game": game_name, "force_reindex": False},
+        )
+        assert resp2.status_code == 200
+        assert resp2.json()["status"] == "already_indexed"
 
-    # 3. Subsequent call with force_reindex=True re-indexes
-    resp3 = await async_client.post(
-        "/api/v1/ingest/fetch-and-index",
-        json={"game": game_name, "force_reindex": True},
-    )
-    assert resp3.status_code == 200
-    data3 = resp3.json()
-    assert data3["status"] == "indexed"
-    assert data3["chunks_indexed"] >= initial_chunks
+        # 3. Subsequent call with force_reindex=True re-indexes
+        resp3 = await async_client.post(
+            "/api/v1/ingest/fetch-and-index",
+            json={"game": game_name, "force_reindex": True},
+        )
+        assert resp3.status_code == 200
+        data3 = resp3.json()
+        assert data3["status"] == "indexed"
+        assert data3["chunks_indexed"] >= initial_chunks
 
 
 @pytest.mark.anyio
@@ -363,11 +362,8 @@ async def test_multi_source_domain_fallback_handles_http_errors():
     with patch("httpx.AsyncClient.get", side_effect=mock_get):
         pages = await scraper_instance.fetch_game_guide_with_subpages("Test Scraped Game")
 
-        # Must not fail and must fall back gracefully to structured canonical guide
-        assert len(pages) >= 1
-        main_title, main_markdown, canonical_url, html = pages[0]
-        assert "Roadmap Overview" in main_markdown or "Test Scraped Game" in main_title
-        assert "Passos da Platina" in main_markdown
+        # When all sources fail, should return empty list rather than hallucinating fallback
+        assert pages == []
 
 
 @pytest.mark.anyio
@@ -727,6 +723,37 @@ Atenção: Troféu perdível (missable)!
             await session.execute(text("DELETE FROM player_games WHERE id IN (:gid1, :gid2)"), {"gid1": gid1, "gid2": gid2})
             await session.execute(text("DELETE FROM players WHERE id = :pid"), {"pid": pid})
             await session.execute(text("DELETE FROM guide_chunks WHERE game ILIKE :game"), {"game": unregistered_game})
+
+
+@pytest.mark.anyio
+async def test_fetch_and_index_returns_400_and_inserts_nothing_when_all_urls_fail(async_client):
+    game_title = "Failed Scraped Game"
+
+    mock_resp_404 = AsyncMock(spec=Response)
+    mock_resp_404.status_code = 404
+    mock_resp_404.text = "Not Found"
+
+    with patch("httpx.AsyncClient.get", return_value=mock_resp_404), \
+         patch("src.services.scraper.fetch_rendered_html", new_callable=AsyncMock, return_value=None):
+        try:
+            resp = await async_client.post(
+                "/api/v1/ingest/fetch-and-index",
+                json={"game": game_title, "force_reindex": True},
+            )
+            assert resp.status_code == 400
+            data = resp.json()
+            assert f"guia não encontrado para {game_title.lower()}" in data["detail"].lower()
+
+            # Verify no guide chunks were inserted
+            async with get_db_session() as session:
+                res = await session.execute(
+                    select(func.count(GuideChunkModel.id)).where(GuideChunkModel.game.ilike(game_title))
+                )
+                assert res.scalar() == 0
+        finally:
+            async with get_db_session() as session:
+                await session.execute(delete(GuideChunkModel).where(GuideChunkModel.game.ilike(game_title)))
+
 
 
 

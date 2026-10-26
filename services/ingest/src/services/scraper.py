@@ -574,33 +574,6 @@ class TrophyGuideScraper:
         markdown = re.sub(r"\n{3,}", "\n\n", markdown)
         return markdown
 
-    def generate_fallback_roadmap(self, game: str, slug: str) -> str:
-        """
-        Authoritative structured roadmap fallback.
-        """
-        roadmap = self.extract_canonical_roadmap(game)
-        stages_md = "\n".join([f"  {idx+1}. {s}" for idx, s in enumerate(roadmap.get("stages", []))]) or "  1. Complete main campaign and clean up remaining trophies."
-        missables = roadmap.get("missable_trophies", [])
-        if missables:
-            missables_md = "\n\n".join([
-                f"### {m.get('name', 'Trophy') if isinstance(m, dict) else getattr(m, 'name', str(m))}\nAtenção: Troféu perdível (missable)! {m.get('condition', '') if isinstance(m, dict) else getattr(m, 'condition', '')}"
-                for m in missables
-            ])
-        else:
-            missables_md = "Nenhum troféu estritamente perdível registrado."
-
-        return f"""# Guia de Platina: {game} — Roadmap Overview
-
-- Tempo estimado para a platina: {roadmap.get('time_required', 'N/A')}
-- Dificuldade estimada da platina: {roadmap.get('difficulty', 'N/A')}
-- Total de troféus: Informações no roadmap
-
-## Passos da Platina
-{stages_md}
-
-## Troféus Perdíveis (Missable Trophies)
-{missables_md}"""
-
     async def fetch_game_guide_with_subpages(
         self, game: str, source_url: Optional[str] = None
     ) -> list[tuple[str, str, str, str]]:
@@ -666,11 +639,8 @@ class TrophyGuideScraper:
 
                 return pages
 
-        # 2. Fallback structured roadmap
-        canonical_url = f"https://www.powerpyx.com/{slug}-trophy-guide-roadmap/"
-        main_title = f"Guia de Platina: {game} — Roadmap Overview"
-        main_markdown = self.generate_fallback_roadmap(game, slug)
-        return [(main_title, main_markdown, canonical_url, f"<html><body>{main_markdown}</body></html>")]
+        # 2. Return empty list if no guide pages could be fetched
+        return []
 
     async def fetch_guide(self, game: str, source_url: Optional[str] = None) -> Tuple[str, str]:
         pages = await self.fetch_game_guide_with_subpages(game, source_url)
