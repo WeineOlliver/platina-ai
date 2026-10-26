@@ -32,6 +32,12 @@ export interface FetchAndIndexResult {
   game: string;
 }
 
+export interface SearchGuidesResponse {
+  chunks: RetrievedChunk[];
+  retrieval_latency_ms: number;
+  reranker_latency_ms: number;
+}
+
 // Insight: Circuit Breaker / Graceful Fallback pattern.
 // If the Python ingestion service is unreachable (e.g. cold start, network split),
 // the chat API should degrade gracefully by falling back to base LLM inference
@@ -68,14 +74,14 @@ export class IngestionClient {
     };
   }
 
-  async search(
+  async searchWithMetrics(
     paramsOrQuery: SearchParams | string,
     options: RetrievalSearchOptions = {}
-  ): Promise<RetrievedChunk[]> {
+  ): Promise<SearchGuidesResponse> {
     if (typeof paramsOrQuery === 'string') {
-      return this.searchGuides(paramsOrQuery, options);
+      return this.searchGuidesWithMetrics(paramsOrQuery, options);
     }
-    return this.searchGuides(paramsOrQuery.query, {
+    return this.searchGuidesWithMetrics(paramsOrQuery.query, {
       game: paramsOrQuery.game,
       missable_only: paramsOrQuery.missable_only ?? paramsOrQuery.missableOnly,
       limit: paramsOrQuery.limit,
@@ -83,10 +89,10 @@ export class IngestionClient {
     });
   }
 
-  async searchGuides(
+  async searchGuidesWithMetrics(
     query: string,
     options: RetrievalSearchOptions = {}
-  ): Promise<RetrievedChunk[]> {
+  ): Promise<SearchGuidesResponse> {
     try {
       const init: RequestInit = {
         method: 'POST',
@@ -105,15 +111,40 @@ export class IngestionClient {
       const response = await fetch(`${this.baseUrl}/api/v1/ingest/search`, init);
 
       if (!response.ok) {
-        return [];
+        return { chunks: [], retrieval_latency_ms: 0, reranker_latency_ms: 0 };
       }
 
-      const data = (await response.json()) as { results?: RetrievedChunk[] };
-      return data.results ?? [];
+      const data = (await response.json()) as {
+        results?: RetrievedChunk[];
+        retrieval_latency_ms?: number;
+        reranker_latency_ms?: number;
+      };
+
+      return {
+        chunks: data.results ?? [],
+        retrieval_latency_ms: data.retrieval_latency_ms ?? 0,
+        reranker_latency_ms: data.reranker_latency_ms ?? 0,
+      };
     } catch {
       // Graceful degradation: return empty context if microservice call fails
-      return [];
+      return { chunks: [], retrieval_latency_ms: 0, reranker_latency_ms: 0 };
     }
+  }
+
+  async search(
+    paramsOrQuery: SearchParams | string,
+    options: RetrievalSearchOptions = {}
+  ): Promise<RetrievedChunk[]> {
+    const response = await this.searchWithMetrics(paramsOrQuery, options);
+    return response.chunks;
+  }
+
+  async searchGuides(
+    query: string,
+    options: RetrievalSearchOptions = {}
+  ): Promise<RetrievedChunk[]> {
+    const response = await this.searchGuidesWithMetrics(query, options);
+    return response.chunks;
   }
 }
 
