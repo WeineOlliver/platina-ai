@@ -193,6 +193,94 @@ describe('Platina AI Agent Runner Benchmark Suite', () => {
       expect(doneEvent).toBeDefined();
     });
 
+    it('attaches verified sources markdown footer and emits sources event when guide chunks contain source_url', async () => {
+      const runner = new PlatinaAgentRunner();
+
+      const mockGuideSources = {
+        results: [
+          {
+            title: 'PowerPyx - Bloodborne Trophy Guide',
+            content: 'Para o troféu Hunter\'s Essence você deve coletar todas as armas de caçador em Central Yharnam.',
+            source_url: 'https://www.powerpyx.com/bloodborne-trophy-guide',
+          },
+          {
+            title: 'PSNProfiles - Bloodborne Weapons Walkthrough',
+            content: 'Fale com Eileen the Crow antes de Rom para obter a Blade of Mercy.',
+            source_url: 'https://psnprofiles.com/guide/bloodborne-weapons',
+          },
+        ],
+      };
+
+      vi.spyOn(runner, 'executeTool').mockResolvedValue(mockGuideSources);
+
+      const tacticalAnswer = [
+        'Troféu: Hunter\'s Essence em Central Yharnam.',
+        '- Fale com Eileen the Crow antes de Rom para obter a Blade of Mercy.',
+        'Quer os detalhes completos e rotas deste troféu?',
+      ].join('\n');
+
+      const mockCreate = vi.fn()
+        .mockResolvedValueOnce({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                tool_calls: [
+                  {
+                    id: 'call_search_sources_1',
+                    function: {
+                      name: 'search_trophy_guides',
+                      arguments: JSON.stringify({ query: 'Blade of Mercy', game: 'Bloodborne' }),
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: tacticalAnswer,
+              },
+            },
+          ],
+        });
+
+      (runner as unknown as { client: { chat: { completions: { create: typeof mockCreate } } } }).client = {
+        chat: { completions: { create: mockCreate } },
+      };
+
+      const events: AgentStepEvent[] = [];
+      for await (const event of runner.run('Como pegar o troféu Hunter\'s Essence em Bloodborne?', { lang: 'pt' })) {
+        events.push(event);
+      }
+
+      // 1. Verify sources event is emitted with structured metadata
+      const sourcesEvent = events.find((e) => e.type === 'sources');
+      expect(sourcesEvent).toBeDefined();
+      expect(sourcesEvent?.items).toEqual([
+        {
+          title: 'PowerPyx - Bloodborne Trophy Guide',
+          url: 'https://www.powerpyx.com/bloodborne-trophy-guide',
+        },
+        {
+          title: 'PSNProfiles - Bloodborne Weapons Walkthrough',
+          url: 'https://psnprofiles.com/guide/bloodborne-weapons',
+        },
+      ]);
+
+      // 2. Verify chunk content has deterministic markdown footer
+      const chunkEvent = events.find((e) => e.type === 'chunk');
+      expect(chunkEvent).toBeDefined();
+      const output = chunkEvent?.content ?? '';
+      expect(output).toContain('**Fontes verificadas:**');
+      expect(output).toContain('- [PowerPyx - Bloodborne Trophy Guide](https://www.powerpyx.com/bloodborne-trophy-guide)');
+      expect(output).toContain('- [PSNProfiles - Bloodborne Weapons Walkthrough](https://psnprofiles.com/guide/bloodborne-weapons)');
+    });
+
     it('generates English response when lang: "en" is passed', async () => {
       const runner = new PlatinaAgentRunner();
 

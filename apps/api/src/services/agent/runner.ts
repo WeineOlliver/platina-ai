@@ -10,13 +10,16 @@ import { searchGuidesTool, SearchGuidesTool, type SearchGuidesParams } from './t
 import { ingestionClient } from '../ingestion/client.js';
 import { groundingValidator } from './validator.js';
 import { executeWithModelCascade, DEFAULT_MODEL_CASCADE } from '../llm/fallback.js';
+import { telemetryService } from '../observability/telemetry.js';
+import { evaluateRagTriad } from '../evals/ragTriadJudge.js';
 
 export interface AgentStepEvent {
-  type: 'thought' | 'tool_call' | 'tool_result' | 'chunk' | 'done' | 'error';
+  type: 'thought' | 'tool_call' | 'tool_result' | 'chunk' | 'done' | 'error' | 'sources';
   content?: string;
   toolName?: string;
   toolArgs?: unknown;
   toolResult?: unknown;
+  items?: Array<{ title: string; url: string }>;
   error?: string;
 }
 
@@ -27,6 +30,47 @@ export interface RunAgentOptions {
   game?: string;
   psnId?: string;
   lang?: 'en' | 'pt';
+  sessionId?: string;
+}
+
+export interface GuideSourceItem {
+  title: string;
+  content: string;
+  sourceUrl?: string | undefined;
+}
+
+export function extractDistinctSources(
+  sources: GuideSourceItem[]
+): Array<{ title: string; url: string }> {
+  const seenUrls = new Set<string>();
+  const distinct: Array<{ title: string; url: string }> = [];
+
+  for (const s of sources) {
+    if (s.sourceUrl && !seenUrls.has(s.sourceUrl)) {
+      seenUrls.add(s.sourceUrl);
+      distinct.push({
+        title: s.title,
+        url: s.sourceUrl,
+      });
+    }
+  }
+
+  return distinct;
+}
+
+export function appendSourcesFooter(
+  text: string,
+  sources: Array<{ title: string; url: string }>,
+  lang: 'en' | 'pt' = 'pt'
+): string {
+  if (sources.length === 0 || !text.trim()) {
+    return text;
+  }
+
+  const isEn = lang === 'en';
+  const header = isEn ? '**Verified sources:**' : '**Fontes verificadas:**';
+  const links = sources.map((s) => `- [${s.title}](${s.url})`).join('\n');
+  return `${text.trim()}\n\n${header}\n${links}`;
 }
 
 function extractGameFromText(text: string): string | undefined {
@@ -140,6 +184,11 @@ export class PlatinaAgentRunner {
   }
 
   async *run(userMessage: string, options: RunAgentOptions = {}): AsyncGenerator<AgentStepEvent> {
+    const reqStart = performance.now();
+    let retrievalLatencyMs = 0;
+    let rerankerLatencyMs = 0;
+    let llmLatencyMs = 0;
+
     const maxSteps = options.maxSteps ?? 5;
     const lang = options.lang || (/\b(what|which|how|trophies|missable|cards|guide|tell me|details)\b/i.test(userMessage) ? 'en' : 'pt');
     const isEn = lang === 'en';
@@ -193,7 +242,7 @@ If the user asks about a specific trophy, maintain a tactical 3-part layout:
 - Final line: Call to action offering full walkthrough: "Would you like the complete details and routes for this trophy?"
 
 Response Budget (Mandatory):
-Your final response must have in total LESS THAN 120 WORDS. Respond in clear, professional English.`)
+Your final response must have in total LESS THAN 180 WORDS. Respond in clear, professional English.`)
       : (isDeepWalkthrough
         ? `Instruções de Passo a Passo Detalhado (Deep Walkthrough):
 O usuário solicitou um guia detalhado e aprofundado. Apresente um passo a passo completo, estruturado em seções ou tabela, detalhando cada etapa, localização de NPC, missões e cuidados com troféus perdíveis baseando-se estritamente nas fontes verificadas recuperadas. Você pode usar até 800 palavras para fornecer todas as informações necessárias.`
@@ -212,10 +261,11 @@ Se o usuário perguntar sobre um troféu específico, mantenha o layout tático 
 - Linha final: Call to action oferecendo walkthrough completo: "Quer os detalhes completos e rotas deste troféu?"
 
 Orçamento de Resposta (Obrigatório):
-Sua resposta final deve ter no total MENOS DE 120 PALAVRAS.`);
+Sua resposta final deve ter no total MENOS DE 180 PALAVRAS.`);
 
     const targetPsnId = options.psnId?.trim();
     const targetGame = (options.game || (targetPsnId ? extractGameFromText(userMessage) : undefined))?.trim();
+    let detectedGame = targetGame || extractGameFromText(userMessage);
     const shouldPrefetch = Boolean(targetPsnId && targetGame);
 
     const prefetchPromptAddition = shouldPrefetch
@@ -280,7 +330,49 @@ ${personaInstructions}`;
       ...DEFAULT_MODEL_CASCADE.filter((m) => m !== this.model),
     ];
 
-    const collectedGuideSources: Array<{ content: string; title: string }> = [];
+    const collectedGuideSources: GuideSourceItem[] = [];
+
+    const recordTelemetry = async (finalAnswer: string) => {
+      const totalLatencyMs = Number((performance.now() - reqStart).toFixed(2));
+      const record = await telemetryService.recordMetric({
+        ...(options.sessionId ? { sessionId: options.sessionId } : {}),
+        ...(detectedGame ? { game: detectedGame } : {}),
+        ...(this.model ? { modelName: this.model } : {}),
+        retrievalLatencyMs: Number(retrievalLatencyMs.toFixed(2)),
+        rerankerLatencyMs: Number(rerankerLatencyMs.toFixed(2)),
+        llmLatencyMs: Number(llmLatencyMs.toFixed(2)),
+        totalLatencyMs,
+        sampledForQuality: telemetryService.shouldSample(),
+        queryPreview: userMessage.slice(0, 100),
+      });
+
+      if (record.sampledForQuality && record.id) {
+        const guideContexts = collectedGuideSources.map((s) => s.content).filter(Boolean);
+        evaluateRagTriad(
+          {
+            query: userMessage,
+            contexts: guideContexts,
+            answer: finalAnswer,
+          },
+          {
+            ...(this.client ? { groqClient: this.client } : {}),
+            model: this.model,
+          }
+        )
+          .then((evalRes) => {
+            if (record.id) {
+              telemetryService.updateQualityScore(record.id, {
+                faithfulnessScore: evalRes.faithfulness.score,
+                contextRelevanceScore: evalRes.contextRelevance.score,
+                answerRelevanceScore: evalRes.answerRelevance.score,
+              }).catch(() => {});
+            }
+          })
+          .catch((err) => {
+            console.error('Non-blocking quality sampling error:', err);
+          });
+      }
+    };
 
     if (shouldPrefetch && targetPsnId && targetGame) {
       if (options.signal?.aborted) return;
@@ -409,6 +501,7 @@ ${personaInstructions}`;
             },
           ];
 
+          const correctiveStart = performance.now();
           const correctiveCompletion = await executeWithModelCascade(
             cascadeModels,
             (model) =>
@@ -421,6 +514,7 @@ ${personaInstructions}`;
                 { signal: options.signal }
               )
           );
+          llmLatencyMs += performance.now() - correctiveStart;
 
           const corrected = correctiveCompletion.choices[0]?.message?.content;
           if (corrected) {
@@ -448,6 +542,7 @@ ${personaInstructions}`;
       }
       step++;
 
+      const llmStart = performance.now();
       const completion = await executeWithModelCascade(
         cascadeModels,
         (model) =>
@@ -462,6 +557,7 @@ ${personaInstructions}`;
             { signal: options.signal }
           )
       );
+      llmLatencyMs += performance.now() - llmStart;
 
       const choice = completion.choices[0];
       if (!choice) {
@@ -479,7 +575,14 @@ ${personaInstructions}`;
         // No more tool calls; validate content with Pre-Flight Verification before streaming
         const rawContent = assistantMsg.content ?? '';
         const verifiedContent = await verifyAndStreamAnswer(rawContent, messages);
-        yield { type: 'chunk', content: verifiedContent || rawContent };
+        const distinctSources = extractDistinctSources(collectedGuideSources);
+        const finalContent = appendSourcesFooter(verifiedContent || rawContent, distinctSources, lang);
+
+        yield { type: 'chunk', content: finalContent };
+        if (distinctSources.length > 0) {
+          yield { type: 'sources', items: distinctSources };
+        }
+        await recordTelemetry(finalContent);
         yield { type: 'done' };
         return;
       }
@@ -494,6 +597,10 @@ ${personaInstructions}`;
           toolArgs = JSON.parse(call.function.arguments || '{}');
         } catch {
           toolArgs = {};
+        }
+
+        if (toolArgs && typeof toolArgs.game === 'string' && toolArgs.game.trim()) {
+          detectedGame = detectedGame || toolArgs.game.trim();
         }
 
         if (isDeepWalkthrough && toolName === SearchGuidesTool.name) {
@@ -532,14 +639,25 @@ ${personaInstructions}`;
           resultData = { error: err instanceof Error ? err.message : String(err) };
         }
 
+        if (toolName === SearchGuidesTool.name && resultData && typeof resultData === 'object') {
+          const metrics = resultData as { retrieval_latency_ms?: number; reranker_latency_ms?: number };
+          if (typeof metrics.retrieval_latency_ms === 'number') {
+            retrievalLatencyMs += metrics.retrieval_latency_ms;
+          }
+          if (typeof metrics.reranker_latency_ms === 'number') {
+            rerankerLatencyMs += metrics.reranker_latency_ms;
+          }
+        }
+
         if (toolName === SearchGuidesTool.name && resultData && typeof resultData === 'object' && 'results' in resultData) {
-          const results = (resultData as { results?: Array<{ title?: string; content?: string }> }).results;
+          const results = (resultData as { results?: Array<{ title?: string; content?: string; source_url?: string }> }).results;
           if (Array.isArray(results)) {
             for (const item of results) {
               if (item?.content) {
                 collectedGuideSources.push({
                   title: item.title || (isEn ? 'Trophy Guide' : 'Guia de Troféus'),
                   content: item.content,
+                  sourceUrl: item.source_url || undefined,
                 });
               }
             }
@@ -557,14 +675,24 @@ ${personaInstructions}`;
                 limit: 6,
                 missableOnly: true,
               });
+              if (extraSearch && typeof extraSearch === 'object') {
+                const exMetrics = extraSearch as { retrieval_latency_ms?: number; reranker_latency_ms?: number };
+                if (typeof exMetrics.retrieval_latency_ms === 'number') {
+                  retrievalLatencyMs += exMetrics.retrieval_latency_ms;
+                }
+                if (typeof exMetrics.reranker_latency_ms === 'number') {
+                  rerankerLatencyMs += exMetrics.reranker_latency_ms;
+                }
+              }
               if (extraSearch && typeof extraSearch === 'object' && 'results' in extraSearch) {
-                const exResults = (extraSearch as { results?: Array<{ title?: string; content?: string }> }).results;
+                const exResults = (extraSearch as { results?: Array<{ title?: string; content?: string; source_url?: string }> }).results;
                 if (Array.isArray(exResults)) {
                   for (const ex of exResults) {
                     if (ex?.content && !collectedGuideSources.some((s) => s.title === ex.title)) {
                       collectedGuideSources.push({
                         title: ex.title || (isEn ? 'Cards Subguide' : 'Subguia de Cartas'),
                         content: ex.content,
+                        sourceUrl: ex.source_url || undefined,
                       });
                     }
                   }
@@ -575,7 +703,11 @@ ${personaInstructions}`;
         }
 
         if (toolName === PlayerProgressTool.name && resultData && typeof resultData === 'object') {
-          addPlayerProgressToSources(resultData as Partial<PlayerProgressResult>, collectedGuideSources, lang);
+          const pData = resultData as Partial<PlayerProgressResult>;
+          if (pData.game) {
+            detectedGame = detectedGame || pData.game;
+          }
+          addPlayerProgressToSources(pData, collectedGuideSources, lang);
         }
 
         yield {
@@ -594,6 +726,7 @@ ${personaInstructions}`;
     }
 
     // If max steps reached without final text, generate a direct answer from collected messages
+    const fallbackStart = performance.now();
     const fallbackCompletion = await executeWithModelCascade(
       cascadeModels,
       (model) =>
@@ -614,17 +747,28 @@ ${personaInstructions}`;
           { signal: options.signal }
         )
     );
+    llmLatencyMs += performance.now() - fallbackStart;
     const fallbackRawContent = fallbackCompletion.choices[0]?.message?.content ?? '';
     const verifiedContent = await verifyAndStreamAnswer(fallbackRawContent, messages);
-    yield {
-      type: 'chunk',
-      content:
-        verifiedContent ||
+    const distinctSources = extractDistinctSources(collectedGuideSources);
+    const finalFallbackContent = appendSourcesFooter(
+      verifiedContent ||
         fallbackRawContent ||
         (isEn
           ? '\n[Notice: Agent finished gathering data from tools.]'
           : '\n[Aviso: O agente concluiu a coleta de dados das ferramentas.]'),
+      distinctSources,
+      lang
+    );
+
+    yield {
+      type: 'chunk',
+      content: finalFallbackContent,
     };
+    if (distinctSources.length > 0) {
+      yield { type: 'sources', items: distinctSources };
+    }
+    await recordTelemetry(finalFallbackContent);
     yield { type: 'done' };
   }
 }

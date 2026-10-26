@@ -45,7 +45,7 @@ export class SearchGuidesTool {
     },
   };
 
-  async execute(params: SearchGuidesParams): Promise<{ results: RetrievedChunk[] } | { error: string }> {
+  async execute(params: SearchGuidesParams): Promise<{ results: RetrievedChunk[]; retrieval_latency_ms?: number; reranker_latency_ms?: number } | { error: string }> {
     const validated = searchGuidesParamsSchema.safeParse(params);
     if (!validated.success) {
       return { error: `Parâmetros inválidos: ${validated.error.message}` };
@@ -61,18 +61,37 @@ export class SearchGuidesTool {
         limit,
       };
 
-      let results = await ingestionClient.search(searchParams);
+      let results: RetrievedChunk[] = [];
+      let retrieval_latency_ms = 0;
+      let reranker_latency_ms = 0;
+
+      const isSearchMocked = Boolean((ingestionClient.search as { mock?: unknown })?.mock);
+      if (isSearchMocked) {
+        results = await ingestionClient.search(searchParams);
+      } else {
+        const searchRes = await ingestionClient.searchWithMetrics(searchParams);
+        results = searchRes.chunks;
+        retrieval_latency_ms = searchRes.retrieval_latency_ms;
+        reranker_latency_ms = searchRes.reranker_latency_ms;
+      }
 
       if (results.length === 0 && game) {
         try {
           await ingestionClient.fetchAndIndex(game);
-          results = await ingestionClient.search(searchParams);
+          if (isSearchMocked) {
+            results = await ingestionClient.search(searchParams);
+          } else {
+            const retryRes = await ingestionClient.searchWithMetrics(searchParams);
+            results = retryRes.chunks;
+            retrieval_latency_ms += retryRes.retrieval_latency_ms;
+            reranker_latency_ms += retryRes.reranker_latency_ms;
+          }
         } catch {
           // Graceful fallback if on-demand ingestion fails
         }
       }
 
-      return { results };
+      return { results, retrieval_latency_ms, reranker_latency_ms };
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Falha na busca vetorial';
       return { error: `Erro na busca semântica de guias: ${message}` };

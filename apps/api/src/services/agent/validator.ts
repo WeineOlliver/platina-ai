@@ -80,7 +80,7 @@ export class GroundingValidator {
       .filter((line) => /^\s*([-*•]|\d+\.)\s+/.test(line)).length;
     const hasMarkdownTable = /\|.+\|/.test(answer) && /\|[-:\s|]+\|/.test(answer);
 
-    const isDetailed = wordCount > 120 || bulletCount > 3 || hasMarkdownTable;
+    const isDetailed = wordCount > 180 || bulletCount > 4 || hasMarkdownTable;
 
     if (isDetailed && totalClaims > 0) {
       const coverage = supportedClaims.length / totalClaims;
