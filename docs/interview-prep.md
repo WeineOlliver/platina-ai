@@ -855,3 +855,168 @@ This document contains real-world technical interview questions, key engineering
 - **60-Second Interview Soundbite:**
   > *"When an agent needs database telemetry to answer, a standard ReAct loop burns two full LLM roundtrips—one to decide to call the tool and another to synthesize the answer—pushing TTFT above 4 seconds. In Platina AI, I optimized this down to under 1.5 seconds. For onboarding and game status queries, the runner pre-fetches player progress and injects it as a synthesized tool-call turn into the message history. The model sees the data as if it had called the tool itself, generating the tactical briefing in a single roundtrip. Pair that with progressive SSE streaming that emits tool states and tokens in real time, and perceived latency plummets by 60% without sacrificing strict grounding validation on deeper tactical queries."*
 
+---
+
+## Milestone 15: Deterministic Source Citation & Provenance Architecture in RAG
+
+### Q62: Deterministic Citation vs. Probabilistic In-Prompt Attribution
+> **"Why append verified source citations deterministically at the backend layer instead of prompting the LLM to format and cite URLs directly in its response?"**
+
+- **Core Concept:** Probabilistic LLM URL generation is fundamentally prone to hallucination (broken links, 404s, malformed Markdown). Asking an LLM to cite URLs inside tight token/word budgets creates a direct conflict with core task instructions.
+- **Key Engineering Benefits:**
+  - **Zero Link Hallucination:** LLMs frequently invent realistic-looking slugs (`https://powerpyx.com/witcher-3-gwent-trophy-easy-guide`) or drop parameters. Enforcing citation deterministically from retrieved database chunks guarantees that 100% of rendered hyperlinks exist in the index.
+  - **Protection of Tactical Persona Budgets:** In Platina AI, default responses are strictly budgeted under 120 words. Requiring the model to format links consumes precious token budget, causing it to drop either the links or tactical steps. By appending the deduplicated Markdown footer post-validation, the model stays focused entirely on tactical brevity.
+  - **Localization & Determinism:** The footer formatting adapts cleanly based on request language (`**Fontes verificadas:**` vs `**Verified sources:**`) without consuming prompt tokens.
+- **60-Second Interview Soundbite:**
+  > *"Relying on an LLM to generate citation links inside the prompt is an anti-pattern: models routinely hallucinate 404 URLs, mangle Markdown brackets, or drop links to stay under tight word limits. In Platina AI, we treat citation as a deterministic post-validation stage. The agent tracks verified source chunks during retrieval and appends an authoritative Markdown footer directly in the backend. This guarantees zero broken links, preserves our strict 120-word tactical prompt budget, and completely removes hallucination risk from source attribution."*
+
+---
+
+### Q63: Decoupling Metadata Payloads from Content Streams (SSE `sources` event)
+> **"How do you design a real-time streaming API to deliver rich citation metadata without polluting token budgets or coupling UI presentation to markdown text?"**
+
+- **Core Concept:** Multi-modal SSE event typing (`type: 'chunk'` vs `type: 'sources'`). Separating presentation text from machine-readable metadata gives clients flexibility while maintaining clean message contracts.
+- **Key Engineering Benefits:**
+  - **Clean Separation of Concerns:** Emitting a dedicated `{ type: 'sources', items: [{ title, url }] }` frame before `done` provides the frontend with structured JSON objects. UIs can render clickable badges, sidebar reference cards, or rich previews without regex-parsing raw Markdown.
+  - **Universal Fallback:** Because the backend also appends a standard Markdown footer to the text chunk, lightweight CLI tools, terminal runners, or standard Markdown renderers still display functional links even if they do not implement custom SSE metadata handlers.
+  - **Bandwidth & Latency Efficiency:** Metadata is deduplicated by URL before emission, preventing duplicate citations when multiple chunks originate from the same guide or subpage.
+- **60-Second Interview Soundbite:**
+  > *"In production streaming architectures, you shouldn't force frontend applications to parse Markdown strings with regex just to render citation cards. We decouple text streaming from metadata delivery using typed Server-Sent Events: text streams incrementally via `type: 'chunk'`, followed by a structured `{ type: 'sources', items: [...] }` event before completion. This allows web and mobile clients to render interactive badge components natively, while our deterministic Markdown footer ensures zero-overhead fallback for simple terminal and text clients."*
+
+---
+
+### Q64: URL Provenance Tracking Across Chunking and Hybrid Retrieval Pipelines
+> **"How do you maintain end-to-end URL provenance from web crawler to vector store and finally to the client stream without losing link attribution during chunking or reranking?"**
+
+- **Core Concept:** Immutable metadata propagation across multi-tier distributed pipelines: Crawler -> Chunker -> pgvector Database -> Reranker / RRF -> Agent Tool Result -> Final Stream.
+- **Key Engineering Benefits:**
+  - **Granular Subpage Attribution:** High-value gaming guides break down into subpages (e.g. `/all-gwent-cards/`). The scraper records the specific canonical URL for each discovered subpage.
+  - **Metadata Preservation Across Transformations:** The semantic Markdown chunker assigns each chunk a deterministic SHA-256 ID while embedding `source_url` into the PostgreSQL `guide_chunks` record.
+  - **Pipeline Integrity:** When `SearchGuidesTool` executes hybrid dense/sparse retrieval and Reciprocal Rank Fusion (RRF), it preserves `source_url` in every `RetrievedChunk` return value. The ReAct runner preserves these URLs throughout the conversation loop, ensuring every citation links back to the exact subguide that produced the answer.
+- **60-Second Interview Soundbite:**
+  > *"In a multi-tier RAG system, source attribution often breaks when chunks are split, normalized, and reranked. We solved this by treating URL provenance as a first-class, immutable field from ingestion to client delivery. Our web crawler tags every scraped subpage with its exact canonical URL; the chunker hashes that URL into the chunk metadata in PostgreSQL; and our hybrid RRF retriever carries it through to tool output. When the agent cites a guide, it doesn't just link to a generic domain homepage—it provides direct attribution to the exact subpage where the information lives."*
+
+---
+
+## Milestone 16: Continuous RAG Evaluation & The RAG Triad (LLM-as-a-Judge)
+
+### Q65: Continuous RAG Evaluation: The RAG Triad Architecture
+> **"Why evaluate RAG systems using the RAG Triad (Context Relevance, Faithfulness, and Answer Relevance) instead of relying solely on end-to-end user feedback or unit tests?"**
+
+- **Core Concept:** End-to-end output evaluation conflates retrieval failures with generation failures. The RAG Triad decouples the pipeline into three mathematically bounded evaluation surfaces.
+- **Key Engineering Benefits:**
+  - **Diagnostic Isolation:** When an agent produces an incorrect answer, traditional testing cannot discern whether the retriever surfaced irrelevant chunks (*Context Relevance* failure) or whether the LLM hallucinated despite having accurate chunks (*Faithfulness* failure).
+  - **Context Relevance:** Evaluates whether the retriever filtered out noise and returned only context necessary to answer the query.
+  - **Faithfulness (Groundedness):** Measures whether every claim in the answer is mathematically supported by the retrieved context, guarding against hallucinations in high-stakes gaming advice.
+  - **Answer Relevance:** Evaluates whether the answer addressed the user's specific request without tangential drift.
+- **60-Second Interview Soundbite:**
+  > *"Evaluating RAG pipelines as a black box makes root-cause analysis impossible when users receive bad advice. We implement the RAG Triad architecture to isolate failures across three distinct dimensions: Context Relevance checks if the retriever pulled signal instead of noise; Faithfulness verifies whether the generated text is 100% supported by those chunks without hallucinations; and Answer Relevance ensures the agent actually answered the player's question. This allows us to instantly determine whether a defect requires tuning our pgvector/FTS retrieval weights or refining the LLM synthesis prompt."*
+
+---
+
+### Q66: LLM-as-a-Judge Calibration & Deterministic Fallbacks in CI/CD
+> **"How do you design an LLM-as-a-Judge evaluation service that remains reliable, reproducible, and cost-effective within continuous integration (CI) pipelines?"**
+
+- **Core Concept:** Structured output schemas (Zod JSON enforcement), temperature clamping (0.1), and deterministic token-overlap fallbacks.
+- **Key Engineering Solution & Trade-offs:**
+  - **Strict Structured JSON Enforcing:** Unstructured text judges require brittle regex scraping. In Platina AI, our judge prompts enforce rigid JSON schemas validated with Zod (`{ score: number, reasoning: string }`), ensuring schema conformance across model runs.
+  - **Temperature Clamping & Calibration:** Running judge models with low temperature (`0.1`) minimizes judge variance and ensures scoring consistency across test runs.
+  - **Zero-Cost Deterministic Fallback:** CI test suites cannot rely exclusively on third-party API availability or spend tokens on every commit. When running under mock mode or during rate limits, the judge falls back to an algorithmic token-overlap heuristic that checks entity coverage and hallucination penalties, keeping CI runs fast and free of external network flakiness.
+- **60-Second Interview Soundbite:**
+  > *"Using an LLM as a judge in CI/CD often introduces non-determinism, schema drift, and network flakiness. In Platina AI, we solve this by enforcing rigid Zod schemas on the judge's response format and clamping temperature to 0.1 for high reproducibility. Furthermore, we built a deterministic algorithmic fallback: during unit tests or offline CI builds where external LLM calls are disabled, the evaluator grades context coverage, claim overlap, and keyword adherence locally. This provides continuous evaluation without flakiness or paid API dependencies."*
+
+---
+
+### Q67: Golden Dataset Benchmarking & Regression Gates
+> **"How do you prevent subtle prompt or retrieval regressions from reaching production in AI products with dynamic domain data?"**
+
+- **Core Concept:** Curated Golden Dataset benchmarking with calibrated metric thresholds (`expectedThresholds`).
+- **Key Engineering Solution:**
+  - **Canonical Scenario Representation:** The golden dataset covers representative edge cases: missable trophy deadlines (*Bolt of Gransax* in Leyndell), multi-part NPC quests (*Blade of Mercy* in Bloodborne), early-game missable items (*Elsa's Gwent cards* in Witcher 3), and unindexed domain fallbacks.
+  - **Calibrated Numeric Gates:** Rather than checking for exact string matches, each scenario enforces calibrated minimum thresholds (e.g., `minContextRelevance >= 0.8`, `minFaithfulness >= 0.85`).
+  - **Automated Regression Prevention:** Any change to prompts, embedding models, or retrieval thresholds must pass the entire golden dataset suite in Vitest before deployment, guaranteeing that optimizations for one game don't degrade fidelity on others.
+- **60-Second Interview Soundbite:**
+  > *"Prompt tuning and retrieval adjustments often introduce regressions where fixing one query silently breaks another. To establish a rigorous quality gate, we maintain a golden benchmark dataset representing our most critical domain challenges: missable points-of-no-return, questline dependencies, and unindexed query fallbacks. Each benchmark scenario enforces strict quality thresholds across the RAG Triad. Running this battery on every pull request guarantees that architectural changes cannot degrade answer faithfulness or retrieval relevance in production."*
+
+---
+
+## Milestone 17: Agent Trajectory Evaluation: Tool Selection, Argument Precision & Step Budget
+
+### Q68: Evaluating Autonomous Agent Trajectories vs. Single-Turn Responses
+> **"Why is measuring final text quality insufficient when benchmarking autonomous tool-calling agents, and what metrics best capture intermediate decision-making health?"**
+
+- **Core Concept:** Multi-turn ReAct trajectory evaluation. An agent might reach an acceptable final answer by accident through a noisy, expensive, or hallucinated tool execution path.
+- **Key Engineering Benefits:**
+  - **Argument Precision:** Evaluates parameter cleanliness (e.g. `search_trophy_guides` passing clean entity names like `"Card Collector"` instead of stringifying long user instructions or adjective noise like `"bronze/prata/lendária"`).
+  - **Step Budget Efficiency:** Measures execution velocity and enforces single-roundtrip prefetch paths (1 step) or lean ReAct cycles ($\le 2$ steps), preventing cost and latency inflation.
+  - **Redundant Loop Detection:** Detects and heavily penalizes looping behaviors where the agent issues duplicate tool calls with identical arguments.
+- **60-Second Interview Soundbite:**
+  > *"In autonomous agents, evaluating only the final generated text blinds you to execution inefficiencies and tool hallucinations. An agent might produce a grounded answer while wasting 5 tool roundtrips or polluting database search queries with noisy adjectives. In Platina AI, we evaluate intermediate agent trajectories through two critical metrics: Argument Precision, which penalizes query contamination and ensures tools receive exact entity tokens, and Step Budget Efficiency, which rewards single-roundtrip prefetching and penalizes redundant loop retries. This ensures our agent is not only correct, but also cost-effective and low-latency."*
+
+---
+
+### Q69: Calibrating Tactical Persona Budgets for Mobile & Real-Time Play
+> **"How do you balance conversational readability with tactical urgency when designing response budgets for in-game AI assistants?"**
+
+- **Core Concept:** Progressive disclosure and word budget calibration (up to 180 words / ~1.100 characters for concise briefs vs. 800 words for deep walkthroughs).
+- **Key Engineering Benefits:**
+  - **Immediate Usability:** Players checking a trophy during gameplay cannot read long walls of prose. A calibrated 180-word tactical budget provides room for a 3-part layout (target location, immediate preventative action, point-of-no-return warning) without overwhelming the user.
+  - **Deterministic Gate Alignment:** Grounding and claim coverage validators adapt their strictness based on the word budget: concise tactical briefs require strict entity alignment, while long walkthroughs activate threshold-based claim coverage ($\ge 75\%$).
+- **60-Second Interview Soundbite:**
+  > *"Designing response constraints for gaming assistants requires balancing fast tactical readability with sufficient detail to avoid missing critical trophy deadlines. We calibrated our concise tactical persona to 180 words: this provides the necessary headroom to deliver a crisp 3-part briefing—trophy location, immediate preventative action, and point of no return—without devolving into telegraphic fragments or overwhelming walls of text. On deeper queries, the agent seamlessly transitions to an 800-word deep walkthrough mode with adapted grounding thresholds."*
+
+---
+
+## Milestone 18: Consolidated Evals CLI & Continuous Quality Gates
+
+### Q70: Automated Quality Gates & Consolidated Evals CLI in Production
+> **"How do you automate evaluations as quality gates in continuous deployment to catch regressions before releases without manual testing?"**
+
+- **Core Concept:** Single CLI command (`npm run evals`), multi-battery aggregation (RAG Triad + Agent Trajectory), and threshold-based exit codes (`process.exit(1)` when pass rate < 75%).
+- **Key Engineering Benefits:**
+  - **Single Command Orchestration:** Unifies disparate evaluation layers (retriever precision, LLM hallucination checks, trajectory efficiency) under one reproducible script (`npm run evals`).
+  - **Automated CI/CD Gate:** Emits clean Markdown reports for GitHub Actions PR summaries while enforcing a hard numeric failure exit code if regression thresholds are breached.
+  - **Zero-Friction Observability:** Generates instant executive metrics (Pass Rate %, RAG Triad Average %, Trajectory Average %) and an actionable per-scenario table.
+- **60-Second Interview Soundbite:**
+  > *"Manual testing of generative AI agents does not scale and misses subtle prompt or retrieval regressions. In Platina AI, we established a consolidated evaluation CLI (`npm run evals`) that runs in our deployment pipeline. It evaluates the complete golden dataset across the RAG Triad and Agent Trajectory, formats a transparent Markdown summary table for pull request reviews, and halts the build with exit code 1 if the pass rate drops below our 75% quality gate. This gives the team mathematical confidence that new code won't degrade user experience or introduce hallucinations in production."*
+
+## Milestone 19: Full-Pipeline RAG Observability & Production Sampling
+
+### Q71: Per-Stage Latency Decomposition and Bottleneck Attribution in Complex RAG
+> **"How do you instrument observability across a multi-tier RAG architecture to pinpoint latency bottlenecks without adding APM SaaS overhead?"**
+
+- **Core Concept:** Decomposing end-to-end latency into granular stage metrics (`retrieval_latency_ms`, `reranker_latency_ms`, `llm_latency_ms`, and `total_latency_ms`) using native high-precision timers (`time.perf_counter()` and `performance.now()`).
+- **Key Engineering Benefits:**
+  - **Granular Root-Cause Isolation:** Differentiates whether a slow response was caused by vector database index scans, lexical cross-scoring reranking, or LLM token generation delays.
+  - **Zero-Dependency Architecture:** Measures stage timings natively in FastAPI and Fastify, eliminating heavy APM agent overhead and vendor lock-in.
+  - **Percentile Tracking:** Computes p95 percentiles alongside rolling averages to identify tail latency anomalies in production retrieval.
+- **60-Second Interview Soundbite:**
+  > *"End-to-end HTTP request duration hides where time is actually lost in compound AI systems. In Platina AI, we decompose latency at every pipeline stage: the Python retrieval microservice tracks vector similarity and BM25 lookups separately from cross-encoder reranking via high-precision timers, while our Node.js gateway records LLM time-to-first-token and total generation duration. Exposing these metrics via an aggregated analytics endpoint (`/api/v1/observability/metrics`) gives us immediate visibility into whether a spike stems from pgvector disk I/O, heavy reranking, or upstream inference latency."*
+
+### Q72: Asynchronous Production Faithfulness Sampling vs. Synchronous Blocking Guards
+> **"Why decouple continuous quality evaluation from the user-facing request cycle, and how does probabilistic sampling work in production RAG systems?"**
+
+- **Core Concept:** Balancing user-facing streaming responsiveness with production quality assurance by running LLM-as-a-Judge evaluations asynchronously on a sampled percentage of traffic (`OBSERVABILITY_SAMPLING_RATE`).
+- **Key Engineering Benefits:**
+  - **Preserved TTFT & Zero Stream Blocking:** Evaluates RAG Triad scores (Faithfulness, Context Relevance, Answer Relevance) in non-blocking background workers, ensuring Server-Sent Events flow instantly without extra latency.
+  - **Cost-Controlled Quality Telemetry:** A configurable sampling rate (e.g., 10%) monitors production fidelity and drifts while containing LLM evaluation token costs by 90%.
+  - **Persisted Audit Trail:** Captures evaluation scores alongside stage latencies, allowing continuous monitoring of grounding health across different game roadmaps over time.
+- **60-Second Interview Soundbite:**
+  > *"Running an LLM judge synchronously on every production turn destroys perceived latency by adding an extra multi-second roundtrip to user streaming. In Platina AI, we decoupled quality evaluation: while a strict, lightweight pre-flight validator guards against ungrounded tactical claims in real time, full RAG Triad scoring runs asynchronously on a configurable 10% probabilistic sample. The background worker evaluates faithfulness and relevance without blocking token delivery, persisting quality metrics to our observability layer so we can track drift and model performance at a fraction of the inference cost."*
+
+### Q73: Aggregated Observability Endpoints vs. External Dashboard Pipelines
+> **"How do you design an in-app observability endpoint that provides real-time operational insights for compound AI agents?"**
+
+- **Core Concept:** A dedicated, lightweight telemetry aggregator (`GET /api/v1/observability/metrics`) that summarizes query volume, sampling ratios, stage latency distributions (averages and p95), and recent sampled evaluations.
+- **Key Engineering Benefits:**
+  - **Self-Contained Microservice Architecture:** Enables health monitoring, automated canary verification, and internal admin visibility without requiring external Elasticsearch or Datadog clusters during early stages.
+  - **Structured Ring Buffer + Persistence:** Combines low-latency in-memory aggregation for immediate endpoint queries with structured database logging for historical audits.
+  - **Actionable Production Auditing:** Returns recent inspection traces with query previews, model cascade names, and exact Triad breakdown scores for targeted debugging.
+- **60-Second Interview Soundbite:**
+  > *"Before setting up expensive external observability platforms, compound AI systems need immediate, verifiable self-telemetry. We implemented an aggregated metrics endpoint (`/api/v1/observability/metrics`) in Fastify that surfaces real-time system health: rolling averages, p95 stage latencies, sampling percentages, and recent quality scores. This gives our engineering team instant feedback during canary deployments and local benchmarking, proving whether architectural changes like cascade fallbacks or new reranker models improve or degrade accuracy and latency in production."*
+
+
+
+
+
+
