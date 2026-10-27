@@ -59,11 +59,11 @@ async def test_query_tsv_with_to_tsquery():
             },
         )
 
-        # 1. Query using GuideChunkModel with tsv @@ to_tsquery
+        # 1. Query using GuideChunkModel with tsv @@ to_tsquery in english
         stmt = (
             select(GuideChunkModel)
             .where(GuideChunkModel.id == test_chunk_id)
-            .where(GuideChunkModel.tsv.op("@@")(func.to_tsquery("portuguese", "guerreiro")))
+            .where(GuideChunkModel.tsv.op("@@")(func.to_tsquery("english", "guerreiro")))
         )
         res = await session.execute(stmt)
         matched_chunk = res.scalar_one_or_none()
@@ -77,7 +77,7 @@ async def test_query_tsv_with_to_tsquery():
             """
             SELECT id, title
             FROM guide_chunks
-            WHERE id = :id AND tsv @@ to_tsquery('portuguese', 'espada');
+            WHERE id = :id AND tsv @@ to_tsquery('english', 'espada');
             """
         )
         sql_res = await session.execute(sql_stmt, {"id": test_chunk_id})

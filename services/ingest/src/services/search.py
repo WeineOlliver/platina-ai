@@ -35,8 +35,9 @@ class VectorSearchService:
             stmt_dense = stmt_dense.where(and_(*conditions))
         stmt_dense = stmt_dense.order_by(distance_col).limit(candidate_limit)
 
-        # 4. Sparse Text Retrieval (PostgreSQL full-text search plainto_tsquery)
-        ts_query = func.plainto_tsquery("portuguese", request.query)
+        # 4. Sparse Text Retrieval (PostgreSQL full-text search plainto_tsquery in English)
+        # Insight: Internal processing operates strictly in English for canonical matching
+        ts_query = func.plainto_tsquery("english", request.query)
         sparse_match_cond = GuideChunkModel.tsv.op("@@")(ts_query)
         ts_rank_col = func.ts_rank(GuideChunkModel.tsv, ts_query).label("ts_rank")
 

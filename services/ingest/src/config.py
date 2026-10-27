@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql://platina:platina123@localhost:5432/platina_rag"
 
     # Embedding model configuration
+    EMBEDDING_PROVIDER: str = "local"
     EMBEDDING_MODEL: str = "text-embedding-3-small"
 
     model_config = SettingsConfigDict(

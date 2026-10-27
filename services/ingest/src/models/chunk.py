@@ -20,10 +20,11 @@ class GuideChunkModel(Base):
     source_url = Column(String(500), nullable=True)
     metadata_ = Column("metadata", JSONB, default=dict)
     embedding = Column(Vector(1536), nullable=False)
+    # Insight: All guides and search queries are processed internally in English
     tsv = Column(
         TSVECTOR,
         Computed(
-            "to_tsvector('portuguese', coalesce(title, '') || ' ' || coalesce(content, ''))",
+            "to_tsvector('english', coalesce(title, '') || ' ' || coalesce(content, ''))",
             persisted=True,
         ),
     )
