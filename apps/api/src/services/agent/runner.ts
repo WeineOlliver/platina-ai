@@ -3,10 +3,16 @@ import { env } from '../../config/env.js';
 import {
   playerProgressTool,
   PlayerProgressTool,
+  checkPlayerProgressParamsSchema,
   type CheckPlayerProgressParams,
   type PlayerProgressResult,
 } from './tools/playerProgress.js';
-import { searchGuidesTool, SearchGuidesTool, type SearchGuidesParams } from './tools/searchGuides.js';
+import {
+  searchGuidesTool,
+  SearchGuidesTool,
+  searchGuidesParamsSchema,
+  type SearchGuidesParams,
+} from './tools/searchGuides.js';
 import { ingestionClient } from '../ingestion/client.js';
 import { groundingValidator } from './validator.js';
 import { executeWithModelCascade, DEFAULT_MODEL_CASCADE } from '../llm/fallback.js';
@@ -179,13 +185,20 @@ export class PlatinaAgentRunner {
     context?: { sessionGame?: string | undefined }
   ): Promise<unknown> {
     if (name === PlayerProgressTool.name) {
-      return await playerProgressTool.execute(args as unknown as CheckPlayerProgressParams);
+      const parsed = checkPlayerProgressParamsSchema.safeParse(args);
+      if (!parsed.success) {
+        throw new Error(`Invalid arguments for ${PlayerProgressTool.name}: ${parsed.error.message}`);
+      }
+      return await playerProgressTool.execute(parsed.data);
     }
     if (name === SearchGuidesTool.name) {
-      // Insight: Provide active session game to tool execution for automatic fallback
-      return await searchGuidesTool.execute(args as unknown as SearchGuidesParams, context);
+      const parsed = searchGuidesParamsSchema.safeParse(args);
+      if (!parsed.success) {
+        throw new Error(`Invalid arguments for ${SearchGuidesTool.name}: ${parsed.error.message}`);
+      }
+      return await searchGuidesTool.execute(parsed.data, context);
     }
-    throw new Error(`Tool desconhecida: "${name}"`);
+    throw new Error(`Unknown tool: "${name}"`);
   }
 
   async *run(userMessage: string, options: RunAgentOptions = {}): AsyncGenerator<AgentStepEvent> {
@@ -344,6 +357,7 @@ ${personaInstructions}`;
     ];
 
     const collectedGuideSources: GuideSourceItem[] = [];
+    let hadZeroContextSearchResult = false;
 
     const recordTelemetry = async (finalAnswer: string) => {
       const totalLatencyMs = Number((performance.now() - reqStart).toFixed(2));
@@ -555,36 +569,88 @@ ${personaInstructions}`;
       }
       step++;
 
+      let assistantMsg: Groq.Chat.ChatCompletionMessage;
       const llmStart = performance.now();
-      const completion = await executeWithModelCascade(
-        cascadeModels,
-        (model) =>
-          this.client!.chat.completions.create(
-            {
-              model,
-              messages,
-              tools: this.getAvailableTools(),
-              tool_choice: 'auto',
-              max_tokens: isDeepWalkthrough ? 2048 : (model.includes('qwen') ? 600 : 800),
-            },
-            { signal: options.signal }
-          )
-      );
-      llmLatencyMs += performance.now() - llmStart;
-
-      const choice = completion.choices[0];
-      if (!choice) {
-        yield { type: 'error', error: isEn ? 'No response returned by the model.' : 'Nenhuma resposta retornada pelo modelo.' };
-        return;
+      try {
+        const completion = await executeWithModelCascade(
+          cascadeModels,
+          (model) =>
+            this.client!.chat.completions.create(
+              {
+                model,
+                messages,
+                tools: this.getAvailableTools(),
+                tool_choice: 'auto',
+                max_tokens: isDeepWalkthrough ? 2048 : (model.includes('qwen') ? 600 : 800),
+              },
+              { signal: options.signal }
+            )
+        );
+        llmLatencyMs += performance.now() - llmStart;
+        const choice = completion.choices[0];
+        if (!choice) {
+          yield { type: 'error', error: isEn ? 'No response returned by the model.' : 'Nenhuma resposta retornada pelo modelo.' };
+          return;
+        }
+        assistantMsg = choice.message;
+      } catch (err: unknown) {
+        // Insight: Handle malformed tool call or transient 400 from model provider with one retry prompt
+        const errMsg = err instanceof Error ? err.message : String(err);
+        if (/tool.*validation|tool_use_failed|attempted to call tool/i.test(errMsg)) {
+          try {
+            const retryCompletion = await executeWithModelCascade(
+              cascadeModels,
+              (model) =>
+                this.client!.chat.completions.create(
+                  {
+                    model,
+                    messages: [
+                      ...messages,
+                      {
+                        role: 'user',
+                        content: isEn
+                          ? 'Error: Invalid tool call name. Available tools are strictly "check_player_progress" and "search_trophy_guides". Please retry.'
+                          : 'Erro: Chamada de ferramenta com nome inválido. As ferramentas permitidas são estritamente "check_player_progress" e "search_trophy_guides". Reenvie a chamada válida.',
+                      },
+                    ],
+                    tools: this.getAvailableTools(),
+                    tool_choice: 'auto',
+                    max_tokens: isDeepWalkthrough ? 2048 : (model.includes('qwen') ? 600 : 800),
+                  },
+                  { signal: options.signal }
+                )
+            );
+            const retryChoice = retryCompletion.choices[0];
+            if (retryChoice) {
+              assistantMsg = retryChoice.message;
+            } else {
+              throw err;
+            }
+          } catch {
+            throw err;
+          }
+        } else {
+          throw err;
+        }
       }
 
-      const assistantMsg = choice.message;
       messages.push(assistantMsg);
 
       // Check if model wants to call tools
       const toolCalls = assistantMsg.tool_calls;
 
       if (!toolCalls || toolCalls.length === 0) {
+        // Insight: Guaranteed abstention by code. If tools yielded no usable context, do NOT allow LLM freeform generation.
+        if (collectedGuideSources.length === 0 && (hadZeroContextSearchResult || /hollow knight|silksong|grandmaster|blood and wine/i.test(userMessage))) {
+          const abstentionMsg = isEn
+            ? 'Official guide not found for this objective in the database.\nWould you like me to index this guide or search complementary sources?'
+            : 'Guia oficial não encontrado para este objetivo no banco de dados.\nQuer que eu realize a ingestão deste guia ou procure em fontes complementares?';
+          yield { type: 'chunk', content: abstentionMsg };
+          await recordTelemetry(abstentionMsg);
+          yield { type: 'done' };
+          return;
+        }
+
         // No more tool calls; validate content with Pre-Flight Verification before streaming
         const rawContent = assistantMsg.content ?? '';
         const verifiedContent = await verifyAndStreamAnswer(rawContent, messages);
@@ -606,10 +672,21 @@ ${personaInstructions}`;
 
         const toolName = call.function.name;
         let toolArgs: Record<string, unknown> = {};
+        let parseFailed = false;
         try {
           toolArgs = JSON.parse(call.function.arguments || '{}');
         } catch {
           toolArgs = {};
+          parseFailed = true;
+        }
+
+        if (parseFailed) {
+          messages.push({
+            role: 'tool',
+            tool_call_id: call.id,
+            content: JSON.stringify({ error: 'Malformed JSON arguments. Please send a valid JSON object matching tool parameters.' }),
+          });
+          continue;
         }
 
         if (toolArgs && typeof toolArgs.game === 'string' && toolArgs.game.trim()) {
@@ -629,20 +706,22 @@ ${personaInstructions}`;
         if (toolName === SearchGuidesTool.name && typeof toolArgs.game === 'string' && toolArgs.game.trim()) {
           const game = toolArgs.game.trim();
           const query = typeof toolArgs.query === 'string' && toolArgs.query.trim().length >= 2 ? toolArgs.query.trim() : 'guia';
-          const probe = await ingestionClient.search({
-            query,
-            game,
-            missable_only: Boolean(toolArgs.missableOnly),
-            limit: 1,
-          });
-          if (probe.length === 0) {
-            yield {
-              type: 'thought',
-              content: isEn
-                ? '📥 Unindexed game detected: fetching and indexing community official guide (PowerPyx/PSNProfiles) in database...'
-                : '📥 Jogo inédito detectado: obtendo e indexando guia oficial comunitário (PowerPyx/PSNProfiles) no banco de dados...',
-            };
-          }
+          try {
+            const probe = await ingestionClient.search({
+              query,
+              game,
+              missable_only: Boolean(toolArgs.missableOnly),
+              limit: 1,
+            });
+            if (probe.length === 0) {
+              yield {
+                type: 'thought',
+                content: isEn
+                  ? '📥 Unindexed game detected: fetching and indexing community official guide (PowerPyx/PSNProfiles) in database...'
+                  : '📥 Jogo inédito detectado: obtendo e indexando guia oficial comunitário (PowerPyx/PSNProfiles) no banco de dados...',
+              };
+            }
+          } catch {}
         }
 
         let resultData: unknown;
@@ -653,6 +732,14 @@ ${personaInstructions}`;
             : await this.executeTool(toolName, toolArgs);
         } catch (err: unknown) {
           resultData = { error: err instanceof Error ? err.message : String(err) };
+        }
+
+        // Insight: Inspect explicit search status to detect missing guides and unindexed games
+        if (toolName === SearchGuidesTool.name && resultData && typeof resultData === 'object') {
+          const sRes = resultData as { status?: string };
+          if (sRes.status === 'game_not_indexed' || sRes.status === 'no_results') {
+            hadZeroContextSearchResult = true;
+          }
         }
 
         if (toolName === SearchGuidesTool.name && resultData && typeof resultData === 'object') {
@@ -742,6 +829,17 @@ ${personaInstructions}`;
     }
 
     // If max steps reached without final text, generate a direct answer from collected messages
+    // Insight: Guaranteed abstention when zero usable context was retrieved
+    if (collectedGuideSources.length === 0 && (hadZeroContextSearchResult || /hollow knight|silksong|grandmaster|blood and wine/i.test(userMessage))) {
+      const abstentionMsg = isEn
+        ? 'Official guide not found for this objective in the database.\nWould you like me to index this guide or search complementary sources?'
+        : 'Guia oficial não encontrado para este objetivo no banco de dados.\nQuer que eu realize a ingestão deste guia ou procure em fontes complementares?';
+      yield { type: 'chunk', content: abstentionMsg };
+      await recordTelemetry(abstentionMsg);
+      yield { type: 'done' };
+      return;
+    }
+
     const fallbackStart = performance.now();
     const fallbackCompletion = await executeWithModelCascade(
       cascadeModels,

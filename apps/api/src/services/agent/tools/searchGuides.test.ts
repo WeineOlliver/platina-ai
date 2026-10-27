@@ -13,7 +13,7 @@ describe('SearchGuidesTool Suite', () => {
 
   it('rejects invalid inputs via Zod runtime validation', async () => {
     const result = await searchGuidesTool.execute({ query: '' });
-    expect('error' in result).toBe(true);
+    expect(result.status).toBe('error');
     if ('error' in result) {
       expect(result.error).toContain('Parâmetros inválidos');
     }
@@ -23,7 +23,7 @@ describe('SearchGuidesTool Suite', () => {
     const result = await searchGuidesTool.execute({
       query: 'Card Collector',
     });
-    expect('error' in result).toBe(true);
+    expect(result.status).toBe('error');
     if ('error' in result) {
       expect(result.error).toContain('Game not specified');
     }
@@ -73,7 +73,7 @@ describe('SearchGuidesTool Suite', () => {
       game: 'Bloodborne',
       limit: 11,
     });
-    expect('error' in invalidWith11).toBe(true);
+    expect(invalidWith11.status).toBe('error');
     if ('error' in invalidWith11) {
       expect(invalidWith11.error).toContain('Parâmetros inválidos');
     }

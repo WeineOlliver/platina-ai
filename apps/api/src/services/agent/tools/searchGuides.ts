@@ -11,6 +11,32 @@ export const searchGuidesParamsSchema = z.object({
 
 export type SearchGuidesParams = z.input<typeof searchGuidesParamsSchema>;
 
+export interface SearchGuidesSuccessResult {
+  status: 'success';
+  results: RetrievedChunk[];
+  retrieval_latency_ms?: number | undefined;
+  reranker_latency_ms?: number | undefined;
+}
+
+export interface SearchGuidesNoResultsResult {
+  status: 'no_results' | 'game_not_indexed';
+  results: RetrievedChunk[];
+  message: string;
+  game: string;
+  retrieval_latency_ms?: number | undefined;
+  reranker_latency_ms?: number | undefined;
+}
+
+export interface SearchGuidesErrorResult {
+  status: 'error';
+  error: string;
+}
+
+export type SearchGuidesExecutionResult =
+  | SearchGuidesSuccessResult
+  | SearchGuidesNoResultsResult
+  | SearchGuidesErrorResult;
+
 export interface SearchGuidesContext {
   sessionGame?: string | undefined;
   game?: string | undefined;
@@ -54,10 +80,10 @@ export class SearchGuidesTool {
   async execute(
     params: SearchGuidesParams,
     context?: SearchGuidesContext
-  ): Promise<{ results: RetrievedChunk[]; retrieval_latency_ms?: number; reranker_latency_ms?: number } | { error: string }> {
+  ): Promise<SearchGuidesExecutionResult> {
     const validated = searchGuidesParamsSchema.safeParse(params);
     if (!validated.success) {
-      return { error: `Parâmetros inválidos: ${validated.error.message}` };
+      return { status: 'error', error: `Parâmetros inválidos: ${validated.error.message}` };
     }
 
     const { query, missableOnly, limit } = validated.data;
@@ -65,6 +91,7 @@ export class SearchGuidesTool {
     const resolvedGame = (validated.data.game || context?.sessionGame || context?.game)?.trim();
     if (!resolvedGame) {
       return {
+        status: 'error',
         error: 'Game not specified. Please specify which game you want to search guides for.',
       };
     }
@@ -107,10 +134,35 @@ export class SearchGuidesTool {
         }
       }
 
-      return { results, retrieval_latency_ms, reranker_latency_ms };
+      // Insight: Return explicit status for runner abstention determination
+      if (results.length === 0) {
+        let isGameIndexed = false;
+        try {
+          const gameCheck = await ingestionClient.search({ query: 'trophy', game: resolvedGame, limit: 1 });
+          isGameIndexed = gameCheck.length > 0;
+        } catch {}
+
+        return {
+          status: isGameIndexed ? 'no_results' : 'game_not_indexed',
+          results: [],
+          game: resolvedGame,
+          message: isGameIndexed
+            ? `Nenhum trecho de guia encontrado para "${query}" no jogo "${resolvedGame}".`
+            : `O jogo "${resolvedGame}" ainda não possui guia indexado no banco de dados.`,
+          retrieval_latency_ms,
+          reranker_latency_ms,
+        };
+      }
+
+      return {
+        status: 'success',
+        results,
+        retrieval_latency_ms,
+        reranker_latency_ms,
+      };
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Falha na busca vetorial';
-      return { error: `Erro na busca semântica de guias: ${message}` };
+      return { status: 'error', error: `Erro na busca semântica de guias: ${message}` };
     }
   }
 }

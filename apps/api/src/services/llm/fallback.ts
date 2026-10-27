@@ -11,23 +11,37 @@ function isTransientError(error: unknown): boolean {
     (error as { status?: number; statusCode?: number }).status ??
     (error as { status?: number; statusCode?: number }).statusCode;
 
+  const message = (error as { message?: string }).message;
+
   if (typeof status === 'number') {
-    if (status === 400 || status === 401 || status === 403) {
+    if (status === 401 || status === 403) {
       return false;
     }
     if (status === 429 || status >= 500) {
       return true;
     }
+    // Only failover on 400 when it is specifically a tool calling corruption error
+    if (status === 400 && typeof message === 'string') {
+      const lower = message.toLowerCase();
+      if (
+        lower.includes('tool_use_failed') ||
+        lower.includes('tool call validation failed') ||
+        lower.includes('attempted to call tool')
+      ) {
+        return true;
+      }
+    }
     return false;
   }
-
-  const message = (error as { message?: string }).message;
   if (typeof message === 'string') {
     const lower = message.toLowerCase();
     if (
       lower.includes('rate limit reached') ||
       lower.includes('tokens per day') ||
-      lower.includes('rate_limit_exceeded')
+      lower.includes('rate_limit_exceeded') ||
+      lower.includes('tool_use_failed') ||
+      lower.includes('tool call validation failed') ||
+      lower.includes('attempted to call tool')
     ) {
       return true;
     }
