@@ -173,12 +173,17 @@ export class PlatinaAgentRunner {
     ];
   }
 
-  async executeTool(name: string, args: Record<string, unknown>): Promise<unknown> {
+  async executeTool(
+    name: string,
+    args: Record<string, unknown>,
+    context?: { sessionGame?: string | undefined }
+  ): Promise<unknown> {
     if (name === PlayerProgressTool.name) {
       return await playerProgressTool.execute(args as unknown as CheckPlayerProgressParams);
     }
     if (name === SearchGuidesTool.name) {
-      return await searchGuidesTool.execute(args as unknown as SearchGuidesParams);
+      // Insight: Provide active session game to tool execution for automatic fallback
+      return await searchGuidesTool.execute(args as unknown as SearchGuidesParams, context);
     }
     throw new Error(`Tool desconhecida: "${name}"`);
   }
@@ -286,10 +291,13 @@ You have access to tools to:
 1. "check_player_progress": check earned and pending trophies for a player on PSN.
 2. "search_trophy_guides": search verified excerpts in the trophy guide vector database.
 
-Agent Guidelines:
+Agent Guidelines & Language Architecture:
+- ALL tool arguments (query, game, trophies, quests) MUST be written in English. Always use official English names for trophies, quests, and characters.
+- If the user asks in another language, translate the intent into English for tool arguments.
+- Deliver the final answer to the user in English as configured in the session.
 - If the user mentions a PSN ID or asks what to do next in a game, call "check_player_progress" to inspect their actual progress.
 - If "check_player_progress" returns "unearned_trophies_summary", USE this list of actual pending trophies to answer what is missing or easiest/fastest to achieve.
-- When searching guides with "search_trophy_guides", ALWAYS send the clean, exact short trophy name (e.g. query: "Card Collector", "Masterminds", "Kifflom", "Cryptozoologist"), NEVER concatenate descriptions, words like "silver", "bronze", or long text into the search query.${isDeepWalkthrough ? ' In detailed mode, pass limit: 8 to obtain comprehensive context.' : ''}
+- When searching guides with "search_trophy_guides", ALWAYS send the clean, exact short trophy name in English (e.g. query: "Card Collector", "Masterminds", "Kifflom", "Cryptozoologist"), NEVER concatenate descriptions, words like "silver", "bronze", or long text into the search query.${isDeepWalkthrough ? ' In detailed mode, pass limit: 8 to obtain comprehensive context.' : ''}
 - When the user asks about cards, collectibles, or detailed steps for a trophy, call "search_trophy_guides" using the trophy name in English and limit: 8.
 - If player progress was identified and no additional guide search is required (or the query is purely about pending list), respond tactically using "check_player_progress" data.
 - If the user selects a numbered option or route (e.g. "1", "2", "Option 1", "Option 2"), use conversation history and gathered data to map out that route. Call "search_trophy_guides" only if specific trophy details are needed.
@@ -301,10 +309,13 @@ Você tem acesso a ferramentas para:
 1. "check_player_progress": consultar os troféus já conquistados e pendentes de um jogador na PSN.
 2. "search_trophy_guides": buscar trechos verificados no banco vetorial de guias de troféus.
 
-Diretrizes do Agente:
+Diretrizes do Agente e Arquitetura de Idioma:
+- OBRIGATÓRIO: TODOS os argumentos das ferramentas (query, game, troféus, missões) devem ser escritos em INGLÊS. Traduza a pergunta do usuário para termos em inglês antes de chamar qualquer ferramenta (ex: se o usuário perguntou em português "Como pego o troféu de cartas?", passe query: "Card Collector", game: "The Witcher 3: Wild Hunt").
+- Use SEMPRE os nomes oficiais de troféus, quests e personagens em inglês nas chamadas de ferramentas.
+- A resposta final destinada ao usuário deve ser escrita em português (o idioma da sessão/pergunta).
 - Se o usuário mencionar um PSN ID ou perguntar o que precisa fazer a seguir em um jogo, chame "check_player_progress" para ver a situação real dele.
 - Se o retorno de "check_player_progress" trouxer "unearned_trophies_summary", USE essa lista de troféus pendentes reais do jogador para responder quais troféus faltam ou qual é o mais fácil/rápido de fazer.
-- Para buscar no banco de guias com "search_trophy_guides", envie SEMPRE o nome exato do troféu curto e limpo (ex: query: "Card Collector", "Masterminds", "Kifflom", "Cryptozoologist"), NUNCA concatene a descrição inteira do troféu, palavras como "silver", "bronze" ou textos longos na query de busca.${isDeepWalkthrough ? ' No modo detalhado, passe limit: 8 para obter contexto abrangente.' : ''}
+- Para buscar no banco de guias com "search_trophy_guides", envie SEMPRE o nome exato do troféu curto e limpo em inglês (ex: query: "Card Collector", "Masterminds", "Kifflom", "Cryptozoologist"), NUNCA concatene a descrição inteira do troféu, palavras como "silver", "bronze" ou textos longos na query de busca.${isDeepWalkthrough ? ' No modo detalhado, passe limit: 8 para obter contexto abrangente.' : ''}
 - Quando o usuário perguntar sobre cartas, colecionáveis ou passos detalhados de um troféu, chame "search_trophy_guides" usando o nome do troféu em inglês (ex: query: "Card Collector" para troféu de cartas de Gwent) e limit: 8.
 - Se você identificou o progresso do jogador e nenhum guia vetorial adicional for necessário (ou a dúvida for apenas sobre a lista de pendências), responda usando os dados retornados de "check_player_progress" de forma tática.
 - Se o usuário responder escolhendo uma opção numérica ou rota (ex: "1", "2", "Rota 1", "Rota 2"), use o histórico da conversa e os dados já obtidos para traçar o plano detalhado dessa rota específica. Chame "search_trophy_guides" apenas se precisar de detalhes de um troféu específico dessa rota.
@@ -634,7 +645,9 @@ ${personaInstructions}`;
 
         let resultData: unknown;
         try {
-          resultData = await this.executeTool(toolName, toolArgs);
+          resultData = await this.executeTool(toolName, toolArgs, {
+            sessionGame: targetGame || options.game,
+          });
         } catch (err: unknown) {
           resultData = { error: err instanceof Error ? err.message : String(err) };
         }

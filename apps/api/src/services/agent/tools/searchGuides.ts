@@ -1,19 +1,25 @@
 import { z } from 'zod';
 import { ingestionClient, type RetrievedChunk } from '../../ingestionClient.js';
 
+// Insight: Tool parameters are strictly typed with Zod and describe English inputs for canonical retrieval.
 export const searchGuidesParamsSchema = z.object({
-  query: z.string().min(2).describe('A pergunta de busca ou o nome exato do troféu/chefe/item a pesquisar no guia'),
-  game: z.string().optional().describe('Título do jogo para filtrar os guias (ex: Bloodborne, Elden Ring)'),
-  missableOnly: z.boolean().optional().describe('Filtrar apenas trechos com avisos de troféus perdíveis'),
-  limit: z.number().min(1).max(10).default(3).describe('Quantidade máxima de trechos a retornar'),
+  query: z.string().min(2).describe('Search query or exact trophy/boss/quest name in English (must always be in English)'),
+  game: z.string().optional().describe('Official game title in English to filter guides (e.g. "The Witcher 3: Wild Hunt", "Bloodborne")'),
+  missableOnly: z.boolean().optional().describe('Filter only excerpts with missable trophy warnings'),
+  limit: z.number().min(1).max(10).default(3).describe('Maximum number of excerpts to return'),
 });
 
 export type SearchGuidesParams = z.input<typeof searchGuidesParamsSchema>;
 
+export interface SearchGuidesContext {
+  sessionGame?: string | undefined;
+  game?: string | undefined;
+}
+
 export class SearchGuidesTool {
   static readonly name = 'search_trophy_guides';
   static readonly description =
-    'Realiza uma busca semântica no banco de dados vetorial (pgvector) de guias de platina oficiais e comunitários. Use esta ferramenta para obter instruções passo a passo, requisitos de desbloqueio, fraquezas de chefes ou condições para não perder troféus.';
+    'Realiza uma busca semântica no banco de dados vetorial (pgvector) de guias de platina oficiais e comunitários. Todos os termos de busca, nomes de jogos e troféus devem ser enviados em inglês.';
 
   static readonly toolDefinition = {
     type: 'function' as const,
@@ -25,19 +31,19 @@ export class SearchGuidesTool {
         properties: {
           query: {
             type: 'string',
-            description: 'A pergunta ou termos-chave para buscar no guia de troféus',
+            description: 'Search query or exact trophy/boss/quest name in English (must always be in English)',
           },
           game: {
             type: 'string',
-            description: 'Nome do jogo para filtrar a busca',
+            description: 'Official game title in English to filter guides (e.g. "The Witcher 3: Wild Hunt", "Bloodborne")',
           },
           missableOnly: {
             type: 'boolean',
-            description: 'Se verdadeiro, restringe a busca apenas para troféus perdíveis',
+            description: 'If true, restricts search to missable trophies only',
           },
           limit: {
             type: 'integer',
-            description: 'Número máximo de trechos a retornar (padrão: 3, máx: 10)',
+            description: 'Maximum number of excerpts to return (default: 3, max: 10)',
           },
         },
         required: ['query'],
@@ -45,18 +51,28 @@ export class SearchGuidesTool {
     },
   };
 
-  async execute(params: SearchGuidesParams): Promise<{ results: RetrievedChunk[]; retrieval_latency_ms?: number; reranker_latency_ms?: number } | { error: string }> {
+  async execute(
+    params: SearchGuidesParams,
+    context?: SearchGuidesContext
+  ): Promise<{ results: RetrievedChunk[]; retrieval_latency_ms?: number; reranker_latency_ms?: number } | { error: string }> {
     const validated = searchGuidesParamsSchema.safeParse(params);
     if (!validated.success) {
       return { error: `Parâmetros inválidos: ${validated.error.message}` };
     }
 
-    const { query, game, missableOnly, limit } = validated.data;
+    const { query, missableOnly, limit } = validated.data;
+    // Insight: Fall back to active session game when LLM omits game argument; reject with clear error if neither exists.
+    const resolvedGame = (validated.data.game || context?.sessionGame || context?.game)?.trim();
+    if (!resolvedGame) {
+      return {
+        error: 'Game not specified. Please specify which game you want to search guides for.',
+      };
+    }
 
     try {
       const searchParams = {
         query,
-        game,
+        game: resolvedGame,
         missable_only: missableOnly,
         limit,
       };
@@ -75,9 +91,9 @@ export class SearchGuidesTool {
         reranker_latency_ms = searchRes.reranker_latency_ms;
       }
 
-      if (results.length === 0 && game) {
+      if (results.length === 0 && resolvedGame) {
         try {
-          await ingestionClient.fetchAndIndex(game);
+          await ingestionClient.fetchAndIndex(resolvedGame);
           if (isSearchMocked) {
             results = await ingestionClient.search(searchParams);
           } else {

@@ -5,9 +5,10 @@ import { psnCrawlerService } from '../../psn/crawler.js';
 // Insight: Tool Schema Contract.
 // We define both the JSON Schema descriptor that the LLM inspects to decide
 // whether to call the tool, and the Zod schema used to validate the tool arguments at runtime.
+// Official game titles and arguments are always in English.
 export const checkPlayerProgressParamsSchema = z.object({
-  psnId: z.string().min(2).describe('O PSN ID ou nome de usuário do jogador na PlayStation Network'),
-  game: z.string().min(2).describe('O nome do jogo para verificar a lista de troféus (ex: Bloodborne, Elden Ring)'),
+  psnId: z.string().min(2).describe('PSN ID or PlayStation Network username of the player'),
+  game: z.string().min(2).describe('Official game title in English (e.g. "The Witcher 3: Wild Hunt", "Bloodborne")'),
 });
 
 export type CheckPlayerProgressParams = z.infer<typeof checkPlayerProgressParamsSchema>;
@@ -70,11 +71,11 @@ export class PlayerProgressTool {
         properties: {
           psnId: {
             type: 'string',
-            description: 'O identificador PSN ID do jogador (ex: OlliverHunter)',
+            description: 'Player PSN ID username (e.g. OlliverHunter)',
           },
           game: {
             type: 'string',
-            description: 'O título do jogo (ex: Bloodborne, Elden Ring)',
+            description: 'Official game title in English (e.g. "The Witcher 3: Wild Hunt", "Bloodborne")',
           },
         },
         required: ['psnId', 'game'],

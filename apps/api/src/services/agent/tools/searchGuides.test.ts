@@ -19,9 +19,49 @@ describe('SearchGuidesTool Suite', () => {
     }
   });
 
+  it('returns clear error when game is not provided and no session game exists', async () => {
+    const result = await searchGuidesTool.execute({
+      query: 'Card Collector',
+    });
+    expect('error' in result).toBe(true);
+    if ('error' in result) {
+      expect(result.error).toContain('Game not specified');
+    }
+  });
+
+  it('uses active session game when game argument is omitted by caller', async () => {
+    const mockChunk = {
+      id: 'chunk_session_1',
+      game: 'The Witcher 3: Wild Hunt',
+      title: 'Card Collector Guide',
+      content: 'Gwent guide content.',
+      is_missable: true,
+      similarity_score: 0.9,
+    };
+    const searchSpy = vi
+      .spyOn(ingestionClient as unknown as { searchWithMetrics: (...args: unknown[]) => Promise<unknown> }, 'searchWithMetrics')
+      .mockResolvedValueOnce({
+        chunks: [mockChunk],
+        retrieval_latency_ms: 5,
+        reranker_latency_ms: 2,
+      });
+
+    const result = await searchGuidesTool.execute(
+      { query: 'Card Collector' },
+      { sessionGame: 'The Witcher 3: Wild Hunt' }
+    );
+
+    expect(searchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ game: 'The Witcher 3: Wild Hunt', query: 'Card Collector' })
+    );
+    expect('results' in result).toBe(true);
+    searchSpy.mockRestore();
+  });
+
   it('validates limit allows up to 10 and defaults to 3', async () => {
     const validWith10 = await searchGuidesTool.execute({
       query: 'Eileen the Crow',
+      game: 'Bloodborne',
       limit: 10,
     });
     if ('error' in validWith10) {
@@ -30,6 +70,7 @@ describe('SearchGuidesTool Suite', () => {
 
     const invalidWith11 = await searchGuidesTool.execute({
       query: 'Eileen the Crow',
+      game: 'Bloodborne',
       limit: 11,
     });
     expect('error' in invalidWith11).toBe(true);
