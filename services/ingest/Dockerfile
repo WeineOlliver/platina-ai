@@ -26,6 +26,11 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy service source code
 COPY src/ ./src/
+
+# Pre-download FastEmbed BGE small model during build for fast container startup
+ENV FASTEMBED_CACHE_PATH=/app/.fastembed_cache
+RUN python -c "from fastembed import TextEmbedding; TextEmbedding('BAAI/bge-small-en-v1.5')"
+
 RUN chown -R platina:platina /app
 
 USER platina

@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional
+import asyncio
 import hashlib
 import os
 import re
@@ -9,7 +10,7 @@ import httpx
 class IEmbeddingService(ABC):
     """
     Abstract interface for embedding generation.
-    Enables swapping between OpenAI and deterministic local models.
+    Enables swapping between FastEmbed, OpenAI, and deterministic local models.
     """
     @abstractmethod
     async def embed_texts(self, texts: List[str]) -> List[List[float]]:
@@ -23,14 +24,63 @@ class IEmbeddingService(ABC):
         pass
 
 
+class FastEmbedEmbeddingService(IEmbeddingService):
+    """
+    Local, CPU-efficient, zero-cost semantic embedding service powered by fastembed.
+    Uses BAAI/bge-small-en-v1.5 (384 dims).
+    Loaded lazily as a singleton and offloaded to worker threads via asyncio.to_thread
+    so heavy ONNX tensor computations never block the async event loop.
+    """
+    DIMENSIONS: int = 384
+    MODEL_NAME: str = "BAAI/bge-small-en-v1.5"
+    _instance: Optional["FastEmbedEmbeddingService"] = None
+    _model: Optional[object] = None
+
+    def __init__(self, model_name: str = MODEL_NAME):
+        self.model_name = model_name
+
+    @classmethod
+    def _get_model(cls, model_name: str):
+        if cls._model is None:
+            from fastembed import TextEmbedding
+            # Insight: Lazy singleton initialization ensures ONNX runtime session is created once
+            cls._model = TextEmbedding(model_name)
+        return cls._model
+
+    def _sync_embed(self, texts: List[str]) -> List[List[float]]:
+        model = self._get_model(self.model_name)
+        # Prefix standard document texts for indexing
+        embeddings = list(getattr(model, "embed")(texts))
+        return [e.tolist() if hasattr(e, "tolist") else list(e) for e in embeddings]
+
+    def _sync_embed_query(self, query: str) -> List[float]:
+        model = self._get_model(self.model_name)
+        # Insight: BGE models require query-specific instruction prefix via query_embed
+        embeddings = list(getattr(model, "query_embed")([query]))
+        emb = embeddings[0]
+        return emb.tolist() if hasattr(emb, "tolist") else list(emb)
+
+    async def embed_texts(self, texts: List[str]) -> List[List[float]]:
+        if not texts:
+            return []
+        return await asyncio.to_thread(self._sync_embed, texts)
+
+    async def embed_query(self, query: str) -> List[float]:
+        return await asyncio.to_thread(self._sync_embed_query, query)
+
+
+from src.config import settings
+
+
 class DeterministicLocalEmbeddingService(IEmbeddingService):
     """
-    High-performance, zero-cost deterministic embedding generator (1536 dimensions).
+    High-performance, zero-cost deterministic embedding generator.
     Uses pseudo-random Gaussian projections seeded by SHA-256 tokens.
     Guarantees deterministic vector representations for semantic testing and local development
     without requiring third-party API keys or GPU memory.
     """
-    DIMENSIONS: int = 1536
+    def __init__(self, dimensions: Optional[int] = None):
+        self.dimensions = dimensions or settings.EMBEDDING_DIMENSIONS
 
     async def embed_texts(self, texts: List[str]) -> List[List[float]]:
         return [self._generate_vector(t) for t in texts]
@@ -40,7 +90,7 @@ class DeterministicLocalEmbeddingService(IEmbeddingService):
 
     def _generate_vector(self, text: str) -> List[float]:
         normalized = text.lower().strip()
-        vector = [0.0] * self.DIMENSIONS
+        vector = [0.0] * self.dimensions
 
         # Split on non-alphanumeric to capture clean word tokens
         words = [w for w in re.findall(r'\b\w+\b', normalized) if len(w) > 2]
@@ -66,7 +116,7 @@ class DeterministicLocalEmbeddingService(IEmbeddingService):
         for word, count in word_counts.items():
             w_bytes = word.encode("utf-8")
             h = int(hashlib.sha256(w_bytes).hexdigest()[:8], 16)
-            idx = h % self.DIMENSIONS
+            idx = h % self.dimensions
             
             # Specific domain terms receive high weight
             term_weight = 4.0 if len(word) >= 5 else 2.0
@@ -118,8 +168,10 @@ class OpenAIEmbeddingService(IEmbeddingService):
 
 
 def get_embedding_service() -> IEmbeddingService:
-    # Insight: Select provider via EMBEDDING_PROVIDER (openai|local). Default is local for unit tests and offline dev.
+    # Insight: Select provider via EMBEDDING_PROVIDER (fastembed|openai|local). Default is local for unit tests and offline dev.
     provider = os.getenv("EMBEDDING_PROVIDER", "local").strip().lower()
+    if provider == "fastembed":
+        return FastEmbedEmbeddingService()
     if provider == "openai":
         return OpenAIEmbeddingService()
     return DeterministicLocalEmbeddingService()
