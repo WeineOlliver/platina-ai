@@ -1,6 +1,6 @@
 {
   "game_id": "the-witcher-3-wild-hunt",
-  "notes": "Rotas: sql = catálogo; rag = dica em prosa; hybrid = SQL decide quais + RAG explica; none = abster. Validado em 2026-10-26 no navegador. Prioridade de fonte: lista oficial (tipos/nomes) > guia PSNProfiles (missáveis/roadmap) > PowerPyx (dicas). Divergência conhecida: PowerPyx mostra Armed and Dangerous e Overkill como bronze; lista oficial = prata.",
+  "notes": "Rotas: sql = catálogo; rag = dica em prosa; hybrid = SQL decide quais + RAG explica; none = abster. Validado em 2026-10-26 no navegador. Prioridade de fonte: lista oficial (tipos/nomes) > guia PSNProfiles (missáveis/roadmap) > PowerPyx (dicas). Divergência conhecida: PowerPyx mostra Armed and Dangerous e Overkill como bronze; lista oficial = prata. Idioma: tudo interno em inglês. 'question' (PT) é a pergunta do jogador e vai pelo agente; 'query_en' é a query que o agente deve gerar e é usada pelo runner nas chamadas diretas de busca/SQL.",
   "metrics": {
     "completeness": "categoria lista: fração de expected.trophies presentes na resposta (alvo 1.0, qualquer falta conta como erro)",
     "recall_at_5": "categorias dica/vaga: expected.trophy aparece no top-5 de chunks",
@@ -29,7 +29,8 @@
         ],
         "note": "platina = jogo base; DLC não entra"
       },
-      "verified": true
+      "verified": true,
+      "query_en": "Which missable trophies does The Witcher 3 platinum have?"
     },
     {
       "id": "L02",
@@ -39,7 +40,8 @@
       "expected": {
         "count": 10
       },
-      "verified": true
+      "verified": true,
+      "query_en": "How many missable trophies does The Witcher 3 platinum have?"
     },
     {
       "id": "L03",
@@ -58,7 +60,8 @@
           "Armed and Dangerous"
         ]
       },
-      "verified": true
+      "verified": true,
+      "query_en": "Which silver trophies exist in The Witcher 3 base game?"
     },
     {
       "id": "L04",
@@ -75,7 +78,8 @@
           "Ashes to Ashes"
         ]
       },
-      "verified": true
+      "verified": true,
+      "query_en": "Which trophies are witcher contracts?"
     },
     {
       "id": "L05",
@@ -91,7 +95,8 @@
           "Walked the Demon's Path"
         ]
       },
-      "verified": true
+      "verified": true,
+      "query_en": "Which trophies depend on the difficulty level?"
     },
     {
       "id": "L06",
@@ -105,7 +110,8 @@
           "Brawl Master"
         ]
       },
-      "verified": true
+      "verified": true,
+      "query_en": "Which trophies involve fistfights?"
     },
     {
       "id": "L07",
@@ -117,7 +123,8 @@
           "When It's Many Against One…"
         ]
       },
-      "verified": true
+      "verified": true,
+      "query_en": "Which Hearts of Stone trophies are missable?"
     },
     {
       "id": "L08",
@@ -138,7 +145,8 @@
           "Xenonaut"
         ]
       },
-      "verified": true
+      "verified": true,
+      "query_en": "Which trophies are from the main story?"
     },
     {
       "id": "D01",
@@ -152,7 +160,8 @@
           "Passiflora"
         ]
       },
-      "verified": true
+      "verified": true,
+      "query_en": "How do I get Gwent Master?"
     },
     {
       "id": "D02",
@@ -165,7 +174,8 @@
           "Kaer Morhen"
         ]
       },
-      "verified": true
+      "verified": true,
+      "query_en": "What do I need to do for Full Crew?"
     },
     {
       "id": "D03",
@@ -178,7 +188,8 @@
           "Radovid"
         ]
       },
-      "verified": true
+      "verified": true,
+      "query_en": "How do I get Assassin of Kings?"
     },
     {
       "id": "D04",
@@ -191,7 +202,8 @@
           "Olaf"
         ]
       },
-      "verified": true
+      "verified": true,
+      "query_en": "Who do I have to beat for Brawler?"
     },
     {
       "id": "D05",
@@ -204,7 +216,8 @@
           "Sven"
         ]
       },
-      "verified": true
+      "verified": true,
+      "query_en": "How do I complete Woodland Spirit without missing it?"
     },
     {
       "id": "D06",
@@ -217,7 +230,8 @@
           "Iris"
         ]
       },
-      "verified": true
+      "verified": true,
+      "query_en": "How do I get When It's Many Against One?"
     },
     {
       "id": "D07",
@@ -230,7 +244,8 @@
           "Morvudd"
         ]
       },
-      "verified": true
+      "verified": true,
+      "query_en": "Which contract is Fiend or Foe?"
     },
     {
       "id": "D08",
@@ -243,7 +258,8 @@
           "Therazane"
         ]
       },
-      "verified": true
+      "verified": true,
+      "query_en": "How do I get Ashes to Ashes?"
     },
     {
       "id": "D09",
@@ -256,7 +272,8 @@
           "Novigrad"
         ]
       },
-      "verified": true
+      "verified": true,
+      "query_en": "How do I solve the doppler in Novigrad?"
     },
     {
       "id": "D10",
@@ -269,7 +286,8 @@
           "4"
         ]
       },
-      "verified": true
+      "verified": true,
+      "query_en": "How does What Was That? work?"
     },
     {
       "id": "V01",
@@ -279,7 +297,8 @@
       "expected": {
         "trophy": "Gwent Master"
       },
-      "verified": true
+      "verified": true,
+      "query_en": "Is there a card trophy that can be missed?"
     },
     {
       "id": "V02",
@@ -289,7 +308,8 @@
       "expected": {
         "trophy": "Moo-rderer"
       },
-      "verified": true
+      "verified": true,
+      "query_en": "Which trophy is about killing cows?"
     },
     {
       "id": "V03",
@@ -299,7 +319,8 @@
       "expected": {
         "trophy": "Rad Steez, Bro!"
       },
-      "verified": true
+      "verified": true,
+      "query_en": "Is there a trophy for sliding down a mountain?"
     },
     {
       "id": "V04",
@@ -312,7 +333,8 @@
           "Aard"
         ]
       },
-      "verified": true
+      "verified": true,
+      "query_en": "Which trophy asks you to knock enemies off high places with a sign?"
     },
     {
       "id": "V05",
@@ -325,7 +347,8 @@
           "Dragon's Dream"
         ]
       },
-      "verified": true
+      "verified": true,
+      "query_en": "Is there a trophy for igniting gas?"
     },
     {
       "id": "V06",
@@ -335,7 +358,8 @@
       "expected": {
         "trophy": "Return to Sender"
       },
-      "verified": true
+      "verified": true,
+      "query_en": "Which trophy is about using the enemy's own arrows?"
     },
     {
       "id": "V07",
@@ -345,7 +369,8 @@
       "expected": {
         "trophy": "Power Overwhelming"
       },
-      "verified": true
+      "verified": true,
+      "query_en": "Is there a trophy for stacking place of power bonuses?"
     },
     {
       "id": "V08",
@@ -355,7 +380,8 @@
       "expected": {
         "trophy": "Bombardier"
       },
-      "verified": true
+      "verified": true,
+      "query_en": "Which trophy is about bomb formulae?"
     },
     {
       "id": "H01",
@@ -432,7 +458,8 @@
           "Epsilon"
         ]
       },
-      "verified": true
+      "verified": true,
+      "query_en": "Which missable trophies does Witcher have?"
     },
     {
       "id": "C02",
@@ -447,7 +474,8 @@
           "Legendary Armaments"
         ]
       },
-      "verified": true
+      "verified": true,
+      "query_en": "How do I get the trophy for collecting all weapons?"
     },
     {
       "id": "C03",
@@ -459,7 +487,8 @@
         "game_id_only": "the-witcher-3-wild-hunt",
         "note": "nenhum troféu de The Witcher 2"
       },
-      "verified": true
+      "verified": true,
+      "query_en": "Which trophies am I missing in The Witcher 3?"
     },
     {
       "id": "N01",
@@ -496,7 +525,8 @@
         ],
         "note": "o golden guide antigo do repo dizia 199"
       },
-      "verified": true
+      "verified": true,
+      "query_en": "How many gwent cards do I need for Card Collector?"
     },
     {
       "id": "D12",
@@ -509,7 +539,8 @@
           "contract"
         ]
       },
-      "verified": true
+      "verified": true,
+      "query_en": "How does Even Odds work?"
     },
     {
       "id": "O01",
@@ -521,7 +552,8 @@
         "hours": 110,
         "playthroughs": 2
       },
-      "verified": true
+      "verified": true,
+      "query_en": "What is the difficulty, how long does it take and how many playthroughs are needed for The Witcher 3 platinum?"
     },
     {
       "id": "N03",

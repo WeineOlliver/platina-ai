@@ -296,6 +296,7 @@ Agent Guidelines & Language Architecture:
 - If the user asks in another language, translate the intent into English for tool arguments.
 - Deliver the final answer to the user in English as configured in the session.
 - If the user mentions a PSN ID or asks what to do next in a game, call "check_player_progress" to inspect their actual progress.
+- When the user asks about quests, story choices, points of no return (e.g. "Before Kaer Morhen", "accepting an offer", "missables in Novigrad"), contracts, or missable trophies for a region/DLC, you MUST call "search_trophy_guides" using concise English keywords (e.g. query: "Kaer Morhen", "Full Crew", "Woodland Spirit", "Hearts of Stone missable") and game in English to retrieve verified guide excerpts before answering.
 - If "check_player_progress" returns "unearned_trophies_summary", USE this list of actual pending trophies to answer what is missing or easiest/fastest to achieve.
 - When searching guides with "search_trophy_guides", ALWAYS send the clean, exact short trophy name in English (e.g. query: "Card Collector", "Masterminds", "Kifflom", "Cryptozoologist"), NEVER concatenate descriptions, words like "silver", "bronze", or long text into the search query.${isDeepWalkthrough ? ' In detailed mode, pass limit: 8 to obtain comprehensive context.' : ''}
 - When the user asks about cards, collectibles, or detailed steps for a trophy, call "search_trophy_guides" using the trophy name in English and limit: 8.
@@ -314,6 +315,7 @@ Diretrizes do Agente e Arquitetura de Idioma:
 - Use SEMPRE os nomes oficiais de troféus, quests e personagens em inglês nas chamadas de ferramentas.
 - A resposta final destinada ao usuário deve ser escrita em português (o idioma da sessão/pergunta).
 - Se o usuário mencionar um PSN ID ou perguntar o que precisa fazer a seguir em um jogo, chame "check_player_progress" para ver a situação real dele.
+- Quando o usuário perguntar sobre missões, escolhas de história, pontos de não retorno (ex: "Antes de Kaer Morhen", "se aceitar oferta", "missáveis em Novigrad"), contratos ou troféus perdíveis de uma região/DLC, chame OBRIGATORIAMENTE "search_trophy_guides" com termos concisos em inglês (ex: query: "Kaer Morhen", "Full Crew", "Woodland Spirit", "Hearts of Stone missable") e game em inglês para obter os trechos verificados do guia antes de responder.
 - Se o retorno de "check_player_progress" trouxer "unearned_trophies_summary", USE essa lista de troféus pendentes reais do jogador para responder quais troféus faltam ou qual é o mais fácil/rápido de fazer.
 - Para buscar no banco de guias com "search_trophy_guides", envie SEMPRE o nome exato do troféu curto e limpo em inglês (ex: query: "Card Collector", "Masterminds", "Kifflom", "Cryptozoologist"), NUNCA concatene a descrição inteira do troféu, palavras como "silver", "bronze" ou textos longos na query de busca.${isDeepWalkthrough ? ' No modo detalhado, passe limit: 8 para obter contexto abrangente.' : ''}
 - Quando o usuário perguntar sobre cartas, colecionáveis ou passos detalhados de um troféu, chame "search_trophy_guides" usando o nome do troféu em inglês (ex: query: "Card Collector" para troféu de cartas de Gwent) e limit: 8.
@@ -520,7 +522,7 @@ ${personaInstructions}`;
                 {
                   model,
                   messages: correctiveMessages,
-                  ...(isDeepWalkthrough ? { max_tokens: 2048 } : {}),
+                  max_tokens: isDeepWalkthrough ? 2048 : (model.includes('qwen') ? 600 : 800),
                 },
                 { signal: options.signal }
               )
@@ -563,7 +565,7 @@ ${personaInstructions}`;
               messages,
               tools: this.getAvailableTools(),
               tool_choice: 'auto',
-              ...(isDeepWalkthrough ? { max_tokens: 2048 } : {}),
+              max_tokens: isDeepWalkthrough ? 2048 : (model.includes('qwen') ? 600 : 800),
             },
             { signal: options.signal }
           )
@@ -645,9 +647,10 @@ ${personaInstructions}`;
 
         let resultData: unknown;
         try {
-          resultData = await this.executeTool(toolName, toolArgs, {
-            sessionGame: targetGame || options.game,
-          });
+          const sessionGame = targetGame || options.game;
+          resultData = sessionGame
+            ? await this.executeTool(toolName, toolArgs, { sessionGame })
+            : await this.executeTool(toolName, toolArgs);
         } catch (err: unknown) {
           resultData = { error: err instanceof Error ? err.message : String(err) };
         }

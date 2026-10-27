@@ -144,6 +144,7 @@ ${input.answer}
         ],
         response_format: { type: 'json_object' },
         temperature: 0.1,
+        max_tokens: model.includes('qwen') ? 600 : 800,
       })
     );
 

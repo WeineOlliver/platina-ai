@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 import unicodedata
 from pathlib import Path
@@ -147,32 +148,101 @@ async def index_snapshots_if_available(game_name: str = "The Witcher 3: Wild Hun
     return len(all_chunks)
 
 
+def run_agent_eval_case(case: Dict[str, Any]) -> Dict[str, Any]:
+    """Execute complete PlatinaAgentRunner via TypeScript eval bridge and evaluate using ragTriadJudge."""
+    repo_root = Path(__file__).resolve().parents[4]
+    apps_api_dir = repo_root / "apps" / "api"
+    payload = json.dumps({
+        "id": case["id"],
+        "category": case.get("category", ""),
+        "route": case.get("route", ""),
+        "question": case["question"],
+        "game": "The Witcher 3: Wild Hunt",
+        "expected": case.get("expected", {}),
+    })
+    try:
+        env = os.environ.copy()
+        env["PLATINA_DISABLE_LIVE_SCRAPING"] = "true"
+        proc = subprocess.run(
+            ["npx", "tsx", "src/services/evals/runAgentCase.ts", payload],
+            cwd=str(apps_api_dir),
+            capture_output=True,
+            text=True,
+            timeout=120,
+            env=env,
+        )
+        stdout = proc.stdout
+        if "__EVAL_RESULT_START__" in stdout and "__EVAL_RESULT_END__" in stdout:
+            raw_json = stdout.split("__EVAL_RESULT_START__")[1].split("__EVAL_RESULT_END__")[0].strip()
+            return json.loads(raw_json)
+        return {
+            "id": case["id"],
+            "status": "FAILED",
+            "reasons": [f"Bridge output parse error: {stdout[:200]}"],
+            "evaluation": None,
+        }
+    except Exception as e:
+        return {
+            "id": case["id"],
+            "status": "FAILED",
+            "reasons": [str(e)],
+            "evaluation": None,
+        }
+
+
+AGENT_SEMAPHORE = asyncio.Semaphore(1)
+
+
 async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophyModel]) -> Dict[str, Any]:
     cid = case["id"]
     category = case.get("category", "")
     route = case.get("route", "")
     question = case["question"]
+    query_en = case.get("query_en") or question
     expected = case.get("expected", {})
 
-    # Routes requiring agent LLM reasoning are skipped in this evaluation
+    # Routes requiring agent LLM reasoning (hybrid, none) connected to PlatinaAgentRunner + ragTriadJudge
     if route in ["hybrid", "none"]:
+        async with AGENT_SEMAPHORE:
+            print(f"[{cid}] (Agent LLM: {route}) Avaliando '{question[:40]}...' ", flush=True)
+            agent_res = await asyncio.to_thread(run_agent_eval_case, case)
+            await asyncio.sleep(1.0)
+        status = agent_res.get("status", "FAILED")
+        print(f"[{cid}] -> {status}", flush=True)
+        reasons = list(agent_res.get("reasons") or [])
+        if "error" in agent_res and agent_res["error"]:
+            reasons.append(agent_res["error"])
+        eval_triad = agent_res.get("evaluation") or {}
+
+        metrics = {
+            "is_abstained": 1.0 if agent_res.get("isAbstained") else 0.0,
+        }
+        if eval_triad:
+            metrics["faithfulness"] = eval_triad.get("faithfulness", {}).get("score", 0.0)
+            metrics["context_relevance"] = eval_triad.get("contextRelevance", {}).get("score", 0.0)
+            metrics["answer_relevance"] = eval_triad.get("answerRelevance", {}).get("score", 0.0)
+            metrics["overall_triad"] = eval_triad.get("overallScore", 0.0)
+
         return {
             "id": cid,
             "category": category,
             "route": route,
             "question": question,
-            "status": "SKIPPED",
-            "reason": f"Rota '{route}' depende de raciocínio de Agente com LLM (fora do escopo do runner de ingestão)",
-            "metrics": {},
+            "query_en": query_en,
+            "status": status,
+            "reason": "; ".join(reasons) if status != "PASSED" else "",
+            "answer": agent_res.get("answer", ""),
+            "metrics": metrics,
         }
 
     # Route: RAG
     if route == "rag":
         # Contamination tests
         if category == "contaminacao":
-            game_filter = "The Witcher 3: Wild Hunt" if cid == "C01" else None
+            # Pass session game (Witcher 3) and English query as the agent would
+            game_filter = "The Witcher 3: Wild Hunt"
             res = await vector_search_service.search(
-                SearchQueryRequest(query=question, game=game_filter, limit=5, min_similarity=0.0)
+                SearchQueryRequest(query=query_en, game=game_filter, limit=5, min_similarity=0.0)
             )
             chunks = res.results
             must_not = [w.lower() for w in expected.get("must_not_contain", [])]
@@ -197,6 +267,7 @@ async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophy
                 "category": category,
                 "route": route,
                 "question": question,
+                "query_en": query_en,
                 "status": "PASSED" if passed else "FAILED",
                 "reason": "; ".join(reasons) if not passed else "",
                 "metrics": {
@@ -208,7 +279,7 @@ async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophy
         # Standard RAG tests (dica, vaga)
         res = await vector_search_service.search(
             SearchQueryRequest(
-                query=question,
+                query=query_en,
                 game="The Witcher 3: Wild Hunt",
                 limit=5,
                 min_similarity=0.0,
@@ -251,6 +322,7 @@ async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophy
             "category": category,
             "route": route,
             "question": question,
+            "query_en": query_en,
             "status": "PASSED" if passed else "FAILED",
             "reason": "; ".join(reasons) if not passed else "",
             "metrics": {
@@ -273,6 +345,7 @@ async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophy
                 "category": category,
                 "route": route,
                 "question": question,
+                "query_en": query_en,
                 "status": "PASSED" if passed else "FAILED",
                 "reason": "Contém troféus de The Witcher 2" if not passed else "",
                 "metrics": {"contamination_error_count": len(witcher2_trophies)},
@@ -286,6 +359,7 @@ async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophy
                 "category": category,
                 "route": route,
                 "question": question,
+                "query_en": query_en,
                 "status": "FAILED",
                 "reason": (
                     "Divergência de schema: Tabelas SQL de catálogo/progresso (player_games, player_trophies) "
@@ -380,6 +454,7 @@ async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophy
                 "category": category,
                 "route": route,
                 "question": question,
+                "query_en": query_en,
                 "status": "PASSED" if passed else "FAILED",
                 "reason": reason,
                 "metrics": {
@@ -419,6 +494,7 @@ async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophy
             "category": category,
             "route": route,
             "question": question,
+            "query_en": query_en,
             "status": "PASSED" if passed else "FAILED",
             "reason": "; ".join(reasons) if not passed else "",
             "metrics": {
@@ -440,8 +516,15 @@ async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophy
 
 
 async def main():
+    emb_provider = os.getenv("EMBEDDING_PROVIDER", "local").strip().lower()
+    emb_model = "text-embedding-3-small (1536 dims)" if emb_provider == "openai" else "deterministic-1536 (local pseudo-random)"
+    tsv_config = "english (to_tsvector('english', coalesce(title, '') || ' ' || coalesce(content, '')))"
+
     print("=" * 80)
     print("           PLATINA AI — RUNNER DE AVALIAÇÃO DE RAG & SQL (GOLDEN SET)")
+    print("=" * 80)
+    print(f"[CONFIG] Embedding Provider: {emb_provider} ({emb_model})")
+    print(f"[CONFIG] Full-Text TSVector: {tsv_config}")
     print("=" * 80)
 
     if not GOLDEN_FILE.exists():
@@ -468,11 +551,11 @@ async def main():
         res = await session.execute(stmt)
         player_trophies = res.scalars().all()
 
-    # 4. Avalia cada caso
-    results: List[Dict[str, Any]] = []
-    for c in cases:
-        eval_res = await evaluate_case(c, player_trophies)
-        results.append(eval_res)
+    # 4. Avalia casos (com concorrência assíncrona para rotas do agente)
+    print("Avaliando casos (executando avaliações em paralelo)...")
+    results: List[Dict[str, Any]] = list(
+        await asyncio.gather(*[evaluate_case(c, player_trophies) for c in cases])
+    )
 
     # 5. Agregação por Categoria
     categories: Dict[str, Dict[str, int]] = {}
@@ -494,6 +577,9 @@ async def main():
         "must_contain": {"total": 0, "success": 0},
         "completeness": {"total": 0, "total_score": 0.0},
         "contamination": {"total": 0, "success": 0},
+        "faithfulness": {"total": 0, "total_score": 0.0},
+        "answer_relevance": {"total": 0, "total_score": 0.0},
+        "abstention": {"total": 0, "success": 0},
     }
 
     for r in results:
@@ -513,6 +599,16 @@ async def main():
             metrics_summary["contamination"]["total"] += 1
             if m["contamination_error_count"] == 0:
                 metrics_summary["contamination"]["success"] += 1
+        if "faithfulness" in m:
+            metrics_summary["faithfulness"]["total"] += 1
+            metrics_summary["faithfulness"]["total_score"] += m["faithfulness"]
+        if "answer_relevance" in m:
+            metrics_summary["answer_relevance"]["total"] += 1
+            metrics_summary["answer_relevance"]["total_score"] += m["answer_relevance"]
+        if "is_abstained" in m and r.get("category") == "fora_escopo":
+            metrics_summary["abstention"]["total"] += 1
+            if m["is_abstained"] == 1.0:
+                metrics_summary["abstention"]["success"] += 1
 
     # 7. Renderiza Relatório em Terminal
     print("\n" + "=" * 80)
@@ -554,6 +650,26 @@ async def main():
     cont_rate = f"{(cont['success'] / cont['total'] * 100):.1f}%" if cont["total"] else "N/A"
     print(f"{'contamination':<18} | {cont['total']:<10} | {cont['success']:<8} | {cont_rate:<15}")
 
+    faith = metrics_summary["faithfulness"]
+    faith_rate = (
+        f"{(faith['total_score'] / faith['total'] * 100):.1f}% (méd)"
+        if faith["total"]
+        else "N/A"
+    )
+    print(f"{'faithfulness':<18} | {faith['total']:<10} | {'-':<8} | {faith_rate:<15}")
+
+    ans_rel = metrics_summary["answer_relevance"]
+    ans_rel_rate = (
+        f"{(ans_rel['total_score'] / ans_rel['total'] * 100):.1f}% (méd)"
+        if ans_rel["total"]
+        else "N/A"
+    )
+    print(f"{'answer_relevance':<18} | {ans_rel['total']:<10} | {'-':<8} | {ans_rel_rate:<15}")
+
+    abst = metrics_summary["abstention"]
+    abst_rate = f"{(abst['success'] / abst['total'] * 100):.1f}%" if abst["total"] else "N/A"
+    print(f"{'abstention':<18} | {abst['total']:<10} | {abst['success']:<8} | {abst_rate:<15}")
+
     print("\n" + "=" * 80)
     print("        3. CASOS COM FALHA OU DIVERGÊNCIA IDENTIFICADA (BASELINE)")
     print("=" * 80)
@@ -566,12 +682,17 @@ async def main():
             print(f"   -> Motivo: {f_case['reason']}")
 
     print("\n" + "=" * 80)
-    print("        4. CASOS SKIPPED (ROTAS 'HYBRID' E 'NONE' — AGENTE COM LLM)")
+    print("    4. CASOS AVALIADOS PELO AGENTE COM RAG TRIAD ('HYBRID' E 'NONE')")
     print("=" * 80)
-    skipped_cases = [r for r in results if r["status"] == "SKIPPED"]
-    for s_case in skipped_cases:
-        print(f"[{s_case['id']}] ({s_case['route'].upper()}/{s_case['category']}) {s_case['question']}")
-        print(f"   -> {s_case['reason']}")
+    agent_cases = [r for r in results if r["route"] in ["hybrid", "none"]]
+    for a_case in agent_cases:
+        status_sym = "✅ PASSED" if a_case["status"] == "PASSED" else "❌ FAILED"
+        m = a_case.get("metrics", {})
+        triad_info = f"Fidelidade: {m.get('faithfulness', 0.0):.2f} | Pertinência: {m.get('answer_relevance', 0.0):.2f}"
+        print(f"[{a_case['id']}] ({a_case['route'].upper()}/{a_case['category']}) {a_case['question']}")
+        print(f"   -> Status: {status_sym} | {triad_info}")
+        if a_case.get("reason"):
+            print(f"   -> Motivo: {a_case['reason']}")
 
     # 8. Grava resultado em JSON em tests/eval/results/<data>.json
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -588,6 +709,9 @@ async def main():
             "must_contain": mc_rate,
             "completeness_average": comp_rate,
             "contamination_success_rate": cont_rate,
+            "faithfulness_average": faith_rate,
+            "answer_relevance_average": ans_rel_rate,
+            "abstention_success_rate": abst_rate,
         },
         "results": results,
     }

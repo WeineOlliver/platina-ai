@@ -91,7 +91,7 @@ export class SearchGuidesTool {
         reranker_latency_ms = searchRes.reranker_latency_ms;
       }
 
-      if (results.length === 0 && resolvedGame) {
+      if (results.length === 0 && resolvedGame && process.env.PLATINA_DISABLE_LIVE_SCRAPING !== 'true') {
         try {
           await ingestionClient.fetchAndIndex(resolvedGame);
           if (isSearchMocked) {
