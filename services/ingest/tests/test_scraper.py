@@ -38,7 +38,7 @@ async def test_cleanup_fixture_preserves_witcher_chunks():
             title="Preserved Witcher Chunk",
             content="This chunk must not be deleted by test fixtures.",
             source_url="https://test.powerpyx.com/witcher-chunk",
-            embedding=[0.0] * 1536,
+            embedding=[0.0] * 384,
             is_missable=False,
         )
         test_chunk = GuideChunkModel(
@@ -47,7 +47,7 @@ async def test_cleanup_fixture_preserves_witcher_chunks():
             title="Temporary Test Chunk",
             content="This chunk should be deleted by test cleanup.",
             source_url="https://test.powerpyx.com/test-chunk",
-            embedding=[0.0] * 1536,
+            embedding=[0.0] * 384,
             is_missable=False,
         )
         session.add(witcher_chunk)

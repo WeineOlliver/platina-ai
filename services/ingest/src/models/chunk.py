@@ -2,6 +2,7 @@ from sqlalchemy import Column, String, Text, Boolean, DateTime, func, Computed
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import declarative_base
 from pgvector.sqlalchemy import Vector
+from src.config import settings
 
 Base = declarative_base()
 
@@ -19,7 +20,8 @@ class GuideChunkModel(Base):
     is_missable = Column(Boolean, default=False, index=True)
     source_url = Column(String(500), nullable=True)
     metadata_ = Column("metadata", JSONB, default=dict)
-    embedding = Column(Vector(1536), nullable=False)
+    # Insight: Vector dimension is dynamically configurable via settings.EMBEDDING_DIMENSIONS
+    embedding = Column(Vector(settings.EMBEDDING_DIMENSIONS), nullable=False)
     # Insight: All guides and search queries are processed internally in English
     tsv = Column(
         TSVECTOR,

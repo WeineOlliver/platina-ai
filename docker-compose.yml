@@ -37,6 +37,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-platina}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-platina123}
       POSTGRES_DB: ${POSTGRES_DB:-platina_rag}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-fastembed}
+      EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-384}
       HOST: 0.0.0.0
       PORT: 8000
     ports:

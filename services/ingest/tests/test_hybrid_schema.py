@@ -47,7 +47,7 @@ async def test_query_tsv_with_to_tsquery():
             text(
                 """
                 INSERT INTO guide_chunks (id, game, title, content, is_missable, embedding)
-                VALUES (:id, :game, :title, :content, :is_missable, array_fill(0::real, ARRAY[1536]));
+                VALUES (:id, :game, :title, :content, :is_missable, array_fill(0::real, ARRAY[384]));
                 """
             ),
             {

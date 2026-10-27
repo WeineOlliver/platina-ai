@@ -17,7 +17,8 @@ class Settings(BaseSettings):
 
     # Embedding model configuration
     EMBEDDING_PROVIDER: str = "local"
-    EMBEDDING_MODEL: str = "text-embedding-3-small"
+    EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"
+    EMBEDDING_DIMENSIONS: int = 384
 
     model_config = SettingsConfigDict(
         env_file=".env",
