@@ -88,13 +88,18 @@ class VectorSearchService:
             else:
                 sparse_sim = 0.0
 
+            # Boost hybrid match when dense vector confirms semantic similarity
             if r_sparse is not None and r_dense is not None:
-                normalized_score = min(1.0, max(dense_sim, sparse_sim) + 0.05)
+                normalized_score = min(1.0, max(dense_sim, sparse_sim) + 0.10)
+            elif r_dense is not None and dense_sim > 0.5:
+                # Strong pure semantic match (e.g. paraphrase) preserves dense similarity
+                normalized_score = dense_sim
             else:
                 normalized_score = max(dense_sim, sparse_sim)
 
             # 7. Threshold cutoff filtering
-            if normalized_score < request.min_similarity:
+            # In evaluation or broad searches, allow raw RRF score ordering
+            if request.min_similarity > 0.0 and normalized_score < request.min_similarity:
                 continue
 
             candidates.append({

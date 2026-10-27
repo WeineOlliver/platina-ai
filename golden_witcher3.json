@@ -565,6 +565,94 @@
         "note": "não existe na lista oficial (base + DLCs); agente não pode confundir com Gwent Master"
       },
       "verified": true
+    },
+    {
+      "id": "P01",
+      "category": "parafrase",
+      "route": "rag",
+      "question": "Matar vinte vacas",
+      "query_en": "Slaughter twenty cattle",
+      "expected": {
+        "trophy": "Moo-rderer"
+      },
+      "verified": true
+    },
+    {
+      "id": "P02",
+      "category": "parafrase",
+      "route": "rag",
+      "question": "Empurrar inimigos de penhascos com rajada telecinética",
+      "query_en": "Push foes off cliffs using a telekinetic blast",
+      "expected": {
+        "trophy": "Humpty Dumpty"
+      },
+      "verified": true
+    },
+    {
+      "id": "P03",
+      "category": "parafrase",
+      "route": "rag",
+      "question": "Escorregar por uma encosta por bastante tempo sem parar",
+      "query_en": "Skid down a slope for a long time without stopping",
+      "expected": {
+        "trophy": "Rad Steez, Bro!"
+      },
+      "verified": true
+    },
+    {
+      "id": "P04",
+      "category": "parafrase",
+      "route": "rag",
+      "question": "Derrotar arqueiros devolvendo seus projéteis contra eles",
+      "query_en": "Defeat archers by sending their projectiles back at them",
+      "expected": {
+        "trophy": "Return to Sender"
+      },
+      "verified": true
+    },
+    {
+      "id": "P05",
+      "category": "parafrase",
+      "route": "rag",
+      "question": "Vencer uma luta de boxe sem levar dano",
+      "query_en": "Win a boxing match flawlessly",
+      "expected": {
+        "trophy": "Fist of the South Star"
+      },
+      "verified": true
+    },
+    {
+      "id": "P06",
+      "category": "parafrase",
+      "route": "rag",
+      "question": "Chegar em primeiro em todas as corridas a cavalo",
+      "query_en": "Finish first in every equestrian competition",
+      "expected": {
+        "trophy": "Fast and Furious"
+      },
+      "verified": true
+    },
+    {
+      "id": "P07",
+      "category": "parafrase",
+      "route": "rag",
+      "question": "Aprender fórmulas para diversos tipos de explosivos",
+      "query_en": "Learn recipes for several kinds of explosives",
+      "expected": {
+        "trophy": "Bombardier"
+      },
+      "verified": true
+    },
+    {
+      "id": "P08",
+      "category": "parafrase",
+      "route": "rag",
+      "question": "Eliminar um grupo de inimigos com extrema rapidez",
+      "query_en": "Wipe out a group of enemies extremely quickly",
+      "expected": {
+        "trophy": "Butcher of Blaviken"
+      },
+      "verified": true
     }
   ],
   "sources": {

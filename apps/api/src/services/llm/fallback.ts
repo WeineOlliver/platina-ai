@@ -4,23 +4,14 @@ export const DEFAULT_MODEL_CASCADE = [
   'qwen/qwen3.8-27b',
 ];
 
-function isTransientError(error: unknown): boolean {
-  if (!error) return false;
-
-  const status =
-    (error as { status?: number; statusCode?: number }).status ??
-    (error as { status?: number; statusCode?: number }).statusCode;
-
-  const message = (error as { message?: string }).message;
+const isTransientError = (err: unknown): boolean => {
+  if (!err) return false;
+  const status = (err as { status?: number; statusCode?: number }).status ?? (err as { status?: number; statusCode?: number }).statusCode;
+  const message = (err as { message?: string }).message;
 
   if (typeof status === 'number') {
-    if (status === 401 || status === 403) {
-      return false;
-    }
-    if (status === 429 || status >= 500) {
-      return true;
-    }
-    // Only failover on 400 when it is specifically a tool calling corruption error
+    if (status === 401 || status === 403) return false;
+    if (status === 429 || status >= 500) return true;
     if (status === 400 && typeof message === 'string') {
       const lower = message.toLowerCase();
       if (
@@ -33,6 +24,7 @@ function isTransientError(error: unknown): boolean {
     }
     return false;
   }
+
   if (typeof message === 'string') {
     const lower = message.toLowerCase();
     if (
@@ -41,14 +33,17 @@ function isTransientError(error: unknown): boolean {
       lower.includes('rate_limit_exceeded') ||
       lower.includes('tool_use_failed') ||
       lower.includes('tool call validation failed') ||
-      lower.includes('attempted to call tool')
+      lower.includes('attempted to call tool') ||
+      lower.includes('tpd') ||
+      lower.includes('tpm') ||
+      lower.includes('rpm')
     ) {
       return true;
     }
   }
 
   return false;
-}
+};
 
 export async function executeWithModelCascade<T>(
   models: string[],

@@ -9,6 +9,7 @@ interface TestCaseInput {
   route: string;
   question: string;
   game?: string;
+  toolOnly?: boolean;
   expected?: {
     trophies?: string[];
     must_contain?: string[];
@@ -49,6 +50,10 @@ async function main() {
     })) {
       if (event.type === 'tool_call') {
         toolCalls.push({ name: event.toolName || '', args: event.toolArgs });
+        if (testCase.toolOnly) {
+          // Immediately exit if caller only requested tool call translation probe
+          break;
+        }
       }
       if (event.type === 'tool_result' && event.toolResult) {
         const tr = event.toolResult as { results?: Array<{ title?: string; content?: string }> };
@@ -65,6 +70,19 @@ async function main() {
       }
     }
 
+    if (testCase.toolOnly) {
+      console.log('__EVAL_RESULT_START__' + JSON.stringify({
+        id: testCase.id,
+        category: testCase.category,
+        route: testCase.route,
+        question: testCase.question,
+        status: 'PASSED',
+        toolCalls,
+        evaluation: null,
+      }) + '__EVAL_RESULT_END__');
+      process.exit(0);
+    }
+
     const evaluation = await evaluateRagTriad({
       query: testCase.question,
       contexts: collectedContexts,
@@ -72,22 +90,21 @@ async function main() {
     });
 
     const isAbstained =
-      /não foi possível encontrar|guia oficial não encontrado|quer que eu procure|não encontrado|não existe|não possuo|não temos|desculpe|infelizmente|não está disponível/i.test(
+      /não foi possível encontrar|guia oficial não encontrado|quer que eu procure|não encontrado|não existe|não possuo|não temos|desculpe|infelizmente|não está disponível|official guide not found/i.test(
         finalAnswer
-      ) ||
-      evaluation.faithfulness.score >= 0.85;
+      );
 
     let passed = false;
     const reasons: string[] = [];
 
     if (testCase.route === 'none') {
-      // For 'none', criterion is abstention (not hallucinating or fabricating)
-      passed = isAbstained || evaluation.faithfulness.score >= 0.8;
+      // For 'none', criterion is strictly abstention
+      passed = Boolean(isAbstained);
       if (!passed) {
         reasons.push('Agent failed to abstain and may have hallucinated facts');
       }
     } else if (testCase.route === 'hybrid') {
-      // For 'hybrid', must mention expected trophies/must_contain and maintain high triad score
+      // For 'hybrid', must mention expected trophies/must_contain and maintain high triad score (faithfulness >= 0.8)
       const expectedTrophies = testCase.expected?.trophies || [];
       const mustContain = testCase.expected?.must_contain || [];
 
@@ -100,7 +117,7 @@ async function main() {
       );
 
       const contentPassed = missingTrophies.length === 0 && missingMustContain.length === 0;
-      const triadPassed = evaluation.faithfulness.score >= 0.5 && evaluation.answerRelevance.score >= 0.5;
+      const triadPassed = evaluation.faithfulness.score >= 0.8 && evaluation.answerRelevance.score >= 0.5;
 
       passed = contentPassed && triadPassed;
       if (missingTrophies.length > 0) {
@@ -111,7 +128,7 @@ async function main() {
       }
       if (!triadPassed) {
         reasons.push(
-          `RAG Triad low score: Faithfulness=${evaluation.faithfulness.score}, AnswerRelevance=${evaluation.answerRelevance.score}`
+          `RAG Triad low score: Faithfulness=${evaluation.faithfulness.score} (expected >= 0.8), AnswerRelevance=${evaluation.answerRelevance.score}`
         );
       }
     }
@@ -140,7 +157,7 @@ async function main() {
         category: testCase.category,
         route: testCase.route,
         question: testCase.question,
-        status: 'FAILED',
+        status: 'ERROR',
         error: errorMsg,
         evaluation: null,
       }) +

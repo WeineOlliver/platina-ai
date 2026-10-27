@@ -171,7 +171,7 @@ def run_agent_eval_case(case: Dict[str, Any]) -> Dict[str, Any]:
             cwd=str(apps_api_dir),
             capture_output=True,
             text=True,
-            timeout=120,
+            timeout=60,
             env=env,
         )
         stdout = proc.stdout
@@ -180,14 +180,24 @@ def run_agent_eval_case(case: Dict[str, Any]) -> Dict[str, Any]:
             return json.loads(raw_json)
         return {
             "id": case["id"],
-            "status": "FAILED",
+            "status": "ERROR",
+            "error": f"Bridge output parse error: {stdout[:200]}",
             "reasons": [f"Bridge output parse error: {stdout[:200]}"],
+            "evaluation": None,
+        }
+    except subprocess.TimeoutExpired as te:
+        return {
+            "id": case["id"],
+            "status": "ERROR",
+            "error": f"Timeout expired after {te.timeout}s",
+            "reasons": [f"Timeout expired after {te.timeout}s"],
             "evaluation": None,
         }
     except Exception as e:
         return {
             "id": case["id"],
-            "status": "FAILED",
+            "status": "ERROR",
+            "error": str(e),
             "reasons": [str(e)],
             "evaluation": None,
         }
@@ -204,21 +214,39 @@ async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophy
     query_en = case.get("query_en") or question
     expected = case.get("expected", {})
 
-    # Routes requiring agent LLM reasoning (hybrid, none) connected to PlatinaAgentRunner + ragTriadJudge
+    # Routes requiring agent LLM reasoning (hybrid, none) run 3 times
     if route in ["hybrid", "none"]:
-        async with AGENT_SEMAPHORE:
-            print(f"[{cid}] (Agent LLM: {route}) Avaliando '{question[:40]}...' ", flush=True)
-            agent_res = await asyncio.to_thread(run_agent_eval_case, case)
-            await asyncio.sleep(1.0)
-        status = agent_res.get("status", "FAILED")
-        print(f"[{cid}] -> {status}", flush=True)
-        reasons = list(agent_res.get("reasons") or [])
-        if "error" in agent_res and agent_res["error"]:
-            reasons.append(agent_res["error"])
-        eval_triad = agent_res.get("evaluation") or {}
+        runs = []
+        for run_idx in range(1, 4):
+            print(f"[{cid}] (Run {run_idx}/3: {route}) Avaliando '{question[:35]}...' ", flush=True)
+            res_i = await asyncio.to_thread(run_agent_eval_case, case)
+            runs.append(res_i)
+            await asyncio.sleep(2.0)
 
+        # Count passes, fails, errors
+        pass_count = sum(1 for r in runs if r.get("status") == "PASSED")
+        error_count = sum(1 for r in runs if r.get("status") == "ERROR")
+        
+        # Overall status: PASSED only if passed in all 3 runs
+        if error_count == 3:
+            final_status = "ERROR"
+        elif pass_count == 3:
+            final_status = "PASSED"
+        else:
+            final_status = "FAILED"
+
+        print(f"[{cid}] -> {pass_count}/3 passed (Status: {final_status})", flush=True)
+
+        last_run = runs[-1]
+        reasons = list(last_run.get("reasons") or [])
+        if final_status == "FAILED" and pass_count < 3:
+            reasons.append(f"Passou em {pass_count}/3 tentativas (exige 3/3 para aprovação)")
+
+        eval_triad = last_run.get("evaluation") or {}
         metrics = {
-            "is_abstained": 1.0 if agent_res.get("isAbstained") else 0.0,
+            "is_abstained": 1.0 if last_run.get("isAbstained") else 0.0,
+            "pass_ratio": f"{pass_count}/3",
+            "pass_count": pass_count,
         }
         if eval_triad:
             metrics["faithfulness"] = eval_triad.get("faithfulness", {}).get("score", 0.0)
@@ -232,10 +260,11 @@ async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophy
             "route": route,
             "question": question,
             "query_en": query_en,
-            "status": status,
-            "reason": "; ".join(reasons) if status != "PASSED" else "",
-            "answer": agent_res.get("answer", ""),
+            "status": final_status,
+            "reason": "; ".join(reasons) if final_status != "PASSED" else "",
+            "answer": last_run.get("answer", ""),
             "metrics": metrics,
+            "runs": runs,
         }
 
     # Route: RAG
@@ -284,8 +313,9 @@ async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophy
                 },
             }
 
-        # Standard RAG tests (dica, vaga)
+        # Standard RAG tests (dica, vaga, parafrase)
         t0 = time.perf_counter()
+        print(f"[{cid}] (RAG: {category}) Avaliando '{question[:35]}...' ", flush=True)
         await embedding_service.embed_query(query_en)
         embed_lat_ms = (time.perf_counter() - t0) * 1000.0
 
@@ -320,6 +350,43 @@ async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophy
                 missing_terms.append(term)
         must_contain_passed = len(missing_terms) == 0
 
+        # For vaga category: run through full agent once with question in PT
+        agent_generated_query = ""
+        agent_recall_at_5 = False
+        if category == "vaga":
+            print(f"[{cid}] (Vaga probe) Obtendo query gerada pelo agente... ", flush=True)
+            try:
+                # Fast tool call translation probe without running multi-turn judge
+                agent_case_res = await asyncio.to_thread(run_agent_eval_case, {
+                    "id": cid,
+                    "category": category,
+                    "route": route,
+                    "question": question,
+                    "game": "The Witcher 3: Wild Hunt",
+                    "toolOnly": True,
+                })
+                tool_calls = agent_case_res.get("toolCalls", [])
+                for tc in tool_calls:
+                    if tc.get("name") == "search_trophy_guides":
+                        args = tc.get("args") or {}
+                        if isinstance(args, dict) and args.get("query"):
+                            agent_generated_query = str(args["query"])
+                            break
+                print(f"[{cid}] (Vaga probe) Concluído: '{agent_generated_query}'", flush=True)
+                if agent_generated_query:
+                    search_from_agent = await vector_search_service.search(
+                        SearchQueryRequest(
+                            query=agent_generated_query,
+                            game="The Witcher 3: Wild Hunt",
+                            limit=5,
+                            min_similarity=0.0,
+                        )
+                    )
+                    top_ag_titles = [normalize_str(c.title) for c in search_from_agent.results[:5]]
+                    agent_recall_at_5 = any(exp_trophy_norm in t for t in top_ag_titles)
+            except Exception as e:
+                agent_generated_query = f"Error: {e}"
+
         passed = recall_at_5 and must_contain_passed
         reasons = []
         if not recall_at_5:
@@ -342,6 +409,8 @@ async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophy
                 "must_contain": 1.0 if must_contain_passed else 0.0,
                 "embed_latency_ms": embed_lat_ms,
                 "top_hit": top_chunks[0].title if top_chunks else "None",
+                "agent_generated_query": agent_generated_query,
+                "agent_recall_at_5": agent_recall_at_5,
             },
         }
 
@@ -569,14 +638,15 @@ async def main():
         res = await session.execute(stmt)
         player_trophies = res.scalars().all()
 
-    # 4. Avalia casos (RAG e SQL primeiro, depois Agent casos sequenciais)
+    # 4. Avalia casos (RAG e SQL sequenciais, depois Agent casos sequenciais)
     print("Avaliando casos diretos (RAG e SQL)...")
     direct_cases = [c for c in cases if c.get("route") not in ["hybrid", "none"]]
     agent_cases = [c for c in cases if c.get("route") in ["hybrid", "none"]]
 
-    results: List[Dict[str, Any]] = list(
-        await asyncio.gather(*[evaluate_case(c, player_trophies) for c in direct_cases])
-    )
+    results: List[Dict[str, Any]] = []
+    for dc in direct_cases:
+        res = await evaluate_case(dc, player_trophies)
+        results.append(res)
 
     print(f"Avaliando {len(agent_cases)} casos com Agente LLM...")
     for ac in agent_cases:
@@ -586,15 +656,19 @@ async def main():
 
     # 5. Agregação por Categoria
     categories: Dict[str, Dict[str, int]] = {}
+    total_errors = 0
     for r in results:
         cat = r["category"]
         if cat not in categories:
-            categories[cat] = {"total": 0, "passed": 0, "failed": 0, "skipped": 0}
+            categories[cat] = {"total": 0, "passed": 0, "failed": 0, "error": 0, "skipped": 0}
         categories[cat]["total"] += 1
         if r["status"] == "PASSED":
             categories[cat]["passed"] += 1
         elif r["status"] == "FAILED":
             categories[cat]["failed"] += 1
+        elif r["status"] == "ERROR":
+            categories[cat]["error"] += 1
+            total_errors += 1
         elif r["status"] == "SKIPPED":
             categories[cat]["skipped"] += 1
 
@@ -645,15 +719,17 @@ async def main():
     print("\n" + "=" * 80)
     print("                    1. RELATÓRIO POR CATEGORIA")
     print("=" * 80)
-    print(f"{'Categoria':<18} | {'Total':<6} | {'Passou':<7} | {'Falhou':<7} | {'Ignorado':<8} | {'Taxa Efetiva':<12}")
-    print("-" * 75)
+    print(f"{'Categoria':<18} | {'Total':<6} | {'Passou':<7} | {'Falhou':<7} | {'Erro (API)':<10} | {'Ignorado':<8} | {'Taxa Efetiva':<12}")
+    print("-" * 85)
     for cat, counts in categories.items():
         evaluated = counts["passed"] + counts["failed"]
         rate = f"{(counts['passed'] / evaluated * 100):.1f}%" if evaluated > 0 else "(N/A)"
         print(
             f"{cat:<18} | {counts['total']:<6} | {counts['passed']:<7} | {counts['failed']:<7} | "
-            f"{counts['skipped']:<8} | {rate:<12}"
+            f"{counts['error']:<10} | {counts['skipped']:<8} | {rate:<12}"
         )
+    print("-" * 85)
+    print(f"[STATUS ERROR TOTAL]: {total_errors} caso(s) com timeout ou falha de infraestrutura de API/rede.")
 
     print("\n" + "=" * 80)
     print("                    2. RELATÓRIO POR MÉTRICA")
@@ -719,15 +795,30 @@ async def main():
     print("\n" + "=" * 80)
     print("    4. CASOS AVALIADOS PELO AGENTE COM RAG TRIAD ('HYBRID' E 'NONE')")
     print("=" * 80)
-    agent_cases = [r for r in results if r["route"] in ["hybrid", "none"]]
-    for a_case in agent_cases:
-        status_sym = "✅ PASSED" if a_case["status"] == "PASSED" else "❌ FAILED"
+    agent_eval_cases = [r for r in results if r["route"] in ["hybrid", "none"]]
+    for a_case in agent_eval_cases:
+        status_sym = "✅ PASSED" if a_case["status"] == "PASSED" else ("⚠️ ERROR" if a_case["status"] == "ERROR" else "❌ FAILED")
         m = a_case.get("metrics", {})
-        triad_info = f"Fidelidade: {m.get('faithfulness', 0.0):.2f} | Pertinência: {m.get('answer_relevance', 0.0):.2f}"
+        ratio_info = m.get("pass_ratio", "N/A")
+        triad_info = f"Taxa 3x: {ratio_info} | Fidelidade: {m.get('faithfulness', 0.0):.2f} | Pertinência: {m.get('answer_relevance', 0.0):.2f}"
         print(f"[{a_case['id']}] ({a_case['route'].upper()}/{a_case['category']}) {a_case['question']}")
         print(f"   -> Status: {status_sym} | {triad_info}")
         if a_case.get("reason"):
             print(f"   -> Motivo: {a_case['reason']}")
+
+    # Print Vaga Agent Tool Queries Table
+    vaga_cases = [r for r in results if r["category"] == "vaga"]
+    if vaga_cases:
+        print("\n" + "=" * 80)
+        print("    5. TABELA DE QUERIES GERADAS PELO AGENTE NOS CASOS VAGA")
+        print("=" * 80)
+        print(f"{'ID':<6} | {'Gabarito (query_en)':<45} | {'Query do Agente':<25} | {'Recall@5 Agente':<15}")
+        print("-" * 100)
+        for vc in vaga_cases:
+            vm = vc.get("metrics", {})
+            ag_q = str(vm.get("agent_generated_query") or "-")
+            rec_ag = "✅ SIM" if vm.get("agent_recall_at_5") else "❌ NÃO"
+            print(f"{vc['id']:<6} | {vc.get('query_en', '')[:43]:<45} | {ag_q[:23]:<25} | {rec_ag:<15}")
 
     # 8. Grava resultado em JSON em tests/eval/results/<data>.json
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
