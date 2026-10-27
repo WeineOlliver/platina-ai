@@ -16,6 +16,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import unicodedata
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -95,8 +96,10 @@ async def index_snapshots_if_available(game_name: str = "The Witcher 3: Wild Hun
     if not all_chunks:
         return 0
 
+    t_idx_start = time.perf_counter()
     texts = [f"{c.title}\n{c.content}" for c in all_chunks]
     embeddings = await embedding_service.embed_batch(texts)
+    idx_duration = time.perf_counter() - t_idx_start
 
     async with get_db_session() as session:
         # Atomic clean replacement of witcher chunks for evaluation run
@@ -144,7 +147,7 @@ async def index_snapshots_if_available(game_name: str = "The Witcher 3: Wild Hun
             )
             await session.commit()
 
-    print(f"[INDEXAÇÃO] {len(all_chunks)} chunks indexados a partir de {len(html_files)} snapshot(s).")
+    print(f"[INDEXAÇÃO] {len(all_chunks)} chunks indexados a partir de {len(html_files)} snapshot(s) em {idx_duration:.3f}s.")
     return len(all_chunks)
 
 
@@ -241,6 +244,10 @@ async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophy
         if category == "contaminacao":
             # Pass session game (Witcher 3) and English query as the agent would
             game_filter = "The Witcher 3: Wild Hunt"
+            t0 = time.perf_counter()
+            await embedding_service.embed_query(query_en)
+            embed_lat_ms = (time.perf_counter() - t0) * 1000.0
+
             res = await vector_search_service.search(
                 SearchQueryRequest(query=query_en, game=game_filter, limit=5, min_similarity=0.0)
             )
@@ -272,11 +279,16 @@ async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophy
                 "reason": "; ".join(reasons) if not passed else "",
                 "metrics": {
                     "contamination_error_count": len(foreign_games) + len(found_forbidden),
+                    "embed_latency_ms": embed_lat_ms,
                     "passed": passed,
                 },
             }
 
         # Standard RAG tests (dica, vaga)
+        t0 = time.perf_counter()
+        await embedding_service.embed_query(query_en)
+        embed_lat_ms = (time.perf_counter() - t0) * 1000.0
+
         res = await vector_search_service.search(
             SearchQueryRequest(
                 query=query_en,
@@ -328,6 +340,7 @@ async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophy
             "metrics": {
                 "recall_at_5": 1.0 if recall_at_5 else 0.0,
                 "must_contain": 1.0 if must_contain_passed else 0.0,
+                "embed_latency_ms": embed_lat_ms,
                 "top_hit": top_chunks[0].title if top_chunks else "None",
             },
         }
@@ -517,7 +530,12 @@ async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophy
 
 async def main():
     emb_provider = os.getenv("EMBEDDING_PROVIDER", "local").strip().lower()
-    emb_model = "text-embedding-3-small (1536 dims)" if emb_provider == "openai" else "deterministic-1536 (local pseudo-random)"
+    if emb_provider == "fastembed":
+        emb_model = "BAAI/bge-small-en-v1.5 (384 dims)"
+    elif emb_provider == "openai":
+        emb_model = "text-embedding-3-small (1536 dims)"
+    else:
+        emb_model = f"deterministic (local pseudo-random, {os.getenv('EMBEDDING_DIMENSIONS', '384')} dims)"
     tsv_config = "english (to_tsvector('english', coalesce(title, '') || ' ' || coalesce(content, '')))"
 
     print("=" * 80)
@@ -551,11 +569,20 @@ async def main():
         res = await session.execute(stmt)
         player_trophies = res.scalars().all()
 
-    # 4. Avalia casos (com concorrência assíncrona para rotas do agente)
-    print("Avaliando casos (executando avaliações em paralelo)...")
+    # 4. Avalia casos (RAG e SQL primeiro, depois Agent casos sequenciais)
+    print("Avaliando casos diretos (RAG e SQL)...")
+    direct_cases = [c for c in cases if c.get("route") not in ["hybrid", "none"]]
+    agent_cases = [c for c in cases if c.get("route") in ["hybrid", "none"]]
+
     results: List[Dict[str, Any]] = list(
-        await asyncio.gather(*[evaluate_case(c, player_trophies) for c in cases])
+        await asyncio.gather(*[evaluate_case(c, player_trophies) for c in direct_cases])
     )
+
+    print(f"Avaliando {len(agent_cases)} casos com Agente LLM...")
+    for ac in agent_cases:
+        res = await evaluate_case(ac, player_trophies)
+        results.append(res)
+        await asyncio.sleep(2.0)
 
     # 5. Agregação por Categoria
     categories: Dict[str, Dict[str, int]] = {}
@@ -580,10 +607,14 @@ async def main():
         "faithfulness": {"total": 0, "total_score": 0.0},
         "answer_relevance": {"total": 0, "total_score": 0.0},
         "abstention": {"total": 0, "success": 0},
+        "embed_latency": {"total": 0, "total_ms": 0.0},
     }
 
     for r in results:
         m = r.get("metrics", {})
+        if "embed_latency_ms" in m:
+            metrics_summary["embed_latency"]["total"] += 1
+            metrics_summary["embed_latency"]["total_ms"] += m["embed_latency_ms"]
         if "recall_at_5" in m:
             metrics_summary["recall_at_5"]["total"] += 1
             if m["recall_at_5"] == 1.0:
@@ -670,6 +701,10 @@ async def main():
     abst_rate = f"{(abst['success'] / abst['total'] * 100):.1f}%" if abst["total"] else "N/A"
     print(f"{'abstention':<18} | {abst['total']:<10} | {abst['success']:<8} | {abst_rate:<15}")
 
+    el = metrics_summary["embed_latency"]
+    avg_embed_lat = (el["total_ms"] / el["total"]) if el["total"] else 0.0
+    print(f"{'embed_latency_ms':<18} | {el['total']:<10} | {'-':<8} | {avg_embed_lat:.2f} ms (méd)")
+
     print("\n" + "=" * 80)
     print("        3. CASOS COM FALHA OU DIVERGÊNCIA IDENTIFICADA (BASELINE)")
     print("=" * 80)
@@ -712,6 +747,7 @@ async def main():
             "faithfulness_average": faith_rate,
             "answer_relevance_average": ans_rel_rate,
             "abstention_success_rate": abst_rate,
+            "average_embed_latency_ms": round(avg_embed_lat, 2),
         },
         "results": results,
     }
