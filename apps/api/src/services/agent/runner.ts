@@ -358,6 +358,18 @@ ${personaInstructions}`;
 
     const collectedGuideSources: GuideSourceItem[] = [];
     let hadZeroContextSearchResult = false;
+    let hasSuccessfulContextToolCall = false;
+
+    // Insight: Classify whether this query relates to a game or trophy to enforce required tool choice
+    const isPureChoiceOrGreeting =
+      /^(1|2|a|b|sim|nao|ok|quero|ola|oi|rota 1|rota 2|yes|no|option 1|option 2|route 1|route 2|hello|hi)$/i.test(userMessage.trim()) ||
+      /^(1|2|a|b)$/i.test(userMessage.trim());
+
+    const isGameOrTrophyQuery =
+      !shouldPrefetch &&
+      !isPureChoiceOrGreeting &&
+      (Boolean(targetGame || detectedGame || options.game) ||
+        /(trof[eé]u|trophy|achievement|conquista|platina|platinar|quest|miss[aã]o|missable|perd[ií]vel|guia|guide|jogo|game|boss|dlc|gwent|card|carta)/i.test(userMessage));
 
     const recordTelemetry = async (finalAnswer: string) => {
       const totalLatencyMs = Number((performance.now() - reqStart).toFixed(2));
@@ -427,8 +439,12 @@ ${personaInstructions}`;
       };
 
       if (prefetchResult && typeof prefetchResult === 'object') {
+        const pData = prefetchResult as Partial<PlayerProgressResult>;
+        if (pData.game || pData.unearned_trophies_summary?.length || pData.pending_missable_trophies?.length) {
+          hasSuccessfulContextToolCall = true;
+        }
         addPlayerProgressToSources(
-          prefetchResult as Partial<PlayerProgressResult>,
+          pData,
           collectedGuideSources,
           lang
         );
@@ -572,6 +588,9 @@ ${personaInstructions}`;
       let assistantMsg: Groq.Chat.ChatCompletionMessage;
       const llmStart = performance.now();
       try {
+        // Insight: Enforce tool_choice 'required' on step 1 for game/trophy queries
+        const toolChoice = (step === 1 && isGameOrTrophyQuery) ? 'required' : 'auto';
+
         const completion = await executeWithModelCascade(
           cascadeModels,
           (model) =>
@@ -580,7 +599,7 @@ ${personaInstructions}`;
                 model,
                 messages,
                 tools: this.getAvailableTools(),
-                tool_choice: 'auto',
+                tool_choice: toolChoice,
                 max_tokens: isDeepWalkthrough ? 2048 : (model.includes('qwen') ? 600 : 800),
               },
               { signal: options.signal }
@@ -640,6 +659,17 @@ ${personaInstructions}`;
       const toolCalls = assistantMsg.tool_calls;
 
       if (!toolCalls || toolCalls.length === 0) {
+        // Insight: Final guard — if answer is generated without any successful tool call with context on a game/trophy query, return fixed abstention
+        if (isGameOrTrophyQuery && (!hasSuccessfulContextToolCall || collectedGuideSources.length === 0)) {
+          const abstentionMsg = isEn
+            ? 'Official guide not found for this objective in the database.\nWould you like me to index this guide or search complementary sources?'
+            : 'Guia oficial não encontrado para este objetivo no banco de dados.\nQuer que eu realize a ingestão deste guia ou procure em fontes complementares?';
+          yield { type: 'chunk', content: abstentionMsg };
+          await recordTelemetry(abstentionMsg);
+          yield { type: 'done' };
+          return;
+        }
+
         // Insight: Guaranteed abstention by code. If tools yielded no usable context, do NOT allow LLM freeform generation.
         if (collectedGuideSources.length === 0 && (hadZeroContextSearchResult || /hollow knight|silksong|grandmaster|blood and wine/i.test(userMessage))) {
           const abstentionMsg = isEn
@@ -651,8 +681,45 @@ ${personaInstructions}`;
           return;
         }
 
+        // Insight: Handle empty final response with 1x retry; if it persists, yield fixed temporary failure message
+        let rawContent = assistantMsg.content ?? '';
+        if (!rawContent.trim()) {
+          try {
+            const retryCompletion = await executeWithModelCascade(
+              cascadeModels,
+              (model) =>
+                this.client!.chat.completions.create(
+                  {
+                    model,
+                    messages: [
+                      ...messages,
+                      {
+                        role: 'user',
+                        content: isEn
+                          ? 'Your previous response was empty. Please provide your complete answer now in English.'
+                          : 'Sua resposta anterior foi vazia. Por favor, forneça sua resposta completa agora.',
+                      },
+                    ],
+                    max_tokens: isDeepWalkthrough ? 2048 : (model.includes('qwen') ? 600 : 800),
+                  },
+                  { signal: options.signal }
+                )
+            );
+            rawContent = retryCompletion.choices[0]?.message?.content ?? '';
+          } catch {}
+        }
+
+        if (!rawContent.trim()) {
+          const temporaryFailureMsg = isEn
+            ? 'Temporary service failure. Please try again in a moment.'
+            : 'Falha temporária no serviço. Por favor, tente novamente em alguns instantes.';
+          yield { type: 'chunk', content: temporaryFailureMsg };
+          await recordTelemetry(temporaryFailureMsg);
+          yield { type: 'done' };
+          return;
+        }
+
         // No more tool calls; validate content with Pre-Flight Verification before streaming
-        const rawContent = assistantMsg.content ?? '';
         const verifiedContent = await verifyAndStreamAnswer(rawContent, messages);
         const distinctSources = extractDistinctSources(collectedGuideSources);
         const finalContent = appendSourcesFooter(verifiedContent || rawContent, distinctSources, lang);
@@ -754,9 +821,10 @@ ${personaInstructions}`;
 
         if (toolName === SearchGuidesTool.name && resultData && typeof resultData === 'object' && 'results' in resultData) {
           const results = (resultData as { results?: Array<{ title?: string; content?: string; source_url?: string }> }).results;
-          if (Array.isArray(results)) {
+          if (Array.isArray(results) && results.length > 0) {
             for (const item of results) {
               if (item?.content) {
+                hasSuccessfulContextToolCall = true;
                 collectedGuideSources.push({
                   title: item.title || (isEn ? 'Trophy Guide' : 'Guia de Troféus'),
                   content: item.content,
@@ -807,6 +875,9 @@ ${personaInstructions}`;
 
         if (toolName === PlayerProgressTool.name && resultData && typeof resultData === 'object') {
           const pData = resultData as Partial<PlayerProgressResult>;
+          if (pData.game || pData.unearned_trophies_summary?.length || pData.pending_missable_trophies?.length) {
+            hasSuccessfulContextToolCall = true;
+          }
           if (pData.game) {
             detectedGame = detectedGame || pData.game;
           }
@@ -829,7 +900,17 @@ ${personaInstructions}`;
     }
 
     // If max steps reached without final text, generate a direct answer from collected messages
-    // Insight: Guaranteed abstention when zero usable context was retrieved
+    // Insight: Final guard — if answer is generated without any successful tool call with context on a game/trophy query, return fixed abstention
+    if (isGameOrTrophyQuery && (!hasSuccessfulContextToolCall || collectedGuideSources.length === 0)) {
+      const abstentionMsg = isEn
+        ? 'Official guide not found for this objective in the database.\nWould you like me to index this guide or search complementary sources?'
+        : 'Guia oficial não encontrado para este objetivo no banco de dados.\nQuer que eu realize a ingestão deste guia ou procure em fontes complementares?';
+      yield { type: 'chunk', content: abstentionMsg };
+      await recordTelemetry(abstentionMsg);
+      yield { type: 'done' };
+      return;
+    }
+
     if (collectedGuideSources.length === 0 && (hadZeroContextSearchResult || /hollow knight|silksong|grandmaster|blood and wine/i.test(userMessage))) {
       const abstentionMsg = isEn
         ? 'Official guide not found for this objective in the database.\nWould you like me to index this guide or search complementary sources?'
@@ -862,7 +943,44 @@ ${personaInstructions}`;
         )
     );
     llmLatencyMs += performance.now() - fallbackStart;
-    const fallbackRawContent = fallbackCompletion.choices[0]?.message?.content ?? '';
+    let fallbackRawContent = fallbackCompletion.choices[0]?.message?.content ?? '';
+
+    // Insight: Empty response retry 1x in fallback; if it persists, yield fixed temporary failure message
+    if (!fallbackRawContent.trim()) {
+      try {
+        const retryCompletion = await executeWithModelCascade(
+          cascadeModels,
+          (model) =>
+            this.client!.chat.completions.create(
+              {
+                model,
+                messages: [
+                  ...messages,
+                  {
+                    role: 'user',
+                    content: isEn
+                      ? 'Your previous response was empty. Please provide your complete answer now in English.'
+                      : 'Sua resposta anterior foi vazia. Por favor, forneça sua resposta completa agora.',
+                  },
+                ],
+                max_tokens: isDeepWalkthrough ? 2048 : (model.includes('qwen') ? 600 : 800),
+              },
+              { signal: options.signal }
+            )
+        );
+        fallbackRawContent = retryCompletion.choices[0]?.message?.content ?? '';
+      } catch {}
+    }
+
+    if (!fallbackRawContent.trim()) {
+      const temporaryFailureMsg = isEn
+        ? 'Temporary service failure. Please try again in a moment.'
+        : 'Falha temporária no serviço. Por favor, tente novamente em alguns instantes.';
+      yield { type: 'chunk', content: temporaryFailureMsg };
+      await recordTelemetry(temporaryFailureMsg);
+      yield { type: 'done' };
+      return;
+    }
     const verifiedContent = await verifyAndStreamAnswer(fallbackRawContent, messages);
     const distinctSources = extractDistinctSources(collectedGuideSources);
     const finalFallbackContent = appendSourcesFooter(
