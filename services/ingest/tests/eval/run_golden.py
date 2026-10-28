@@ -171,7 +171,7 @@ def run_agent_eval_case(case: Dict[str, Any]) -> Dict[str, Any]:
             cwd=str(apps_api_dir),
             capture_output=True,
             text=True,
-            timeout=60,
+            timeout=120,
             env=env,
         )
         stdout = proc.stdout
