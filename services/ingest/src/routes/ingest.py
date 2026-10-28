@@ -10,7 +10,7 @@ from src.models.chunk import GuideChunkModel
 from src.models.player import PlayerGameModel, PlayerTrophyModel
 from src.schemas.chunk import IngestGuideRequest, DocumentChunk, FetchAndIndexRequest
 from src.schemas.search import SearchQueryRequest, SearchResponse
-from src.services.chunker import chunker
+from src.services.chunker import chunker, build_context_prefix
 from src.services.embedding import embedding_service
 from src.services.ingestion import ingestion_repo
 from src.services.scraper import scraper
@@ -129,8 +129,11 @@ async def fetch_and_index_guide(request: FetchAndIndexRequest):
         if not all_chunks:
             raise HTTPException(status_code=400, detail="Conteúdo insuficiente para indexação.")
 
-        # 4. Embed chunks in batch
-        texts_to_embed = [f"{c.title}\n{c.content}" for c in all_chunks]
+        # 4. Embed chunks in batch with hierarchical context prefix
+        texts_to_embed = [
+            f"{build_context_prefix(c.game, c.title, c.content, c.metadata.get('source_url', ''))}\n{c.content}"
+            for c in all_chunks
+        ]
         embeddings = await embedding_service.embed_batch(texts_to_embed)
 
         # 5. Persist to PostgreSQL (atomic replace if force_reindex)
@@ -141,11 +144,13 @@ async def fetch_and_index_guide(request: FetchAndIndexRequest):
                     delete(GuideChunkModel).where(GuideChunkModel.game.ilike(request.game.strip()))
                 )
             for chunk, emb in zip(all_chunks, embeddings):
+                prefix = build_context_prefix(chunk.game, chunk.title, chunk.content, chunk.metadata.get("source_url", canonical_url))
                 record = GuideChunkModel(
                     id=chunk.chunk_id,
                     game=chunk.game,
                     title=chunk.title,
                     content=chunk.content,
+                    context_prefix=prefix,
                     is_missable=chunk.is_missable,
                     source_url=chunk.metadata.get("source_url", canonical_url),
                     metadata_=chunk.metadata,

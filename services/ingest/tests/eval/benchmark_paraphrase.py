@@ -25,7 +25,7 @@ from sqlalchemy import and_, func, select
 from src.database import get_db_session
 from src.models.chunk import GuideChunkModel
 from src.schemas.chunk import IngestGuideRequest
-from src.services.chunker import chunker
+from src.services.chunker import chunker, build_context_prefix
 from src.services.embedding import get_embedding_service
 from src.services.scraper import scraper
 
@@ -49,18 +49,23 @@ async def reindex_witcher(emb_service):
     req = IngestGuideRequest(game="The Witcher 3: Wild Hunt", source_url="https://local.snapshots/dicas.html", content=markdown)
     chunks = chunker.chunk_guide(req)
 
-    texts = [f"{c.title}\n{c.content}" for c in chunks]
+    texts = [
+        f"{build_context_prefix(c.game, c.title, c.content, c.metadata.get('source_url', ''))}\n{c.content}"
+        for c in chunks
+    ]
     embeddings = await emb_service.embed_batch(texts)
 
     async with get_db_session() as session:
         from sqlalchemy import delete
         await session.execute(delete(GuideChunkModel).where(GuideChunkModel.game.ilike("%Witcher 3%")))
         for c, emb in zip(chunks, embeddings):
+            prefix = build_context_prefix(c.game, c.title, c.content, c.metadata.get("source_url", "local"))
             record = GuideChunkModel(
                 id=c.chunk_id or c.title,
                 game=c.game,
                 title=c.title,
                 content=c.content,
+                context_prefix=prefix,
                 is_missable=c.is_missable,
                 source_url="local",
                 metadata_=c.metadata,

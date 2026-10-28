@@ -20,13 +20,15 @@ class GuideChunkModel(Base):
     is_missable = Column(Boolean, default=False, index=True)
     source_url = Column(String(500), nullable=True)
     metadata_ = Column("metadata", JSONB, default=dict)
+    # Insight: Context prefix '<game title> › <DLC ou Base Game> › <section title>' for embedding & search
+    context_prefix = Column(String(255), nullable=True, default="")
     # Insight: Vector dimension is dynamically configurable via settings.EMBEDDING_DIMENSIONS
     embedding = Column(Vector(settings.EMBEDDING_DIMENSIONS), nullable=False)
-    # Insight: All guides and search queries are processed internally in English
+    # Insight: All guides and search queries are processed internally in English, incorporating context prefix
     tsv = Column(
         TSVECTOR,
         Computed(
-            "to_tsvector('english', coalesce(title, '') || ' ' || coalesce(content, ''))",
+            "to_tsvector('english', coalesce(context_prefix, '') || ' ' || coalesce(title, '') || ' ' || coalesce(content, ''))",
             persisted=True,
         ),
     )

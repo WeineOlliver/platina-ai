@@ -34,7 +34,7 @@ from src.models.chunk import GuideChunkModel
 from src.models.player import PlayerGameModel, PlayerModel, PlayerTrophyModel
 from src.schemas.chunk import IngestGuideRequest
 from src.schemas.search import SearchQueryRequest
-from src.services.chunker import chunker
+from src.services.chunker import chunker, build_context_prefix
 from src.services.embedding import embedding_service
 from src.services.player import player_progress_service
 from src.services.scraper import scraper
@@ -97,7 +97,11 @@ async def index_snapshots_if_available(game_name: str = "The Witcher 3: Wild Hun
         return 0
 
     t_idx_start = time.perf_counter()
-    texts = [f"{c.title}\n{c.content}" for c in all_chunks]
+    # Insight: Context prefix '<game title> › <DLC ou Base Game> › <section title>' for embedding & tsvector
+    texts = [
+        f"{build_context_prefix(c.game, c.title, c.content, c.metadata.get('source_url', ''))}\n{c.content}"
+        for c in all_chunks
+    ]
     embeddings = await embedding_service.embed_batch(texts)
     idx_duration = time.perf_counter() - t_idx_start
 
@@ -107,11 +111,15 @@ async def index_snapshots_if_available(game_name: str = "The Witcher 3: Wild Hun
             delete(GuideChunkModel).where(GuideChunkModel.game.ilike(f"{game_name}%"))
         )
         for chunk, emb in zip(all_chunks, embeddings):
+            prefix = build_context_prefix(
+                chunk.game, chunk.title, chunk.content, chunk.metadata.get("source_url", "local")
+            )
             record = GuideChunkModel(
                 id=chunk.chunk_id,
                 game=chunk.game,
                 title=chunk.title,
                 content=chunk.content,
+                context_prefix=prefix,
                 is_missable=chunk.is_missable,
                 source_url=chunk.metadata.get("source_url", "local"),
                 metadata_=chunk.metadata,
@@ -674,7 +682,7 @@ async def main():
         emb_model = "text-embedding-3-small (1536 dims)"
     else:
         emb_model = f"deterministic (local pseudo-random, {os.getenv('EMBEDDING_DIMENSIONS', '384')} dims)"
-    tsv_config = "english (to_tsvector('english', coalesce(title, '') || ' ' || coalesce(content, '')))"
+    tsv_config = "english (to_tsvector('english', coalesce(context_prefix, '') || ' ' || coalesce(title, '') || ' ' || coalesce(content, '')))"
 
     print("=" * 80)
     print("           PLATINA AI — RUNNER DE AVALIAÇÃO DE RAG & SQL (GOLDEN SET)")

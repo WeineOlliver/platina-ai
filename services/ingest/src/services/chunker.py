@@ -149,3 +149,35 @@ class TrophyGuideChunker:
 
 chunker = TrophyGuideChunker()
 MarkdownSemanticChunker = TrophyGuideChunker
+
+
+def build_context_prefix(game: str, title: str, content: str = "", source_url: str = "") -> str:
+    """
+    Builds context prefix: '<game title> › <DLC ou Base Game> › <section title>'
+    for embedding and full-text tsvector indexing without changing user-facing content.
+    """
+    txt = f"{title} {content} {source_url}".lower()
+    if (
+        "hearts of stone" in txt
+        or any(
+            k.lower() in title.lower()
+            for k in [
+                "when it's many against one",
+                "when it’s many against one",
+                "moo-rderer",
+                "return to sender",
+                "rad steez, bro!",
+                "wild rose dethorned",
+                "i wore ofieri before it was cool",
+                "killed it",
+            ]
+        )
+    ):
+        scope = "Hearts of Stone"
+    elif "blood and wine" in txt:
+        scope = "Blood and Wine"
+    elif "dlc" in txt:
+        scope = "DLC"
+    else:
+        scope = "Base Game"
+    return f"{game} › {scope} › {title}"

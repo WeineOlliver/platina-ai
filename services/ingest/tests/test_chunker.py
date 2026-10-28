@@ -145,3 +145,25 @@ Use a caixa de música para atordoar Gascoigne três vezes antes de sua transfor
     assert data["game"] == "Bloodborne"
     assert data["deleted_count"] >= 1
     assert data["reindexed_count"] == 2
+
+
+def test_build_context_prefix_format():
+    # Insight: Context prefix format must strictly be '<game title> › <DLC ou Base Game> › <section title>'
+    from src.services.chunker import build_context_prefix
+
+    prefix_base = build_context_prefix("The Witcher 3: Wild Hunt", "Full Crew (Part 1)", "Defend Kaer Morhen")
+    assert prefix_base == "The Witcher 3: Wild Hunt › Base Game › Full Crew (Part 1)"
+
+    prefix_hos = build_context_prefix(
+        "The Witcher 3: Wild Hunt",
+        "When It's Many Against One…",
+        "Provoke all Iris von Everec’s Nightmares",
+    )
+    assert prefix_hos == "The Witcher 3: Wild Hunt › Hearts of Stone › When It's Many Against One…"
+
+    prefix_baw = build_context_prefix(
+        "The Witcher 3: Wild Hunt",
+        "Grandmaster",
+        "Find all Grandmaster diagrams in Toussaint. Blood and Wine DLC.",
+    )
+    assert prefix_baw == "The Witcher 3: Wild Hunt › Blood and Wine › Grandmaster"
