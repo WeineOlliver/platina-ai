@@ -151,8 +151,8 @@ async def index_snapshots_if_available(game_name: str = "The Witcher 3: Wild Hun
     return len(all_chunks)
 
 
-def run_agent_eval_case(case: Dict[str, Any]) -> Dict[str, Any]:
-    """Execute complete PlatinaAgentRunner via TypeScript eval bridge and evaluate using ragTriadJudge."""
+def run_agent_eval_case(case: Dict[str, Any], max_retries: int = 3) -> Dict[str, Any]:
+    """Execute complete PlatinaAgentRunner via TypeScript eval bridge with exponential backoff on 429/timeout."""
     repo_root = Path(__file__).resolve().parents[4]
     apps_api_dir = repo_root / "apps" / "api"
     payload = json.dumps({
@@ -163,44 +163,101 @@ def run_agent_eval_case(case: Dict[str, Any]) -> Dict[str, Any]:
         "game": "The Witcher 3: Wild Hunt",
         "expected": case.get("expected", {}),
     })
-    try:
-        env = os.environ.copy()
-        env["PLATINA_DISABLE_LIVE_SCRAPING"] = "true"
-        proc = subprocess.run(
-            ["npx", "tsx", "src/services/evals/runAgentCase.ts", payload],
-            cwd=str(apps_api_dir),
-            capture_output=True,
-            text=True,
-            timeout=120,
-            env=env,
-        )
-        stdout = proc.stdout
-        if "__EVAL_RESULT_START__" in stdout and "__EVAL_RESULT_END__" in stdout:
-            raw_json = stdout.split("__EVAL_RESULT_START__")[1].split("__EVAL_RESULT_END__")[0].strip()
-            return json.loads(raw_json)
-        return {
-            "id": case["id"],
-            "status": "ERROR",
-            "error": f"Bridge output parse error: {stdout[:200]}",
-            "reasons": [f"Bridge output parse error: {stdout[:200]}"],
-            "evaluation": None,
-        }
-    except subprocess.TimeoutExpired as te:
-        return {
-            "id": case["id"],
-            "status": "ERROR",
-            "error": f"Timeout expired after {te.timeout}s",
-            "reasons": [f"Timeout expired after {te.timeout}s"],
-            "evaluation": None,
-        }
-    except Exception as e:
-        return {
-            "id": case["id"],
-            "status": "ERROR",
-            "error": str(e),
-            "reasons": [str(e)],
-            "evaluation": None,
-        }
+
+    env = os.environ.copy()
+    env["PLATINA_DISABLE_LIVE_SCRAPING"] = "true"
+
+    for attempt in range(max_retries):
+        try:
+            proc = subprocess.run(
+                ["npx", "tsx", "src/services/evals/runAgentCase.ts", payload],
+                cwd=str(apps_api_dir),
+                capture_output=True,
+                text=True,
+                timeout=120,
+                env=env,
+            )
+            stdout = proc.stdout
+            if "__EVAL_RESULT_START__" in stdout and "__EVAL_RESULT_END__" in stdout:
+                raw_json = stdout.split("__EVAL_RESULT_START__")[1].split("__EVAL_RESULT_END__")[0].strip()
+                result = json.loads(raw_json)
+
+                # Check if it was an ephemeral 429 or timeout inside the bridge
+                err_text = str(result.get("error", "")).lower()
+                if result.get("status") == "ERROR" and any(k in err_text for k in ["429", "rate limit", "timeout", "timed out", "tpd", "tpm"]):
+                    if attempt < max_retries - 1:
+                        backoff = 2 ** attempt * 5  # 5s, 10s, 20s
+                        print(f"[{case['id']}] Rate limit / Timeout ({err_text[:40]}). Backoff de {backoff}s antes da tentativa {attempt + 2}/{max_retries}...", flush=True)
+                        time.sleep(backoff)
+                        continue
+                return result
+
+            return {
+                "id": case["id"],
+                "status": "ERROR",
+                "error": f"Bridge output parse error: {stdout[:200]}",
+                "reasons": [f"Bridge output parse error: {stdout[:200]}"],
+                "toolCalls": [],
+                "evaluation": None,
+            }
+        except subprocess.TimeoutExpired as te:
+            if attempt < max_retries - 1:
+                backoff = 2 ** attempt * 5
+                print(f"[{case['id']}] Subprocess timeout ({te.timeout}s). Backoff de {backoff}s antes da tentativa {attempt + 2}/{max_retries}...", flush=True)
+                time.sleep(backoff)
+                continue
+            return {
+                "id": case["id"],
+                "status": "ERROR",
+                "error": f"Timeout expired after {te.timeout}s",
+                "reasons": [f"Timeout expired after {te.timeout}s"],
+                "toolCalls": [],
+                "evaluation": None,
+            }
+        except Exception as e:
+            return {
+                "id": case["id"],
+                "status": "ERROR",
+                "error": str(e),
+                "reasons": [str(e)],
+                "toolCalls": [],
+                "evaluation": None,
+            }
+
+    return {
+        "id": case["id"],
+        "status": "ERROR",
+        "error": "Exhausted retries in run_agent_eval_case",
+        "reasons": ["Exhausted retries in run_agent_eval_case"],
+        "toolCalls": [],
+        "evaluation": None,
+    }
+
+
+def classify_agent_runs(runs: List[Dict[str, Any]]) -> Tuple[str, str]:
+    """
+    Classifica o resultado das 3 execuções do agente:
+    - Se todas as 3 passaram -> PASSED
+    - Se houve erro de infra/timeout/resposta vazia (ERROR) em qualquer execução -> ERROR
+    - Caso contrário (sem erros, mas sem atingir 3/3 aprovações lógicas) -> FAILED
+    Retorna (status, motivo_resumido).
+    """
+    pass_count = sum(1 for r in runs if r.get("status") == "PASSED")
+    error_count = sum(1 for r in runs if r.get("status") == "ERROR")
+
+    if pass_count == 3:
+        return "PASSED", ""
+
+    if error_count > 0:
+        err_msgs = [r.get("error") or "; ".join(r.get("reasons") or []) for r in runs if r.get("status") == "ERROR"]
+        detail = "; ".join(filter(None, err_msgs))
+        return "ERROR", f"Falha de infra/timeout/resposta vazia em {error_count}/3 rodadas ({pass_count} passaram): {detail}"
+
+    # Sem erros de infra, mas não atingiu 3/3 aprovações lógicas
+    last_run = runs[-1]
+    reasons = list(last_run.get("reasons") or [])
+    reasons.append(f"Passou em {pass_count}/3 tentativas (exige 3/3 para aprovação)")
+    return "FAILED", "; ".join(reasons)
 
 
 AGENT_SEMAPHORE = asyncio.Semaphore(1)
@@ -225,22 +282,33 @@ async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophy
 
         # Count passes, fails, errors
         pass_count = sum(1 for r in runs if r.get("status") == "PASSED")
-        error_count = sum(1 for r in runs if r.get("status") == "ERROR")
-        
-        # Overall status: PASSED only if passed in all 3 runs
-        if error_count == 3:
-            final_status = "ERROR"
-        elif pass_count == 3:
-            final_status = "PASSED"
-        else:
-            final_status = "FAILED"
+        final_status, status_reason = classify_agent_runs(runs)
 
         print(f"[{cid}] -> {pass_count}/3 passed (Status: {final_status})", flush=True)
 
         last_run = runs[-1]
-        reasons = list(last_run.get("reasons") or [])
-        if final_status == "FAILED" and pass_count < 3:
-            reasons.append(f"Passou em {pass_count}/3 tentativas (exige 3/3 para aprovação)")
+        all_tool_calls: List[Dict[str, Any]] = []
+        for r in runs:
+            for tc in r.get("toolCalls") or []:
+                all_tool_calls.append(tc)
+
+        reasons = [status_reason] if status_reason else []
+
+        # Insight: For FAILED agent cases, cite the exact tool calls log (query generated, titles returned)
+        if final_status == "FAILED":
+            tool_call_summaries = []
+            for tc in all_tool_calls:
+                name = tc.get("name")
+                args = tc.get("args") or {}
+                status_tc = tc.get("status", "unknown")
+                titles = tc.get("returned_chunk_titles") or []
+                q = args.get("query", "") if isinstance(args, dict) else ""
+                tool_call_summaries.append(
+                    f"Tool '{name}' (query='{q}', status={status_tc}, chunks={titles})"
+                )
+            if tool_call_summaries:
+                tool_log_text = " | ".join(tool_call_summaries)
+                reasons.insert(0, f"Tool Calls Log: {tool_log_text}")
 
         eval_triad = last_run.get("evaluation") or {}
         metrics = {
@@ -263,6 +331,7 @@ async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophy
             "status": final_status,
             "reason": "; ".join(reasons) if final_status != "PASSED" else "",
             "answer": last_run.get("answer", ""),
+            "tool_calls": all_tool_calls,
             "metrics": metrics,
             "runs": runs,
         }
@@ -791,6 +860,18 @@ async def main():
         for f_case in failed_cases:
             print(f"[{f_case['id']}] ({f_case['route'].upper()}/{f_case['category']}) {f_case['question']}")
             print(f"   -> Motivo: {f_case['reason']}")
+
+    # Insight: Explicitly list which 'dica' cases failed and why
+    dica_failures = [r for r in results if r.get("category") == "dica" and r.get("status") == "FAILED"]
+    print("\n" + "=" * 80)
+    print("        3.1. DETALHE DOS CASOS DE DICA QUE FALHARAM")
+    print("=" * 80)
+    if not dica_failures:
+        print("Nenhum caso de dica falhou! 100% aprovados.")
+    else:
+        for df in dica_failures:
+            print(f"[{df['id']}] {df['question']}")
+            print(f"   -> Motivo: {df.get('reason')}")
 
     print("\n" + "=" * 80)
     print("    4. CASOS AVALIADOS PELO AGENTE COM RAG TRIAD ('HYBRID' E 'NONE')")

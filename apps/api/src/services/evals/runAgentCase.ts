@@ -40,7 +40,13 @@ async function main() {
   const runner = new PlatinaAgentRunner();
 
   const collectedContexts: string[] = [];
-  const toolCalls: Array<{ name: string; args: unknown }> = [];
+  interface CapturedToolCall {
+    name: string;
+    args: unknown;
+    status: string;
+    returned_chunk_titles: string[];
+  }
+  const toolCalls: CapturedToolCall[] = [];
   let finalAnswer = '';
 
   try {
@@ -49,18 +55,41 @@ async function main() {
       lang: 'pt',
     })) {
       if (event.type === 'tool_call') {
-        toolCalls.push({ name: event.toolName || '', args: event.toolArgs });
+        toolCalls.push({
+          name: event.toolName || '',
+          args: event.toolArgs,
+          status: 'pending',
+          returned_chunk_titles: [],
+        });
         if (testCase.toolOnly) {
           // Immediately exit if caller only requested tool call translation probe
           break;
         }
       }
       if (event.type === 'tool_result' && event.toolResult) {
-        const tr = event.toolResult as { results?: Array<{ title?: string; content?: string }> };
-        if (Array.isArray(tr.results)) {
-          for (const chunk of tr.results) {
-            if (chunk.content) {
-              collectedContexts.push(`[${chunk.title}]: ${chunk.content}`);
+        const lastCall = toolCalls[toolCalls.length - 1];
+        if (lastCall) {
+          const tr = event.toolResult as {
+            status?: string;
+            error?: string;
+            results?: Array<{ title?: string; content?: string }>;
+          };
+          if (tr.error) {
+            lastCall.status = 'error';
+          } else if (tr.status) {
+            lastCall.status = tr.status;
+          }
+          if (Array.isArray(tr.results)) {
+            lastCall.returned_chunk_titles = tr.results
+              .map((c) => c.title || '')
+              .filter(Boolean);
+            if (!tr.status) {
+              lastCall.status = lastCall.returned_chunk_titles.length > 0 ? 'success' : 'no_results';
+            }
+            for (const chunk of tr.results) {
+              if (chunk.content) {
+                collectedContexts.push(`[${chunk.title}]: ${chunk.content}`);
+              }
             }
           }
         }
@@ -80,6 +109,31 @@ async function main() {
         toolCalls,
         evaluation: null,
       }) + '__EVAL_RESULT_END__');
+      process.exit(0);
+    }
+
+    // Insight: Empty answer or temporary failure from LLM must be classified as ERROR rather than logical FAILED
+    const isTemporaryFailure =
+      !finalAnswer.trim() ||
+      /falha temporária no serviço|temporary service failure/i.test(finalAnswer);
+
+    if (isTemporaryFailure) {
+      console.log(
+        '__EVAL_RESULT_START__' +
+        JSON.stringify({
+          id: testCase.id,
+          category: testCase.category,
+          route: testCase.route,
+          question: testCase.question,
+          status: 'ERROR',
+          error: !finalAnswer.trim()
+            ? 'Empty final response from agent'
+            : 'Temporary service failure returned by agent',
+          toolCalls,
+          evaluation: null,
+        }) +
+        '__EVAL_RESULT_END__'
+      );
       process.exit(0);
     }
 
