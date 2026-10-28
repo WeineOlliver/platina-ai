@@ -105,4 +105,30 @@ describe('Model Cascade Fallback Suite', () => {
     expect(executeFn).toHaveBeenCalledTimes(DEFAULT_MODEL_CASCADE.length);
     expect(logger.warn).toHaveBeenCalledTimes(DEFAULT_MODEL_CASCADE.length - 1);
   });
+
+  it('cascades to next model when 1st model times out (slow mock test)', async () => {
+    // Insight: Slow mock test — 1st model exceeds timeoutMs (configurable), falling back to 2nd model
+    const slowMock = vi.fn().mockImplementation((model: string) => {
+      if (model === DEFAULT_MODEL_CASCADE[0]) {
+        return new Promise((resolve) => setTimeout(() => resolve('slow-response'), 100));
+      }
+      return Promise.resolve('fast-fallback-response');
+    });
+
+    const logger = { warn: vi.fn() };
+    const result = await executeWithModelCascade(DEFAULT_MODEL_CASCADE, slowMock, {
+      timeoutMs: 25,
+      logger,
+    });
+
+    expect(result).toBe('fast-fallback-response');
+    expect(slowMock).toHaveBeenCalledTimes(2);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: DEFAULT_MODEL_CASCADE[0],
+        to: DEFAULT_MODEL_CASCADE[1],
+      }),
+      `Falling back from ${DEFAULT_MODEL_CASCADE[0]} to ${DEFAULT_MODEL_CASCADE[1]}`
+    );
+  });
 });
