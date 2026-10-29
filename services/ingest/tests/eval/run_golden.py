@@ -36,6 +36,7 @@ from src.schemas.chunk import IngestGuideRequest
 from src.schemas.search import SearchQueryRequest
 from src.services.chunker import chunker, build_context_prefix
 from src.services.embedding import embedding_service
+from src.services.entity_linker import link_chunks_to_trophies, get_canonical_game_id
 from src.services.player import player_progress_service
 from src.services.scraper import scraper
 from src.services.search import vector_search_service
@@ -69,7 +70,11 @@ async def index_snapshots_if_available(game_name: str = "The Witcher 3: Wild Hun
     html_to_markdown -> chunk_guide -> embed_batch -> GuideChunkModel.
     """
     SNAPSHOTS_DIR.mkdir(parents=True, exist_ok=True)
-    html_files = list(SNAPSHOTS_DIR.glob("*.html"))
+    # Index both PowerPyx (dicas.html) and PSNProfiles guide when available
+    guide_names = ["dicas.html", "psnprofiles_guide_witcher3.html"]
+    html_files = [SNAPSHOTS_DIR / f for f in guide_names if (SNAPSHOTS_DIR / f).exists()]
+    if not html_files:
+        html_files = [p for p in SNAPSHOTS_DIR.glob("*.html") if "trophies" not in p.name]
     if not html_files:
         print("[AVISO] Nenhum snapshot HTML encontrado em snapshots/. Usando índice pré-existente.")
         return 0
@@ -96,10 +101,15 @@ async def index_snapshots_if_available(game_name: str = "The Witcher 3: Wild Hun
     if not all_chunks:
         return 0
 
+    # Entity linking to canonical catalog trophies
+    clean_game_id = get_canonical_game_id(game_name)
+    async with get_db_session() as session:
+        await link_chunks_to_trophies(all_chunks, clean_game_id, session)
+
     t_idx_start = time.perf_counter()
     # Insight: Context prefix '<game title> › <DLC ou Base Game> › <section title>' for embedding & tsvector
     texts = [
-        f"{build_context_prefix(c.game, c.title, c.content, c.metadata.get('source_url', ''))}\n{c.content}"
+        f"{c.context_prefix or build_context_prefix(c.game, c.title, c.content, c.metadata.get('source_url', ''))}\n{c.content}"
         for c in all_chunks
     ]
     embeddings = await embedding_service.embed_batch(texts)
@@ -111,12 +121,14 @@ async def index_snapshots_if_available(game_name: str = "The Witcher 3: Wild Hun
             delete(GuideChunkModel).where(GuideChunkModel.game.ilike(f"{game_name}%"))
         )
         for chunk, emb in zip(all_chunks, embeddings):
-            prefix = build_context_prefix(
+            prefix = chunk.context_prefix or build_context_prefix(
                 chunk.game, chunk.title, chunk.content, chunk.metadata.get("source_url", "local")
             )
             record = GuideChunkModel(
                 id=chunk.chunk_id,
                 game=chunk.game,
+                game_id=clean_game_id,
+                trophy_id=getattr(chunk, "trophy_id", None) or chunk.metadata.get("trophy_id"),
                 title=chunk.title,
                 content=chunk.content,
                 context_prefix=prefix,

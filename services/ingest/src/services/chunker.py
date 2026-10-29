@@ -1,7 +1,11 @@
 import re
 import hashlib
-from typing import List
+from typing import List, Optional
 from src.schemas.chunk import DocumentChunk, IngestGuideRequest
+
+# Ensure DocumentChunk accepts dynamic entity linking fields
+DocumentChunk.model_config["extra"] = "allow"
+DocumentChunk.model_rebuild(force=True)
 
 MISSABLE_KEYWORDS = [
     "perdível",
@@ -151,33 +155,43 @@ chunker = TrophyGuideChunker()
 MarkdownSemanticChunker = TrophyGuideChunker
 
 
-def build_context_prefix(game: str, title: str, content: str = "", source_url: str = "") -> str:
+def build_context_prefix(
+    game: str,
+    title: str,
+    content: str = "",
+    source_url: str = "",
+    dlc: Optional[str] = None,
+) -> str:
     """
     Builds context prefix: '<game title> › <DLC ou Base Game> › <section title>'
     for embedding and full-text tsvector indexing without changing user-facing content.
+    If canonical dlc is specified, uses it (or 'Base Game' if None or empty).
     """
-    txt = f"{title} {content} {source_url}".lower()
-    if (
-        "hearts of stone" in txt
-        or any(
-            k.lower() in title.lower()
-            for k in [
-                "when it's many against one",
-                "when it’s many against one",
-                "moo-rderer",
-                "return to sender",
-                "rad steez, bro!",
-                "wild rose dethorned",
-                "i wore ofieri before it was cool",
-                "killed it",
-            ]
-        )
-    ):
-        scope = "Hearts of Stone"
-    elif "blood and wine" in txt:
-        scope = "Blood and Wine"
-    elif "dlc" in txt:
-        scope = "DLC"
+    if dlc is not None:
+        scope = dlc if (dlc and dlc.strip()) else "Base Game"
     else:
-        scope = "Base Game"
+        txt = f"{title} {content} {source_url}".lower()
+        if (
+            "hearts of stone" in txt
+            or any(
+                k.lower() in title.lower()
+                for k in [
+                    "when it's many against one",
+                    "when it’s many against one",
+                    "moo-rderer",
+                    "return to sender",
+                    "rad steez, bro!",
+                    "wild rose dethorned",
+                    "i wore ofieri before it was cool",
+                    "killed it",
+                ]
+            )
+        ):
+            scope = "Hearts of Stone"
+        elif "blood and wine" in txt:
+            scope = "Blood and Wine"
+        elif "dlc" in txt:
+            scope = "DLC"
+        else:
+            scope = "Base Game"
     return f"{game} › {scope} › {title}"
