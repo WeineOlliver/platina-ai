@@ -169,6 +169,7 @@ def run_agent_eval_case(case: Dict[str, Any], max_retries: int = 3) -> Dict[str,
         "route": case.get("route", ""),
         "question": case["question"],
         "game": "The Witcher 3: Wild Hunt",
+        "toolOnly": case.get("toolOnly", False),
         "expected": case.get("expected", {}),
     })
 
