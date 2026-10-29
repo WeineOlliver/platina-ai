@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, Boolean, DateTime, func, Computed
+from sqlalchemy import Column, String, Text, Boolean, DateTime, ForeignKey, func, Computed
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import declarative_base
 from pgvector.sqlalchemy import Vector
@@ -15,6 +15,9 @@ class GuideChunkModel(Base):
 
     id = Column(String(64), primary_key=True)
     game = Column(String(100), nullable=False, index=True)
+    # Insight: Canonical catalog foreign keys linking chunk to game and specific trophy
+    game_id = Column(String(100), ForeignKey("games.id", ondelete="SET NULL"), nullable=True, index=True)
+    trophy_id = Column(String(128), ForeignKey("trophies.id", ondelete="SET NULL"), nullable=True, index=True)
     title = Column(String(255), nullable=False)
     content = Column(Text, nullable=False)
     is_missable = Column(Boolean, default=False, index=True)

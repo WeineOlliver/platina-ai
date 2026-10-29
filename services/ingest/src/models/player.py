@@ -49,6 +49,8 @@ class PlayerTrophyModel(Base):
 
     id = Column(String(64), primary_key=True)
     player_game_id = Column(String(64), ForeignKey("player_games.id", ondelete="CASCADE"), nullable=False, index=True)
+    # Insight: Canonical catalog trophy foreign key linking player state to canonical trophy
+    trophy_id = Column(String(128), ForeignKey("trophies.id", ondelete="SET NULL"), nullable=True, index=True)
     trophy_name = Column(String(255), nullable=False)
     trophy_type = Column(String(20), nullable=False)
     trophy_category = Column(String(32), default="standard", nullable=False, index=True)
