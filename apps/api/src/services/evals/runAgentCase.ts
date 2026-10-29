@@ -13,6 +13,7 @@ interface TestCaseInput {
   expected?: {
     trophies?: string[];
     must_contain?: string[];
+    must_contain_any?: string[];
     abstain?: boolean;
     note?: string;
   };
@@ -164,6 +165,7 @@ async function main() {
       // For 'hybrid', must mention expected trophies/must_contain and maintain high triad score (faithfulness >= 0.8)
       const expectedTrophies = testCase.expected?.trophies || [];
       const mustContain = testCase.expected?.must_contain || [];
+      const mustContainAny = testCase.expected?.must_contain_any || [];
 
       const answerNorm = normalizeStr(finalAnswer);
       const missingTrophies = expectedTrophies.filter(
@@ -172,6 +174,11 @@ async function main() {
       const missingMustContain = mustContain.filter(
         (t) => !answerNorm.includes(normalizeStr(t))
       );
+
+      const anyPassed = mustContainAny.length === 0 || mustContainAny.some((t) => answerNorm.includes(normalizeStr(t)));
+      if (!anyPassed) {
+        missingMustContain.push(`one of [${mustContainAny.join(', ')}]`);
+      }
 
       const contentPassed = missingTrophies.length === 0 && missingMustContain.length === 0;
       const triadPassed = evaluation.faithfulness.score >= 0.8 && evaluation.answerRelevance.score >= 0.5;
