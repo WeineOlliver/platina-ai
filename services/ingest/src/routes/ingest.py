@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Any
 from pathlib import Path
 import hashlib
+import json
 import logging
 from sqlalchemy import select, func, delete, update
 
@@ -115,6 +116,14 @@ async def fetch_and_index_guide(request: FetchAndIndexRequest):
         
         # Check if local snapshot for PowerPyx exists if remote failed
         snapshots_dir = Path(__file__).resolve().parent.parent.parent / "tests" / "golden" / "snapshots"
+        snapshot_urls_file = Path(__file__).resolve().parent.parent / "catalog" / "snapshot_urls.json"
+        snapshot_url_map = {}
+        if snapshot_urls_file.exists():
+            try:
+                snapshot_url_map = json.loads(snapshot_urls_file.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+
         if not pages and snapshots_dir.exists():
             dicas_file = snapshots_dir / "dicas.html"
             if dicas_file.exists() and "witcher" in request.game.lower():
@@ -123,7 +132,7 @@ async def fetch_and_index_guide(request: FetchAndIndexRequest):
                 pages.append((
                     "The Witcher 3: Wild Hunt — PowerPyx Trophy Guide",
                     dicas_md,
-                    "https://powerpyx.com/guides/the-witcher-3-wild-hunt-trophy-guide.html",
+                    snapshot_url_map.get("dicas.html", "https://powerpyx.com/guides/the-witcher-3-wild-hunt-trophy-guide.html"),
                     dicas_html,
                 ))
 
@@ -136,7 +145,7 @@ async def fetch_and_index_guide(request: FetchAndIndexRequest):
                 pages.append((
                     "The Witcher 3: Wild Hunt — PSNProfiles Trophy Guide",
                     psn_md,
-                    "https://psnprofiles.com/guide/2842-the-witcher-3-wild-hunt-trophy-guide",
+                    snapshot_url_map.get("psnprofiles_guide_witcher3.html", "https://psnprofiles.com/guide/2842-the-witcher-3-wild-hunt-trophy-guide"),
                     psn_html,
                 ))
 
