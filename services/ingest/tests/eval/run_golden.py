@@ -386,9 +386,11 @@ async def evaluate_case(
             "route": route,
             "question": question,
             "query_en": query_en,
+            "expected": expected,
             "status": final_status,
             "reason": "; ".join(reasons) if final_status != "PASSED" else "",
             "answer": last_run.get("answer", ""),
+            "agent_answers": [run_item.get("answer", "") for run_item in runs],
             "tool_calls": all_tool_calls,
             "metrics": metrics,
             "runs": runs,
@@ -563,6 +565,7 @@ async def evaluate_case(
             "route": route,
             "question": question,
             "query_en": query_en,
+            "expected": expected,
             "status": "PASSED" if passed else "FAILED",
             "reason": "; ".join(reasons) if not passed else "",
             "metrics": {
@@ -828,6 +831,7 @@ async def evaluate_case(
             "route": route,
             "question": question,
             "query_en": query_en,
+            "expected": expected,
             "status": "PASSED" if passed else "FAILED",
             "reason": "; ".join(reasons) if not passed else "",
             "metrics": {
@@ -981,6 +985,10 @@ async def main(split: str = "dev"):
     }
 
     for r in results:
+        # Insight: Generated lista cases are marked as SQL sanity checks and excluded from global aggregate metrics
+        if r.get("origin") == "gerado" and r.get("category") == "lista":
+            continue
+
         m = r.get("metrics", {})
         if "embed_latency_ms" in m:
             metrics_summary["embed_latency"]["total"] += 1
@@ -1004,7 +1012,7 @@ async def main(split: str = "dev"):
             metrics_summary["contamination"]["total"] += 1
             if m["contamination_error_count"] == 0:
                 metrics_summary["contamination"]["success"] += 1
-        # Insight: Faithfulness and answer_relevance strictly on hybrid route cases that did NOT abstain
+        # Insight: Faithfulness and answer_relevance strictly on all hybrid route cases that did NOT abstain (including H03)
         is_hybrid_non_abstained = (r.get("route") == "hybrid" and m.get("is_abstained", 0.0) == 0.0)
         if "faithfulness" in m and is_hybrid_non_abstained:
             metrics_summary["faithfulness"]["total"] += 1
@@ -1034,22 +1042,22 @@ async def main(split: str = "dev"):
     print(f"[STATUS ERROR TOTAL]: {total_errors} caso(s) com timeout ou falha de infraestrutura de API/rede.")
 
     print("\n" + "=" * 80)
-    print("                    2. RELATÓRIO POR MÉTRICA")
+    print("                    2. MÉTRICAS AGREGADAS")
     print("=" * 80)
-    print(f"{'Métrica':<18} | {'Avaliados':<10} | {'Sucesso':<8} | {'Score / Taxa':<15}")
+    print(f"{'Métrica':<22} | {'Amostras (n)':<14} | {'Sucessos':<8} | {'Taxa':<15}")
     print("-" * 65)
 
-    r5 = metrics_summary["recall_at_5"]
-    r5_rate = f"{(r5['success'] / r5['total'] * 100):.1f}%" if r5["total"] else "N/A"
-    print(f"{'recall@5':<18} | {r5['total']:<10} | {r5['success']:<8} | {r5_rate:<15}")
+    rec = metrics_summary["recall_at_5"]
+    rec_rate = f"{(rec['success'] / rec['total'] * 100):.1f}%" if rec["total"] else "N/A"
+    print(f"{'recall@5 (produção)':<22} | {rec['total']:<14} | {rec['success']:<8} | {rec_rate:<15}")
 
-    fr5 = metrics_summary["fallback_recall_at_5"]
-    fr5_rate = f"{(fr5['success'] / fr5['total'] * 100):.1f}%" if fr5["total"] else "N/A"
-    print(f"{'fallback_recall@5':<18} | {fr5['total']:<10} | {fr5['success']:<8} | {fr5_rate:<15}")
+    f_rec = metrics_summary["fallback_recall_at_5"]
+    f_rec_rate = f"{(f_rec['success'] / f_rec['total'] * 100):.1f}%" if f_rec["total"] else "N/A"
+    print(f"{'fallback_recall@5':<22} | {f_rec['total']:<14} | {f_rec['success']:<8} | {f_rec_rate:<15}")
 
-    mc = metrics_summary["must_contain"]
-    mc_rate = f"{(mc['success'] / mc['total'] * 100):.1f}%" if mc["total"] else "N/A"
-    print(f"{'must_contain':<18} | {mc['total']:<10} | {mc['success']:<8} | {mc_rate:<15}")
+    must = metrics_summary["must_contain"]
+    must_rate = f"{(must['success'] / must['total'] * 100):.1f}%" if must["total"] else "N/A"
+    print(f"{'must_contain':<22} | {must['total']:<14} | {must['success']:<8} | {must_rate:<15}")
 
     comp = metrics_summary["completeness"]
     comp_rate = (
@@ -1057,11 +1065,11 @@ async def main(split: str = "dev"):
         if comp["total"]
         else "N/A"
     )
-    print(f"{'completeness':<18} | {comp['total']:<10} | {'-':<8} | {comp_rate:<15}")
+    print(f"{'completeness':<22} | {comp['total']:<14} | {'-':<8} | {comp_rate:<15}")
 
     cont = metrics_summary["contamination"]
     cont_rate = f"{(cont['success'] / cont['total'] * 100):.1f}%" if cont["total"] else "N/A"
-    print(f"{'contamination':<18} | {cont['total']:<10} | {cont['success']:<8} | {cont_rate:<15}")
+    print(f"{'contamination':<22} | {cont['total']:<14} | {cont['success']:<8} | {cont_rate:<15}")
 
     faith = metrics_summary["faithfulness"]
     faith_rate = (
@@ -1069,7 +1077,7 @@ async def main(split: str = "dev"):
         if faith["total"]
         else "N/A"
     )
-    print(f"{'faithfulness':<18} | {faith['total']:<10} | {'-':<8} | {faith_rate:<15}")
+    print(f"{'faithfulness (juiz)':<22} | {faith['total']:<14} | {'-':<8} | {faith_rate:<15}")
 
     ans_rel = metrics_summary["answer_relevance"]
     ans_rel_rate = (
@@ -1077,11 +1085,11 @@ async def main(split: str = "dev"):
         if ans_rel["total"]
         else "N/A"
     )
-    print(f"{'answer_relevance':<18} | {ans_rel['total']:<10} | {'-':<8} | {ans_rel_rate:<15}")
+    print(f"{'answer_relevance (juiz)':<22} | {ans_rel['total']:<14} | {'-':<8} | {ans_rel_rate:<15}")
 
     abst = metrics_summary["abstention"]
     abst_rate = f"{(abst['success'] / abst['total'] * 100):.1f}%" if abst["total"] else "N/A"
-    print(f"{'abstention':<18} | {abst['total']:<10} | {abst['success']:<8} | {abst_rate:<15}")
+    print(f"{'abstention':<22} | {abst['total']:<14} | {abst['success']:<8} | {abst_rate:<15}")
 
     el = metrics_summary["embed_latency"]
     avg_embed_lat = (el["total_ms"] / el["total"]) if el["total"] else 0.0
@@ -1154,8 +1162,9 @@ async def main(split: str = "dev"):
         "total_cases": len(filtered_cases),
         "categories_summary": categories,
         "metrics_summary": {
-            "recall_at_5": r5_rate,
-            "must_contain": mc_rate,
+            "recall_at_5": rec_rate,
+            "fallback_recall_at_5": f_rec_rate,
+            "must_contain": must_rate,
             "completeness_average": comp_rate,
             "contamination_success_rate": cont_rate,
             "faithfulness_average": faith_rate,
