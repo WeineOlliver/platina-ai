@@ -19,18 +19,25 @@ def test_chunk_gwent_guide_parses_snapshot_and_preserves_structure():
 
     assert len(chunks) > 30, f"Expected dozens of atomic chunks, got {len(chunks)}"
 
-    # All chunks must link to Card Collector trophy_id
-    for c in chunks:
-        assert c.trophy_id == TROPHY_ID, f"Chunk {c.title} missing trophy_id link"
-        assert c.metadata.get("trophy_id") == TROPHY_ID
-        assert c.context_prefix is not None
-        assert c.context_prefix.startswith("The Witcher 3: Wild Hunt › Base Game › Card Collector › "), (
-            f"Invalid context_prefix '{c.context_prefix}' in chunk {c.title}"
-        )
+    # Insight: Card Collector links Preparation and Step 1..N; mechanics and general intro stay unlinked
+    linked_chunks = [c for c in chunks if c.trophy_id is not None]
+    unlinked_chunks = [c for c in chunks if c.trophy_id is None]
 
-    # Context prefix regions covered
-    regions = {c.context_prefix.split(" › ")[-1] for c in chunks}
-    expected_regions = {"White Orchard", "Vizima", "Velen", "Novigrad", "Skellige", "High Stakes"}
+    assert len(linked_chunks) > 20, "Expected preparation and steps to be linked"
+    assert len(unlinked_chunks) > 0, "Expected intro and mechanics chunks to have trophy_id = None"
+
+    for c in linked_chunks:
+        assert c.trophy_id == TROPHY_ID, f"Linked chunk {c.title} has wrong trophy_id"
+        assert c.metadata.get("trophy_id") == TROPHY_ID
+        assert "Card Collector" in c.context_prefix
+
+    for c in unlinked_chunks:
+        assert c.trophy_id is None
+        assert "Card Collector" not in c.context_prefix
+
+    # Context prefix regions covered by Card Collector steps
+    regions = {c.context_prefix.split(" › ")[-1] for c in linked_chunks}
+    expected_regions = {"White Orchard", "Vizima", "Velen", "Novigrad", "Skellige", "High Stakes", "Preparation"}
     assert expected_regions.issubset(regions), f"Missing regions in context prefixes: {expected_regions - regions}"
 
     # Preserves (MISSABLE!) tags and sets is_missable flag

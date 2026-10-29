@@ -69,6 +69,12 @@ def chunk_gwent_guide(
         sec_title = title_el.get_text(strip=True) if title_el else ""
         region = _extract_region(sec_id, sec_title)
 
+        # Insight: Only Preparation and Step 1..N link to Card Collector; mechanics and general intro have no trophy_id
+        is_card_collector_step = bool(
+            re.search(r"\b(?:step\s+\d+|preparation)\b", f"{sec_id} {sec_title}", re.IGNORECASE)
+        )
+        linked_trophy_id = card_collector_trophy_id if is_card_collector_step else None
+
         fr = s.find("div", class_="fr-view")
         if not fr:
             continue
@@ -87,7 +93,7 @@ def chunk_gwent_guide(
                     sub_title="Overview",
                     content=text,
                     source_url=source_url,
-                    trophy_id=card_collector_trophy_id,
+                    trophy_id=linked_trophy_id,
                     index=chunk_idx,
                 ))
                 chunk_idx += 1
@@ -110,7 +116,7 @@ def chunk_gwent_guide(
                 sub_title="Overview & Intro",
                 content=intro_text,
                 source_url=source_url,
-                trophy_id=card_collector_trophy_id,
+                trophy_id=linked_trophy_id,
                 index=chunk_idx,
             ))
             chunk_idx += 1
@@ -131,7 +137,7 @@ def chunk_gwent_guide(
                     sub_title=vendor,
                     content=txt,
                     source_url=source_url,
-                    trophy_id=card_collector_trophy_id,
+                    trophy_id=linked_trophy_id,
                     index=chunk_idx,
                 ))
                 chunk_idx += 1
@@ -151,7 +157,7 @@ def chunk_gwent_guide(
                     sub_title=step_name,
                     content=txt,
                     source_url=source_url,
-                    trophy_id=card_collector_trophy_id,
+                    trophy_id=linked_trophy_id,
                     index=chunk_idx,
                 ))
                 chunk_idx += 1
@@ -166,11 +172,13 @@ def _create_chunk(
     sub_title: str,
     content: str,
     source_url: str,
-    trophy_id: str,
+    trophy_id: Optional[str],
     index: int,
 ) -> DocumentChunk:
-    title = f"Card Collector — {region}: {sub_title}"
-    prefix = f"{game_title} › Base Game › Card Collector › {region}"
+    prefix_branch = "Card Collector › " if trophy_id else ""
+    title_prefix = "Card Collector" if trophy_id else "Gwent"
+    title = f"{title_prefix} — {region}: {sub_title}"
+    prefix = f"{game_title} › Base Game › {prefix_branch}{region}"
     is_missable = "(MISSABLE!)" in content or "missable" in content.lower() or "(missable!)" in title.lower()
 
     id_raw = f"{game_id}:gwent:{title}:{index}:{content[:40]}"
