@@ -405,4 +405,147 @@ describe('Agent Abstention & Tool Call Robustness Suite', () => {
     expect(chunkEvent?.content).toContain('Falha temporária no serviço');
     expect(mockCreate).toHaveBeenCalledTimes(3);
   });
+
+  it('N01 short-circuits and abstains 10/10 times when has_guide=false without calling LLM or appending sources', async () => {
+    // Insight: Curto-circuito em código na abstenção de cobertura (N01)
+    const runner = new PlatinaAgentRunner();
+
+    vi.spyOn(runner, 'executeTool').mockResolvedValue({
+      game_id: 'the-witcher-3-wild-hunt',
+      total: 13,
+      has_guide: false,
+      linked_chunks_count: 0,
+      trophies: [
+        { id: 't1', name: 'Grandmaster', type: 'bronze', dlc: 'Blood and Wine', missable: false },
+      ],
+    });
+
+    for (let i = 0; i < 10; i++) {
+      const mockCreate = vi.fn().mockResolvedValue({
+        choices: [
+          {
+            message: {
+              role: 'assistant',
+              content: null,
+              tool_calls: [
+                {
+                  id: `call_n01_${i}`,
+                  type: 'function',
+                  function: {
+                    name: 'list_trophies',
+                    arguments: JSON.stringify({
+                      game: 'The Witcher 3: Wild Hunt',
+                      dlc: 'Blood and Wine',
+                    }),
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      });
+
+      (runner as unknown as { client: { chat: { completions: { create: typeof mockCreate } } } }).client = {
+        chat: { completions: { create: mockCreate } },
+      };
+
+      const events: AgentStepEvent[] = [];
+      for await (const event of runner.run('Como pego os troféus do Blood and Wine?', {
+        game: 'The Witcher 3: Wild Hunt',
+        lang: 'pt',
+      })) {
+        events.push(event);
+      }
+
+      const chunkEvent = events.find((e) => e.type === 'chunk');
+      expect(chunkEvent).toBeDefined();
+      expect(chunkEvent?.content).toContain('ainda não há guia indexado');
+      // Abstenção nunca lista fontes verificadas
+      expect(chunkEvent?.content).not.toContain('Fontes verificadas:');
+      const sourcesEvent = events.find((e) => e.type === 'sources');
+      expect(sourcesEvent).toBeUndefined();
+      // LLM only called once for tool call, short-circuited before round 2 or 3
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('H04 with retrieved chunk responds 10/10 times without ever abstaining', async () => {
+    // Insight: "Fora disso, nunca abster" — com chunks recuperados, o agente responde 10/10 vezes sem acionar guarda de abstenção
+    const runner = new PlatinaAgentRunner();
+
+    vi.spyOn(runner, 'executeTool').mockResolvedValue({
+      status: 'found',
+      has_guide: true,
+      trophy: {
+        id: 'the-witcher-3-wild-hunt-when-its-many-against-one',
+        name: "When It's Many Against One…",
+        type: 'bronze',
+        dlc: 'Hearts of Stone',
+        missable: true,
+      },
+      chunks: [
+        {
+          id: 'c_hos',
+          title: "When It's Many Against One…",
+          content: "Provoke all Iris von Everec's Nightmares into fighting you at the same time and defeat them. The fight takes place at the end of main quest Scenes from a Marriage.",
+          source_url: 'https://powerpyx.com/guides/the-witcher-3-wild-hunt-trophy-guide.html',
+        },
+      ],
+    });
+
+    for (let i = 0; i < 10; i++) {
+      const mockCreate = vi.fn()
+        .mockResolvedValueOnce({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [
+                  {
+                    id: `call_h04_${i}`,
+                    type: 'function',
+                    function: {
+                      name: 'get_trophy_guide',
+                      arguments: JSON.stringify({
+                        game: 'The Witcher 3: Wild Hunt',
+                        trophy: "When It's Many Against One…",
+                      }),
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: "O troféu When It's Many Against One… é o único perdível do Hearts of Stone. Provoque todos os pesadelos de Iris na missão Scenes from a Marriage ao mesmo tempo.",
+              },
+            },
+          ],
+        });
+
+      (runner as unknown as { client: { chat: { completions: { create: typeof mockCreate } } } }).client = {
+        chat: { completions: { create: mockCreate } },
+      };
+
+      const events: AgentStepEvent[] = [];
+      for await (const event of runner.run("Vou começar o Hearts of Stone, o que é perdível?", {
+        game: 'The Witcher 3: Wild Hunt',
+        lang: 'pt',
+      })) {
+        events.push(event);
+      }
+
+      const chunkEvent = events.find((e) => e.type === 'chunk');
+      expect(chunkEvent).toBeDefined();
+      expect(chunkEvent?.content).not.toContain('Guia oficial não encontrado');
+      expect(chunkEvent?.content).toContain("When It's Many Against One…");
+      expect(chunkEvent?.content).toContain('Iris');
+    }
+  });
 });

@@ -411,13 +411,6 @@ ${personaInstructions}`;
     const collectedGuideSources: GuideSourceItem[] = [];
     let hadZeroContextSearchResult = false;
     let hasSuccessfulContextToolCall = false;
-    let coverageAbstentionRequired = false;
-    let coverageAbstentionTarget: {
-      type: 'trophy' | 'dlc';
-      name?: string | undefined;
-      dlc?: string | undefined;
-      trophies?: string[] | undefined;
-    } | null = null;
 
     // Insight: Classify whether this query relates to a game or trophy to enforce required tool choice
     const isPureChoiceOrGreeting =
@@ -584,13 +577,13 @@ ${personaInstructions}`;
 
         // If tactical claims were made without any source guides, abort to spec fallback immediately
         // Note: conversational queries or questions where no guides were fetched should cleanly inform the user
-        // However, if the answer is conversational / choice-oriented, let it pass rather than hard aborting
-        if (collectedGuideSources.length === 0 && validation.ungroundedClaims.length > 0) {
+        if (collectedGuideSources.length === 0) {
           return isEn
             ? 'Official guide not found for this objective.\nWould you like me to search complementary sources?'
             : 'Guia oficial não encontrado para este objetivo.\nQuer que eu procure em fontes complementares?';
         }
 
+        // Insight: "Fora disso, nunca abster" — when chunks were retrieved for the target, never return an abstention message
         try {
           const correctiveMessages: Groq.Chat.ChatCompletionMessageParam[] = [
             ...currentMessages,
@@ -619,18 +612,13 @@ ${personaInstructions}`;
           llmLatencyMs += performance.now() - correctiveStart;
 
           const corrected = correctiveCompletion.choices[0]?.message?.content;
-          if (corrected) {
-            const revalidation = await groundingValidator.validate(corrected, collectedGuideSources);
-            if (revalidation.isValid) {
-              return corrected;
-            }
+          if (corrected && corrected.trim()) {
+            return corrected;
           }
         } catch {
-          // If corrective re-prompt fails, provide a safe grounded fallback rather than hallucinated advice
+          // If corrective re-prompt fails, keep rawContent rather than false abstention
         }
-        return isEn
-          ? 'Official guide not found for this objective.\nWould you like me to search complementary sources?'
-          : 'Guia oficial não encontrado para este objetivo.\nQuer que eu procure em fontes complementares?';
+        return rawContent;
       }
 
       return rawContent;
@@ -718,22 +706,6 @@ ${personaInstructions}`;
       const toolCalls = assistantMsg.tool_calls;
 
       if (!toolCalls || toolCalls.length === 0) {
-        // Insight: Coverage-based abstention when querying catalog content without guide chunks (e.g. unindexed DLC N01)
-        if (coverageAbstentionRequired) {
-          const abstentionMsg = isEn
-            ? (coverageAbstentionTarget?.type === 'trophy'
-                ? `The catalog contains the trophy "${coverageAbstentionTarget.name}", but there is no guide indexed for it in the database yet.`
-                : `The catalog contains the trophies for this expansion, but there is no guide indexed for them in the database yet.${coverageAbstentionTarget?.trophies?.length ? `\n\nRegistered trophies:\n${coverageAbstentionTarget.trophies.map((n) => `- ${n}`).join('\n')}` : ''}`)
-            : (coverageAbstentionTarget?.type === 'trophy'
-                ? `O catálogo contém o troféu "${coverageAbstentionTarget.name}", mas ainda não há guia indexado para ele no banco de dados.`
-                : `O catálogo contém os troféus desta expansão, mas ainda não há guia indexado para eles no banco de dados.${coverageAbstentionTarget?.trophies?.length ? `\n\nTroféus registrados:\n${coverageAbstentionTarget.trophies.map((n) => `- ${n}`).join('\n')}` : ''}`);
-
-          yield { type: 'chunk', content: abstentionMsg };
-          await recordTelemetry(abstentionMsg);
-          yield { type: 'done' };
-          return;
-        }
-
         let rawContent = assistantMsg.content ?? '';
 
         // Insight: Final guard — if answer is generated without any successful tool call with context on a game/trophy query, return fixed abstention
@@ -797,8 +769,9 @@ ${personaInstructions}`;
 
         // No more tool calls; validate content with Pre-Flight Verification before streaming
         const verifiedContent = await verifyAndStreamAnswer(rawContent, messages);
-        const distinctSources = extractDistinctSources(collectedGuideSources);
-        const finalContent = appendSourcesFooter(verifiedContent || rawContent, distinctSources, lang);
+        const isAbstention = /guia oficial n[aã]o encontrado|official guide not found|n[aã]o h[aá] guia indexado|no guide indexed|ainda n[aã]o h[aá] guia/i.test(verifiedContent);
+        const distinctSources = isAbstention ? [] : extractDistinctSources(collectedGuideSources);
+        const finalContent = isAbstention ? verifiedContent : appendSourcesFooter(verifiedContent || rawContent, distinctSources, lang);
 
         yield { type: 'chunk', content: finalContent };
         if (distinctSources.length > 0) {
@@ -975,13 +948,21 @@ ${personaInstructions}`;
                 }
               }
             } else {
-              // Trophy exists in catalog, but has 0 linked chunks (coverage abstention)
-              coverageAbstentionRequired = true;
-              coverageAbstentionTarget = {
-                type: 'trophy',
-                name: gRes.trophy?.name || '',
-                dlc: gRes.trophy?.dlc || undefined,
+              // Insight: Curto-circuito em código para abstenção de cobertura (troféu sem guia indexado)
+              const trophyName = gRes.trophy?.name || (toolArgs.trophy as string) || '';
+              const abstentionMsg = isEn
+                ? `The catalog contains the trophy "${trophyName}", but there is no guide indexed for it in the database yet.`
+                : `O catálogo contém o troféu "${trophyName}", mas ainda não há guia indexado para ele no banco de dados.`;
+
+              yield {
+                type: 'tool_result',
+                toolName,
+                toolResult: resultData,
               };
+              yield { type: 'chunk', content: abstentionMsg };
+              await recordTelemetry(abstentionMsg);
+              yield { type: 'done' };
+              return;
             }
           } else if (gRes.status === 'suggestions') {
             hasSuccessfulContextToolCall = true;
@@ -999,12 +980,24 @@ ${personaInstructions}`;
           if (lRes.total > 0) {
             hasSuccessfulContextToolCall = true;
             if (lRes.has_guide === false) {
-              coverageAbstentionRequired = true;
-              coverageAbstentionTarget = {
-                type: 'dlc',
-                dlc: (toolArgs.dlc as string) || undefined,
-                trophies: lRes.trophies.map((t) => t.name),
-              };
+              const asksForInstructions = /(como|guia|guide|pegar|fazer|get|how|passo a passo|dica|rota)/i.test(userMessage);
+              if (asksForInstructions) {
+                // Insight: Curto-circuito em código para abstenção de cobertura (N01)
+                const dlcName = (toolArgs.dlc as string) || '';
+                const abstentionMsg = isEn
+                  ? `The catalog contains the trophies for this expansion${dlcName ? ` (${dlcName})` : ''}, but there is no guide indexed for them in the database yet.${lRes.trophies?.length ? `\n\nRegistered trophies:\n${lRes.trophies.map((t) => `- ${t.name}`).join('\n')}` : ''}`
+                  : `O catálogo contém os troféus desta expansão${dlcName ? ` (${dlcName})` : ''}, mas ainda não há guia indexado para eles no banco de dados.${lRes.trophies?.length ? `\n\nTroféus registrados:\n${lRes.trophies.map((t) => `- ${t.name}`).join('\n')}` : ''}`;
+
+                yield {
+                  type: 'tool_result',
+                  toolName,
+                  toolResult: resultData,
+                };
+                yield { type: 'chunk', content: abstentionMsg };
+                await recordTelemetry(abstentionMsg);
+                yield { type: 'done' };
+                return;
+              }
             }
             const trophyLines = lRes.trophies
               .map((t) => `- ${t.name} (${t.type}${t.dlc ? `, ${t.dlc}` : ''}${t.missable ? ', MISSABLE' : ''}${t.location ? `, ${t.location}` : ''}): ${t.description || ''}`)
@@ -1046,22 +1039,6 @@ ${personaInstructions}`;
     }
 
     // If max steps reached without final text, generate a direct answer from collected messages
-    // Insight: Coverage-based abstention when querying catalog content without guide chunks (e.g. unindexed DLC N01)
-    if (coverageAbstentionRequired) {
-      const abstentionMsg = isEn
-        ? (coverageAbstentionTarget?.type === 'trophy'
-            ? `The catalog contains the trophy "${coverageAbstentionTarget.name}", but there is no guide indexed for it in the database yet.`
-            : `The catalog contains the trophies for this expansion, but there is no guide indexed for them in the database yet.${coverageAbstentionTarget?.trophies?.length ? `\n\nRegistered trophies:\n${coverageAbstentionTarget.trophies.map((n) => `- ${n}`).join('\n')}` : ''}`)
-        : (coverageAbstentionTarget?.type === 'trophy'
-            ? `O catálogo contém o troféu "${coverageAbstentionTarget.name}", mas ainda não há guia indexado para ele no banco de dados.`
-            : `O catálogo contém os troféus desta expansão, mas ainda não há guia indexado para eles no banco de dados.${coverageAbstentionTarget?.trophies?.length ? `\n\nTroféus registrados:\n${coverageAbstentionTarget.trophies.map((n) => `- ${n}`).join('\n')}` : ''}`);
-
-      yield { type: 'chunk', content: abstentionMsg };
-      await recordTelemetry(abstentionMsg);
-      yield { type: 'done' };
-      return;
-    }
-
     // Insight: Final guard — if answer is generated without any successful tool call with context on a game/trophy query, return fixed abstention
     if (isGameOrTrophyQuery && (!hasSuccessfulContextToolCall || collectedGuideSources.length === 0)) {
       const abstentionMsg = isEn
@@ -1144,16 +1121,19 @@ ${personaInstructions}`;
       return;
     }
     const verifiedContent = await verifyAndStreamAnswer(fallbackRawContent, messages);
-    const distinctSources = extractDistinctSources(collectedGuideSources);
-    const finalFallbackContent = appendSourcesFooter(
-      verifiedContent ||
-        fallbackRawContent ||
-        (isEn
-          ? '\n[Notice: Agent finished gathering data from tools.]'
-          : '\n[Aviso: O agente concluiu a coleta de dados das ferramentas.]'),
-      distinctSources,
-      lang
-    );
+    const isAbstention = /guia oficial n[aã]o encontrado|official guide not found|n[aã]o h[aá] guia indexado|no guide indexed|ainda n[aã]o h[aá] guia/i.test(verifiedContent);
+    const distinctSources = isAbstention ? [] : extractDistinctSources(collectedGuideSources);
+    const finalFallbackContent = isAbstention
+      ? verifiedContent
+      : appendSourcesFooter(
+          verifiedContent ||
+            fallbackRawContent ||
+            (isEn
+              ? '\n[Notice: Agent finished gathering data from tools.]'
+              : '\n[Aviso: O agente concluiu a coleta de dados das ferramentas.]'),
+          distinctSources,
+          lang
+        );
 
     yield {
       type: 'chunk',
