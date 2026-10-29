@@ -1,9 +1,13 @@
 // Insight: Suite testing guaranteed abstention and recovery from malformed tool calls
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PlatinaAgentRunner, type AgentStepEvent } from './runner.js';
 import { ingestionClient } from '../ingestionClient.js';
+import { telemetryService } from '../observability/telemetry.js';
 
 describe('Agent Abstention & Tool Call Robustness Suite', () => {
+  beforeEach(() => {
+    vi.spyOn(telemetryService, 'shouldSample').mockReturnValue(false);
+  });
   it('guarantees fixed abstention message without freeform LLM generation when game is unindexed', async () => {
     process.env.PLATINA_DISABLE_LIVE_SCRAPING = 'true';
     const runner = new PlatinaAgentRunner();

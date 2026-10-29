@@ -8,6 +8,24 @@ import {
   type PlayerProgressResult,
 } from './tools/playerProgress.js';
 import {
+  getTrophyGuideTool,
+  GetTrophyGuideTool,
+  getTrophyGuideParamsSchema,
+  type TrophyGuideResult,
+} from './tools/getTrophyGuide.js';
+import {
+  listTrophiesTool,
+  ListTrophiesTool,
+  listTrophiesParamsSchema,
+  type ListTrophiesResult,
+} from './tools/listTrophies.js';
+import {
+  getGameOverviewTool,
+  GetGameOverviewTool,
+  getGameOverviewParamsSchema,
+  type GameOverviewResult,
+} from './tools/getGameOverview.js';
+import {
   searchGuidesTool,
   SearchGuidesTool,
   searchGuidesParamsSchema,
@@ -175,6 +193,9 @@ export class PlatinaAgentRunner {
   getAvailableTools() {
     return [
       PlayerProgressTool.toolDefinition,
+      GetTrophyGuideTool.toolDefinition,
+      ListTrophiesTool.toolDefinition,
+      GetGameOverviewTool.toolDefinition,
       SearchGuidesTool.toolDefinition,
     ];
   }
@@ -190,6 +211,27 @@ export class PlatinaAgentRunner {
         throw new Error(`Invalid arguments for ${PlayerProgressTool.name}: ${parsed.error.message}`);
       }
       return await playerProgressTool.execute(parsed.data);
+    }
+    if (name === GetTrophyGuideTool.name) {
+      const parsed = getTrophyGuideParamsSchema.safeParse(args);
+      if (!parsed.success) {
+        throw new Error(`Invalid arguments for ${GetTrophyGuideTool.name}: ${parsed.error.message}`);
+      }
+      return await getTrophyGuideTool.execute(parsed.data);
+    }
+    if (name === ListTrophiesTool.name) {
+      const parsed = listTrophiesParamsSchema.safeParse(args);
+      if (!parsed.success) {
+        throw new Error(`Invalid arguments for ${ListTrophiesTool.name}: ${parsed.error.message}`);
+      }
+      return await listTrophiesTool.execute(parsed.data);
+    }
+    if (name === GetGameOverviewTool.name) {
+      const parsed = getGameOverviewParamsSchema.safeParse(args);
+      if (!parsed.success) {
+        throw new Error(`Invalid arguments for ${GetGameOverviewTool.name}: ${parsed.error.message}`);
+      }
+      return await getGameOverviewTool.execute(parsed.data);
     }
     if (name === SearchGuidesTool.name) {
       const parsed = searchGuidesParamsSchema.safeParse(args);
@@ -302,38 +344,48 @@ Gere DIRETAMENTE a saudação e o briefing tático (ou resposta de status) em 1 
       ? `You are Platina AI Agent, an autonomous PlayStation trophy hunting specialist.
 You have access to tools to:
 1. "check_player_progress": check earned and pending trophies for a player on PSN.
-2. "search_trophy_guides": search verified excerpts in the trophy guide vector database.
+2. "get_trophy_guide": look up a specific trophy in the canonical catalog to get its metadata and exact guide walkthrough (no vector search).
+3. "list_trophies": structured SQL query for lists, counts, and missable trophies by location or DLC.
+4. "get_game_overview": get platinum overview stats (difficulty, hours, playthroughs, type and DLC counts).
+5. "search_trophy_guides": search verified excerpts in the trophy guide vector database for vague queries or quest walkthroughs.
 
 Agent Guidelines & Language Architecture:
 - ALL tool arguments (query, game, trophies, quests) MUST be written in English. Always use official English names for trophies, quests, and characters.
 - If the user asks in another language, translate the intent into English for tool arguments.
 - Deliver the final answer to the user in English as configured in the session.
+- Tool Choice Hierarchy:
+  - For lists, counts, or "what is missable in <location/DLC>" (e.g. missables in Novigrad, trophies in DLC), ALWAYS call "list_trophies".
+  - When returning a list from "list_trophies", you MUST include ALL items returned (do not summarize, truncate, or omit items).
+  - For "how to get X" or specific trophy lookups, ALWAYS call "get_trophy_guide" with the exact official trophy name.
+  - For difficulty, platinum hours, playthroughs, or trophy counts by type/DLC, ALWAYS call "get_game_overview".
+  - For vague queries, story points of no return, or quests without a cited trophy name, use "search_trophy_guides".
+- IMPORTANT Query Rule: Only use an official trophy or quest name in a tool query when the user actually cited that name. If the user only described a requirement (e.g. "Qual troféu é de matar vaca?"), describe the requirement in English (e.g. query: "kill cows"), NEVER guess or invent a nonexistent trophy name.
 - If the user mentions a PSN ID or asks what to do next in a game, call "check_player_progress" to inspect their actual progress.
-- When the user asks about quests, story choices, points of no return (e.g. "Before Kaer Morhen", "accepting an offer", "missables in Novigrad"), contracts, or missable trophies for a region/DLC, you MUST call "search_trophy_guides" using concise English keywords (e.g. query: "Kaer Morhen", "Full Crew", "Woodland Spirit", "Hearts of Stone missable") and game in English to retrieve verified guide excerpts before answering.
-- If "check_player_progress" returns "unearned_trophies_summary", USE this list of actual pending trophies to answer what is missing or easiest/fastest to achieve.
-- When searching guides with "search_trophy_guides", ALWAYS send the clean, exact short trophy name in English (e.g. query: "Card Collector", "Masterminds", "Kifflom", "Cryptozoologist"), NEVER concatenate descriptions, words like "silver", "bronze", or long text into the search query.${isDeepWalkthrough ? ' In detailed mode, pass limit: 8 to obtain comprehensive context.' : ''}
-- When the user asks about cards, collectibles, or detailed steps for a trophy, call "search_trophy_guides" using the trophy name in English and limit: 8.
-- If player progress was identified and no additional guide search is required (or the query is purely about pending list), respond tactically using "check_player_progress" data.
-- If the user selects a numbered option or route (e.g. "1", "2", "Option 1", "Option 2"), use conversation history and gathered data to map out that route. Call "search_trophy_guides" only if specific trophy details are needed.
+- When searching guides with "search_trophy_guides", ALWAYS send clean, concise English keywords (e.g. query: "Card Collector", "Masterminds", "Kifflom"), NEVER concatenate long descriptions or words like "silver" or "bronze".${isDeepWalkthrough ? ' In detailed mode, pass limit: 8 to obtain comprehensive context.' : ''}
+- If player progress was identified and no additional guide search is required, respond tactically using "check_player_progress" data.
 - Do not make more than 2 tool calls in the same response. Be direct, practical, cite sources, and respond in clear, professional English.${prefetchPromptAddition}
 
 ${personaInstructions}`
       : `Você é o Platina AI Agent, um assistente gamer autônomo especialista em platinas PlayStation.
 Você tem acesso a ferramentas para:
 1. "check_player_progress": consultar os troféus já conquistados e pendentes de um jogador na PSN.
-2. "search_trophy_guides": buscar trechos verificados no banco vetorial de guias de troféus.
+2. "get_trophy_guide": consultar um troféu específico no catálogo canônico obtendo metadados e guia ordenado (sem busca vetorial).
+3. "list_trophies": consulta estruturada SQL para listas, contagens e troféus perdíveis por região ou DLC.
+4. "get_game_overview": obter panorama de platina (dificuldade, tempo em horas, jogadas necessárias e contagens por tipo/DLC).
+5. "search_trophy_guides": buscar trechos verificados no banco vetorial de guias para buscas vagas ou walkthroughs de quests.
 
 Diretrizes do Agente e Arquitetura de Idioma:
-- OBRIGATÓRIO: TODOS os argumentos das ferramentas (query, game, troféus, missões) devem ser escritos em INGLÊS. Traduza a pergunta do usuário para termos em inglês antes de chamar qualquer ferramenta (ex: se o usuário perguntou em português "Como pego o troféu de cartas?", passe query: "Card Collector", game: "The Witcher 3: Wild Hunt").
-- Use SEMPRE os nomes oficiais de troféus, quests e personagens em inglês nas chamadas de ferramentas.
+- OBRIGATÓRIO: TODOS os argumentos das ferramentas (query, game, troféus, missões) devem ser escritos em INGLÊS. Traduza a pergunta do usuário para termos em inglês antes de chamar qualquer ferramenta.
+- Hierarquia Obrigatória de Escolha de Ferramentas:
+  - Listas, contagens e "o que é missável em <local/DLC>" (ex: missáveis em Novigrad, troféus de DLC) SEMPRE por "list_trophies".
+  - Ao responder uma lista vinda de "list_trophies", inclua OBRIGATORIAMENTE TODOS os itens retornados (não resuma nem omita itens).
+  - "Como pego X" ou consulta de troféu específico SEMPRE por "get_trophy_guide" com o nome oficial em inglês.
+  - Dificuldade, tempo de platina, jogadas necessárias e estatísticas gerais SEMPRE por "get_game_overview".
+  - Perguntas vagas, pontos de não retorno de história ou contratos sem nome exato por "search_trophy_guides".
+- REGRA CRÍTICA DE QUERY: Só use nome oficial de troféu ou quest na query quando o usuário tiver citado esse nome. Se ele só descreveu o requisito (ex: "Qual troféu é de matar vaca?"), a query descreve o requisito em inglês (ex: query: "kill cows"), NUNCA adivinhe ou invente um nome de troféu inexistente.
 - A resposta final destinada ao usuário deve ser escrita em português (o idioma da sessão/pergunta).
-- Se o usuário mencionar um PSN ID ou perguntar o que precisa fazer a seguir em um jogo, chame "check_player_progress" para ver a situação real dele.
-- Quando o usuário perguntar sobre missões, escolhas de história, pontos de não retorno (ex: "Antes de Kaer Morhen", "se aceitar oferta", "missáveis em Novigrad"), contratos ou troféus perdíveis de uma região/DLC, chame OBRIGATORIAMENTE "search_trophy_guides" com termos concisos em inglês (ex: query: "Kaer Morhen", "Full Crew", "Woodland Spirit", "Hearts of Stone missable") e game em inglês para obter os trechos verificados do guia antes de responder.
-- Se o retorno de "check_player_progress" trouxer "unearned_trophies_summary", USE essa lista de troféus pendentes reais do jogador para responder quais troféus faltam ou qual é o mais fácil/rápido de fazer.
-- Para buscar no banco de guias com "search_trophy_guides", envie SEMPRE o nome exato do troféu curto e limpo em inglês (ex: query: "Card Collector", "Masterminds", "Kifflom", "Cryptozoologist"), NUNCA concatene a descrição inteira do troféu, palavras como "silver", "bronze" ou textos longos na query de busca.${isDeepWalkthrough ? ' No modo detalhado, passe limit: 8 para obter contexto abrangente.' : ''}
-- Quando o usuário perguntar sobre cartas, colecionáveis ou passos detalhados de um troféu, chame "search_trophy_guides" usando o nome do troféu em inglês (ex: query: "Card Collector" para troféu de cartas de Gwent) e limit: 8.
-- Se você identificou o progresso do jogador e nenhum guia vetorial adicional for necessário (ou a dúvida for apenas sobre a lista de pendências), responda usando os dados retornados de "check_player_progress" de forma tática.
-- Se o usuário responder escolhendo uma opção numérica ou rota (ex: "1", "2", "Rota 1", "Rota 2"), use o histórico da conversa e os dados já obtidos para traçar o plano detalhado dessa rota específica. Chame "search_trophy_guides" apenas se precisar de detalhes de um troféu específico dessa rota.
+- Se o usuário mencionar um PSN ID ou perguntar o que precisa fazer a seguir, chame "check_player_progress".
+- Para buscar no banco de guias com "search_trophy_guides", envie termos concisos e limpos em inglês.${isDeepWalkthrough ? ' No modo detalhado, passe limit: 8 para obter contexto abrangente.' : ''}
 - Não execute mais de 2 chamadas de ferramentas na mesma resposta. Seja direto, prático e cite as fontes.${prefetchPromptAddition}
 
 ${personaInstructions}`;
@@ -359,6 +411,13 @@ ${personaInstructions}`;
     const collectedGuideSources: GuideSourceItem[] = [];
     let hadZeroContextSearchResult = false;
     let hasSuccessfulContextToolCall = false;
+    let coverageAbstentionRequired = false;
+    let coverageAbstentionTarget: {
+      type: 'trophy' | 'dlc';
+      name?: string | undefined;
+      dlc?: string | undefined;
+      trophies?: string[] | undefined;
+    } | null = null;
 
     // Insight: Classify whether this query relates to a game or trophy to enforce required tool choice
     const isPureChoiceOrGreeting =
@@ -628,8 +687,8 @@ ${personaInstructions}`;
                       {
                         role: 'user',
                         content: isEn
-                          ? 'Error: Invalid tool call name. Available tools are strictly "check_player_progress" and "search_trophy_guides". Please retry.'
-                          : 'Erro: Chamada de ferramenta com nome inválido. As ferramentas permitidas são estritamente "check_player_progress" e "search_trophy_guides". Reenvie a chamada válida.',
+                          ? 'Error: Invalid tool call name. Available tools are "check_player_progress", "get_trophy_guide", "list_trophies", "get_game_overview", and "search_trophy_guides". Please retry.'
+                          : 'Erro: Chamada de ferramenta com nome inválido. As ferramentas permitidas são "check_player_progress", "get_trophy_guide", "list_trophies", "get_game_overview" e "search_trophy_guides". Reenvie a chamada válida.',
                       },
                     ],
                     tools: this.getAvailableTools(),
@@ -659,8 +718,26 @@ ${personaInstructions}`;
       const toolCalls = assistantMsg.tool_calls;
 
       if (!toolCalls || toolCalls.length === 0) {
+        // Insight: Coverage-based abstention when querying catalog content without guide chunks (e.g. unindexed DLC N01)
+        if (coverageAbstentionRequired) {
+          const abstentionMsg = isEn
+            ? (coverageAbstentionTarget?.type === 'trophy'
+                ? `The catalog contains the trophy "${coverageAbstentionTarget.name}", but there is no guide indexed for it in the database yet.`
+                : `The catalog contains the trophies for this expansion, but there is no guide indexed for them in the database yet.${coverageAbstentionTarget?.trophies?.length ? `\n\nRegistered trophies:\n${coverageAbstentionTarget.trophies.map((n) => `- ${n}`).join('\n')}` : ''}`)
+            : (coverageAbstentionTarget?.type === 'trophy'
+                ? `O catálogo contém o troféu "${coverageAbstentionTarget.name}", mas ainda não há guia indexado para ele no banco de dados.`
+                : `O catálogo contém os troféus desta expansão, mas ainda não há guia indexado para eles no banco de dados.${coverageAbstentionTarget?.trophies?.length ? `\n\nTroféus registrados:\n${coverageAbstentionTarget.trophies.map((n) => `- ${n}`).join('\n')}` : ''}`);
+
+          yield { type: 'chunk', content: abstentionMsg };
+          await recordTelemetry(abstentionMsg);
+          yield { type: 'done' };
+          return;
+        }
+
+        let rawContent = assistantMsg.content ?? '';
+
         // Insight: Final guard — if answer is generated without any successful tool call with context on a game/trophy query, return fixed abstention
-        if (isGameOrTrophyQuery && (!hasSuccessfulContextToolCall || collectedGuideSources.length === 0)) {
+        if (isGameOrTrophyQuery && (!hasSuccessfulContextToolCall || collectedGuideSources.length === 0) && (hadZeroContextSearchResult || !rawContent.trim())) {
           const abstentionMsg = isEn
             ? 'Official guide not found for this objective in the database.\nWould you like me to index this guide or search complementary sources?'
             : 'Guia oficial não encontrado para este objetivo no banco de dados.\nQuer que eu realize a ingestão deste guia ou procure em fontes complementares?';
@@ -682,7 +759,6 @@ ${personaInstructions}`;
         }
 
         // Insight: Handle empty final response with 1x retry; if it persists, yield fixed temporary failure message
-        let rawContent = assistantMsg.content ?? '';
         if (!rawContent.trim()) {
           try {
             const retryCompletion = await executeWithModelCascade(
@@ -884,6 +960,76 @@ ${personaInstructions}`;
           addPlayerProgressToSources(pData, collectedGuideSources, lang);
         }
 
+        if (toolName === GetTrophyGuideTool.name && resultData && typeof resultData === 'object') {
+          const gRes = resultData as TrophyGuideResult;
+          if (gRes.status === 'found') {
+            hasSuccessfulContextToolCall = true;
+            if (gRes.has_guide && Array.isArray(gRes.chunks) && gRes.chunks.length > 0) {
+              for (const ch of gRes.chunks) {
+                if (ch?.content) {
+                  collectedGuideSources.push({
+                    title: ch.title || gRes.trophy?.name || (isEn ? 'Trophy Guide' : 'Guia de Troféus'),
+                    content: ch.content,
+                    sourceUrl: ch.source_url || undefined,
+                  });
+                }
+              }
+            } else {
+              // Trophy exists in catalog, but has 0 linked chunks (coverage abstention)
+              coverageAbstentionRequired = true;
+              coverageAbstentionTarget = {
+                type: 'trophy',
+                name: gRes.trophy?.name || '',
+                dlc: gRes.trophy?.dlc || undefined,
+              };
+            }
+          } else if (gRes.status === 'suggestions') {
+            hasSuccessfulContextToolCall = true;
+            collectedGuideSources.push({
+              title: isEn ? 'Catalog Suggestions' : 'Sugestões do Catálogo',
+              content: gRes.message || (gRes.suggestions?.length ? `Suggestions: ${gRes.suggestions.join(', ')}` : ''),
+            });
+          } else if (gRes.status === 'not_found') {
+            hadZeroContextSearchResult = true;
+          }
+        }
+
+        if (toolName === ListTrophiesTool.name && resultData && typeof resultData === 'object') {
+          const lRes = resultData as ListTrophiesResult;
+          if (lRes.total > 0) {
+            hasSuccessfulContextToolCall = true;
+            if (lRes.has_guide === false) {
+              coverageAbstentionRequired = true;
+              coverageAbstentionTarget = {
+                type: 'dlc',
+                dlc: (toolArgs.dlc as string) || undefined,
+                trophies: lRes.trophies.map((t) => t.name),
+              };
+            }
+            const trophyLines = lRes.trophies
+              .map((t) => `- ${t.name} (${t.type}${t.dlc ? `, ${t.dlc}` : ''}${t.missable ? ', MISSABLE' : ''}${t.location ? `, ${t.location}` : ''}): ${t.description || ''}`)
+              .join('\n');
+            collectedGuideSources.push({
+              title: isEn ? 'Catalog Trophy List' : 'Lista de Troféus do Catálogo',
+              content: `Total trophies: ${lRes.total}\n${trophyLines}`,
+            });
+          } else {
+            hadZeroContextSearchResult = true;
+          }
+        }
+
+        if (toolName === GetGameOverviewTool.name && resultData && typeof resultData === 'object') {
+          const oRes = resultData as GameOverviewResult;
+          if (oRes.total_trophies > 0) {
+            hasSuccessfulContextToolCall = true;
+            const overviewText = `Game: ${oRes.title}\nDifficulty: ${oRes.difficulty ?? 'N/A'}/10\nHours: ${oRes.hours ?? 'N/A'}\nPlaythroughs: ${oRes.playthroughs ?? 'N/A'}\nTotal Trophies: ${oRes.total_trophies} (Bronze: ${oRes.by_type?.bronze}, Silver: ${oRes.by_type?.silver}, Gold: ${oRes.by_type?.gold}, Platinum: ${oRes.by_type?.platinum})`;
+            collectedGuideSources.push({
+              title: isEn ? 'Game Platinum Overview' : 'Visão Geral da Platina',
+              content: overviewText,
+            });
+          }
+        }
+
         yield {
           type: 'tool_result',
           toolName,
@@ -900,6 +1046,22 @@ ${personaInstructions}`;
     }
 
     // If max steps reached without final text, generate a direct answer from collected messages
+    // Insight: Coverage-based abstention when querying catalog content without guide chunks (e.g. unindexed DLC N01)
+    if (coverageAbstentionRequired) {
+      const abstentionMsg = isEn
+        ? (coverageAbstentionTarget?.type === 'trophy'
+            ? `The catalog contains the trophy "${coverageAbstentionTarget.name}", but there is no guide indexed for it in the database yet.`
+            : `The catalog contains the trophies for this expansion, but there is no guide indexed for them in the database yet.${coverageAbstentionTarget?.trophies?.length ? `\n\nRegistered trophies:\n${coverageAbstentionTarget.trophies.map((n) => `- ${n}`).join('\n')}` : ''}`)
+        : (coverageAbstentionTarget?.type === 'trophy'
+            ? `O catálogo contém o troféu "${coverageAbstentionTarget.name}", mas ainda não há guia indexado para ele no banco de dados.`
+            : `O catálogo contém os troféus desta expansão, mas ainda não há guia indexado para eles no banco de dados.${coverageAbstentionTarget?.trophies?.length ? `\n\nTroféus registrados:\n${coverageAbstentionTarget.trophies.map((n) => `- ${n}`).join('\n')}` : ''}`);
+
+      yield { type: 'chunk', content: abstentionMsg };
+      await recordTelemetry(abstentionMsg);
+      yield { type: 'done' };
+      return;
+    }
+
     // Insight: Final guard — if answer is generated without any successful tool call with context on a game/trophy query, return fixed abstention
     if (isGameOrTrophyQuery && (!hasSuccessfulContextToolCall || collectedGuideSources.length === 0)) {
       const abstentionMsg = isEn

@@ -13,6 +13,7 @@ class PlayerTrophyProgressItem(BaseModel):
     trophy_category: str = "standard"
     chapter_or_location: Optional[str] = None
     is_missable: bool = False
+    trophy_id: Optional[str] = None
 
 
 class PlayerProgressResponse(BaseModel):

@@ -39,6 +39,7 @@ class PlayerProgressService:
                     trophy_category=category,
                     chapter_or_location=t.chapter_or_location,
                     is_missable=bool(t.is_missable),
+                    trophy_id=t.trophy_id,
                 )
 
             pending_items = [to_item(t) for t in pending]

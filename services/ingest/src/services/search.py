@@ -3,6 +3,8 @@ from typing import List, Dict, Any, Optional
 from sqlalchemy import select, and_, func
 from src.schemas.search import SearchQueryRequest, SearchResultItem, SearchResponse
 from src.models.chunk import GuideChunkModel
+from src.models.catalog import GameModel
+from src.services.entity_linker import get_canonical_game_id
 from src.services.embedding import embedding_service
 from src.services.reranker import reranker_service
 from src.database import get_db_session
@@ -19,16 +21,41 @@ class VectorSearchService:
         # 1. Embed user query into vector space
         query_vector = await embedding_service.embed_query(request.query)
 
-        # 2. Build common filtering conditions
-        conditions = []
+        # 2. Resolve game to canonical game_id if provided
+        resolved_game_id: Optional[str] = None
         if request.game:
+            clean_game = request.game.strip()
+            slug = get_canonical_game_id(clean_game)
+            async with get_db_session() as session:
+                stmt_game = (
+                    select(GameModel.id)
+                    .where(
+                        (GameModel.id == clean_game.lower())
+                        | (GameModel.id == slug)
+                        | (GameModel.title.ilike(clean_game))
+                        | (GameModel.aliases.contains([clean_game]))
+                    )
+                    .limit(1)
+                )
+                res_game = (await session.execute(stmt_game)).scalars().first()
+                if not res_game:
+                    stmt_partial = select(GameModel.id).where(GameModel.title.ilike(f"%{clean_game}%")).limit(1)
+                    res_game = (await session.execute(stmt_partial)).scalars().first()
+                resolved_game_id = res_game
+
+        # 3. Build common filtering conditions
+        conditions = []
+        if resolved_game_id:
+            # Insight: Exact game_id equality filter on guide_chunks rather than ILIKE
+            conditions.append(GuideChunkModel.game_id == resolved_game_id)
+        elif request.game:
             conditions.append(GuideChunkModel.game.ilike(f"%{request.game.strip()}%"))
         if request.missable_only:
             conditions.append(GuideChunkModel.is_missable.is_(True))
 
         candidate_limit = max(request.limit * 5, 25)
 
-        # 3. Dense Vector Retrieval (pgvector cosine distance)
+        # 4. Dense Vector Retrieval (pgvector cosine distance)
         distance_col = GuideChunkModel.embedding.cosine_distance(query_vector).label("distance")
         stmt_dense = select(GuideChunkModel, distance_col)
         if conditions:

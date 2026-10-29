@@ -5,6 +5,7 @@ from src.config import settings
 from src.routes.health import router as health_router
 from src.routes.ingest import router as ingest_router
 from src.routes.player import router as player_router
+from src.routes.catalog import router as catalog_router
 
 
 @asynccontextmanager
@@ -43,6 +44,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(ingest_router)
     app.include_router(player_router)
+    app.include_router(catalog_router)
 
     return app
 

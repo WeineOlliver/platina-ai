@@ -26,6 +26,7 @@ export interface PlayerProgressResult {
     trophy_name: string;
     chapter_or_location?: string | undefined;
     trophy_type: string;
+    trophy_id?: string | undefined;
   }>;
   unearned_trophies_summary?: string[];
   recently_unlocked: Array<{
