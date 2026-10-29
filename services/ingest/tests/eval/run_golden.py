@@ -64,7 +64,8 @@ def normalize_str(s: str) -> str:
         .replace("”", '"')
         .replace("…", "...")
     )
-    return re.sub(r"[^\w\s\.]", " ", cleaned).strip()
+    cleaned = re.sub(r"[^a-z0-9\s]", " ", cleaned)
+    return re.sub(r"\s+", " ", cleaned).strip()
 
 
 async def index_snapshots_if_available(game_name: str = "The Witcher 3: Wild Hunt") -> int:

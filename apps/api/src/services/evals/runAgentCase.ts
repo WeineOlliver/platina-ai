@@ -24,8 +24,11 @@ function normalizeStr(s: string): string {
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
+    .replace(/[’‘`]/g, "'")
+    .replace(/…/g, '...')
     .replace(/[\u202f\u00a0]/g, ' ')
-    .replace(/[^\w\s\.]/g, ' ')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
 }
 
