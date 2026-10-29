@@ -18,6 +18,14 @@ async def test_player_trophy_model_has_category_attribute():
 
 
 @pytest.mark.anyio
+async def test_player_trophy_model_has_trophy_id_attribute():
+    """Assert that PlayerTrophyModel has canonical trophy_id mapped."""
+    assert hasattr(
+        PlayerTrophyModel, "trophy_id"
+    ), "PlayerTrophyModel must map 'trophy_id' column."
+
+
+@pytest.mark.anyio
 async def test_trophy_category_column_exists_in_database():
     """Assert that trophy_category column exists on player_trophies table in PostgreSQL."""
     async with get_db_session() as session:

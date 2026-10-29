@@ -117,6 +117,10 @@ async def test_get_player_progress_witcher_3(async_client):
     data = response.json()
     assert data["psn_id"] == "olliverW9"
     assert data["game"] == "The Witcher 3: Wild Hunt"
-    assert "pending_missables_count" in data
+    assert data["total_trophies"] == 79
+    assert data["unlocked_count"] == 0
+    assert data["pending_count"] == 79
+    assert data["pending_missables_count"] == 10
     assert isinstance(data["pending_missable_trophies"], list)
+    assert len(data["pending_missable_trophies"]) == 10
 
