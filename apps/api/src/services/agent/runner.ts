@@ -362,6 +362,7 @@ Agent Guidelines & Language Architecture:
 - IMPORTANT Query Rule: Only use an official trophy or quest name in a tool query when the user actually cited that name. If the user only described a requirement (e.g. "Qual troféu é de matar vaca?"), describe the requirement in English (e.g. query: "kill cows"), NEVER guess or invent a nonexistent trophy name.
 - If the user mentions a PSN ID or asks what to do next in a game, call "check_player_progress" to inspect their actual progress.
 - When searching guides with "search_trophy_guides", ALWAYS send clean, concise English keywords (e.g. query: "Card Collector", "Masterminds", "Kifflom"), NEVER concatenate long descriptions or words like "silver" or "bronze".${isDeepWalkthrough ? ' In detailed mode, pass limit: 8 to obtain comprehensive context.' : ''}
+- Gwent Cards Domain Rule: Card Collector strictly requires the 120 unique cards from the base game. 195 is the total counting duplicates; DLC cards do not count towards the trophy. When answering about card counts, explicitly state "120 unique base game cards for the trophy" and, if mentioning 195 or DLC, explain the distinction. Never state a number without this context.
 - If player progress was identified and no additional guide search is required, respond tactically using "check_player_progress" data.
 - Do not make more than 2 tool calls in the same response. Be direct, practical, cite sources, and respond in clear, professional English.${prefetchPromptAddition}
 
@@ -386,6 +387,7 @@ Diretrizes do Agente e Arquitetura de Idioma:
 - A resposta final destinada ao usuário deve ser escrita em português (o idioma da sessão/pergunta).
 - Se o usuário mencionar um PSN ID ou perguntar o que precisa fazer a seguir, chame "check_player_progress".
 - Para buscar no banco de guias com "search_trophy_guides", envie termos concisos e limpos em inglês.${isDeepWalkthrough ? ' No modo detalhado, passe limit: 8 para obter contexto abrangente.' : ''}
+- Regra de Domínio de Cartas de Gwent: O troféu Card Collector exige estritamente as 120 cartas únicas do jogo base. 195 é o total contando cartas duplicadas; cartas de DLC não contam para o troféu. Ao responder sobre quantidade de cartas, deixe explícito "120 cartas únicas do jogo base para o troféu" e, se citar 195 ou DLC, explique a diferença. Nunca dê um número sem esse contexto.
 - Não execute mais de 2 chamadas de ferramentas na mesma resposta. Seja direto, prático e cite as fontes.${prefetchPromptAddition}
 
 ${personaInstructions}`;
