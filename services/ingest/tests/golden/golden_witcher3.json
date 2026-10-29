@@ -543,6 +543,50 @@
       "query_en": "How does Even Odds work?"
     },
     {
+      "id": "D13",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como consigo a carta perdível Dandelion no torneio do baile de máscaras?",
+      "expected": {
+        "trophy": "Card Collector",
+        "must_contain": [
+          "Dandelion",
+          "Matter of Life and Death"
+        ]
+      },
+      "verified": false,
+      "query_en": "How do I get the missable Dandelion Gwent card in the masquerade ball tournament?"
+    },
+    {
+      "id": "D14",
+      "category": "dica",
+      "route": "rag",
+      "question": "Onde compro as cartas Cynthia ou Decoy com o intendente no Poleiro do Corvo?",
+      "expected": {
+        "trophy": "Card Collector",
+        "must_contain": [
+          "Quartermaster",
+          "Crow's Perch"
+        ]
+      },
+      "verified": false,
+      "query_en": "Where do I buy Cynthia or Decoy cards from the Quartermaster in Crow's Perch?"
+    },
+    {
+      "id": "D15",
+      "category": "dica",
+      "route": "rag",
+      "question": "Quantas cartas de Gwent existem no total para o troféu Card Collector?",
+      "expected": {
+        "trophy": "Card Collector",
+        "must_contain": [
+          "195"
+        ]
+      },
+      "verified": false,
+      "query_en": "How many total Gwent cards exist for the Card Collector trophy?"
+    },
+    {
       "id": "O01",
       "category": "lista",
       "route": "sql",

@@ -13,6 +13,7 @@ from src.models.player import PlayerGameModel, PlayerTrophyModel
 from src.schemas.chunk import IngestGuideRequest, DocumentChunk, FetchAndIndexRequest
 from src.schemas.search import SearchQueryRequest, SearchResponse
 from src.services.chunker import chunker, build_context_prefix
+from src.services.gwent_chunker import chunk_gwent_guide
 from src.services.embedding import embedding_service
 from src.services.entity_linker import link_chunks_to_trophies, get_canonical_game_id
 from src.services.ingestion import ingestion_repo
@@ -164,6 +165,25 @@ async def fetch_and_index_guide(request: FetchAndIndexRequest):
         clean_game_id = get_canonical_game_id(request.game)
         async with get_db_session() as session:
             await link_chunks_to_trophies(all_chunks, clean_game_id, session)
+
+        # 3.6. Index structured Gwent card guide if available
+        if snapshots_dir.exists() and "witcher" in request.game.lower():
+            gwent_file = snapshots_dir / "gwent_cards_witcher3.html"
+            if gwent_file.exists():
+                gwent_html = gwent_file.read_text(encoding="utf-8", errors="ignore")
+                gwent_chunks = chunk_gwent_guide(
+                    gwent_html,
+                    game_id=clean_game_id,
+                    card_collector_trophy_id="the-witcher-3-wild-hunt-card-collector",
+                )
+                for gc in gwent_chunks:
+                    gc.game = request.game
+                    gc.metadata["page_title"] = "The Witcher 3: Wild Hunt — Card Collector Guide"
+                    gc.metadata["page_url"] = "https://psnprofiles.com/guide/4250-the-witcher-3-wild-hunt-card-collector-guide"
+                    id_raw = f"{request.game}:gwent:{gc.title}:{global_idx}:{gc.content[:50]}"
+                    gc.chunk_id = hashlib.sha256(id_raw.encode("utf-8")).hexdigest()[:24]
+                    global_idx += 1
+                all_chunks.extend(gwent_chunks)
 
         # 4. Embed chunks in batch with hierarchical context prefix
         texts_to_embed = [

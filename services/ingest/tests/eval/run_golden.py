@@ -35,6 +35,7 @@ from src.models.player import PlayerGameModel, PlayerModel, PlayerTrophyModel
 from src.schemas.chunk import IngestGuideRequest
 from src.schemas.search import SearchQueryRequest
 from src.services.chunker import chunker, build_context_prefix
+from src.services.gwent_chunker import chunk_gwent_guide
 from src.services.embedding import embedding_service
 from src.services.entity_linker import link_chunks_to_trophies, get_canonical_game_id
 from src.services.player import player_progress_service
@@ -105,6 +106,24 @@ async def index_snapshots_if_available(game_name: str = "The Witcher 3: Wild Hun
     clean_game_id = get_canonical_game_id(game_name)
     async with get_db_session() as session:
         await link_chunks_to_trophies(all_chunks, clean_game_id, session)
+
+    # Insight: Specialized structured chunker for Gwent Card Collector guide
+    gwent_file = SNAPSHOTS_DIR / "gwent_cards_witcher3.html"
+    if gwent_file.exists() and "witcher" in game_name.lower():
+        gwent_html = gwent_file.read_text(encoding="utf-8", errors="ignore")
+        gwent_chunks = chunk_gwent_guide(
+            gwent_html,
+            game_id=clean_game_id,
+            card_collector_trophy_id="the-witcher-3-wild-hunt-card-collector",
+        )
+        for gc in gwent_chunks:
+            gc.game = game_name
+            gc.metadata["source_url"] = f"https://local.snapshots/{gwent_file.name}"
+            gc.metadata["snapshot_file"] = gwent_file.name
+            id_raw = f"{game_name}:gwent:{gc.title}:{global_idx}"
+            gc.chunk_id = hashlib.sha256(id_raw.encode("utf-8")).hexdigest()[:24]
+            global_idx += 1
+            all_chunks.append(gc)
 
     t_idx_start = time.perf_counter()
     # Insight: Context prefix '<game title> › <DLC ou Base Game> › <section title>' for embedding & tsvector
