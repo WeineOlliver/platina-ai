@@ -8,6 +8,7 @@ from sqlalchemy import select, func, delete, update
 logger = logging.getLogger(__name__)
 from src.database import get_db_session
 from src.models.chunk import GuideChunkModel
+from src.models.catalog import GameModel
 from src.models.player import PlayerGameModel, PlayerTrophyModel
 from src.schemas.chunk import IngestGuideRequest, DocumentChunk, FetchAndIndexRequest
 from src.schemas.search import SearchQueryRequest, SearchResponse
@@ -174,6 +175,14 @@ async def fetch_and_index_guide(request: FetchAndIndexRequest):
         # 5. Persist to PostgreSQL (atomic replace if force_reindex)
         canonical_url = pages[0][2] if pages else (request.source_url or "local")
         async with get_db_session() as session:
+            # Safely assign game_id on guide chunks only when game exists in catalog
+            game_exists = (
+                await session.execute(
+                    select(GameModel.id).where(GameModel.id == clean_game_id)
+                )
+            ).scalar_one_or_none() is not None
+            chunk_game_id = clean_game_id if game_exists else None
+
             if request.force_reindex:
                 await session.execute(
                     delete(GuideChunkModel).where(GuideChunkModel.game.ilike(request.game.strip()))
@@ -183,7 +192,7 @@ async def fetch_and_index_guide(request: FetchAndIndexRequest):
                 record = GuideChunkModel(
                     id=chunk.chunk_id,
                     game=chunk.game,
-                    game_id=clean_game_id,
+                    game_id=chunk_game_id,
                     trophy_id=getattr(chunk, "trophy_id", None) or chunk.metadata.get("trophy_id"),
                     title=chunk.title,
                     content=chunk.content,
