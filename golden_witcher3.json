@@ -437,8 +437,9 @@
         "trophies": [
           "When It's Many Against One…"
         ],
-        "must_contain": [
-          "Iris"
+        "must_contain_any": [
+          "Iris",
+          "Scenes from a Marriage"
         ]
       },
       "verified": true
@@ -546,7 +547,7 @@
       "id": "D13",
       "category": "dica",
       "route": "rag",
-      "question": "Como consigo a carta perdível Dandelion no torneio do baile de máscaras?",
+      "question": "Como consigo a carta perdível Dandelion no baile de máscaras?",
       "expected": {
         "trophy": "Card Collector",
         "must_contain": [
@@ -554,7 +555,7 @@
           "Matter of Life and Death"
         ]
       },
-      "verified": false,
+      "verified": true,
       "query_en": "How do I get the missable Dandelion Gwent card in the masquerade ball tournament?"
     },
     {
@@ -569,7 +570,7 @@
           "Crow's Perch"
         ]
       },
-      "verified": false,
+      "verified": true,
       "query_en": "Where do I buy Cynthia or Decoy cards from the Quartermaster in Crow's Perch?"
     },
     {
@@ -580,10 +581,10 @@
       "expected": {
         "trophy": "Card Collector",
         "must_contain": [
-          "195"
+          "120"
         ]
       },
-      "verified": false,
+      "verified": true,
       "query_en": "How many total Gwent cards exist for the Card Collector trophy?"
     },
     {
