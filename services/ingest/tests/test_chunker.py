@@ -167,3 +167,54 @@ def test_build_context_prefix_format():
         "Find all Grandmaster diagrams in Toussaint. Blood and Wine DLC.",
     )
     assert prefix_baw == "The Witcher 3: Wild Hunt › Blood and Wine › Grandmaster"
+
+
+def test_psnprofiles_neighboring_sections_no_text_bleed():
+    # Insight: Ensures neighboring PSNProfiles trophy sections do not bleed text into each other
+    from src.services.scraper import TrophyGuideScraper
+    from src.services.chunker import TrophyGuideChunker
+    from src.schemas.chunk import IngestGuideRequest
+
+    fixture_html = """
+    <div id="SectionContainer16" class="section-holder">
+        <div id="Kingmaker" class="box section-holder">
+            <table class="zebra">
+                <tr><td style="width: 100%;"><a class="title">Kingmaker</a><br />Complete subplot choosing Skellige ruler.</td></tr>
+            </table>
+        </div>
+        <div>
+            <div class="fr-view box light guide no-top-border">
+                Kingmaker is a subplot in Skellige deciding the new monarch. Complete The King is Dead to proceed.
+                <h1>Kingmaker Video Guide</h1>
+                <div>Video link for Kingmaker</div>
+            </div>
+        </div>
+    </div>
+    <div id="SectionContainer17" class="section-holder">
+        <div id="Assassin-of-Kings" class="box section-holder">
+            <table class="zebra">
+                <tr><td style="width: 100%;"><a class="title">Assassin of Kings</a><br />Take part in the conspiracy against King Radovid.</td></tr>
+            </table>
+        </div>
+        <div>
+            <div class="fr-view box light guide no-top-border">
+                Assassin of Kings takes place in Novigrad with Redania Most Wanted and Dijkstra.
+                <h1>Assassin of Kings Video Guide</h1>
+                <div>Video link for Assassin of Kings</div>
+            </div>
+        </div>
+    </div>
+    """
+
+    scraper = TrophyGuideScraper()
+    markdown = scraper._html_to_markdown(fixture_html)
+
+    chunker = TrophyGuideChunker()
+    req = IngestGuideRequest(game="The Witcher 3: Wild Hunt", source_url="https://psnprofiles.com", content=markdown)
+    chunks = chunker.chunk_guide(req)
+
+    assert len(chunks) >= 2
+    for c in chunks:
+        has_km = "skellige" in c.content.lower() or "kingmaker" in c.title.lower()
+        has_ak = "novigrad" in c.content.lower() or "assassin" in c.title.lower() or "radovid" in c.content.lower()
+        assert not (has_km and has_ak), f"Chunk '{c.title}' mixed text from both neighboring sections!"

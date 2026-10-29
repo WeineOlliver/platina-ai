@@ -532,12 +532,76 @@ class TrophyGuideScraper:
 
         return discovered
 
+    def _psnprofiles_to_markdown(self, top_holders: list) -> str:
+        # Insight: Converts PSNProfiles guide into markdown preserving trophy boundaries and stopping section bleeds
+        parts: list[str] = []
+        for sec in top_holders:
+            zebra = sec.find("table", class_="zebra")
+            title_a = zebra.find("a", class_="title") if zebra else None
+
+            if title_a and title_a.get_text().strip():
+                tname = title_a.get_text().strip()
+                parts.append(f"\n### {tname}\n")
+
+                desc_td = zebra.find("td", style=lambda st: st and "width: 100%" in st)
+                if desc_td:
+                    desc = desc_td.get_text().replace(tname, "").strip()
+                    if desc:
+                        parts.append(f"{desc}\n")
+
+                tags = [t.get_text().strip() for t in sec.find_all(class_="tag")]
+                if tags:
+                    parts.append("Tags: " + ", ".join(tags) + "\n")
+
+                fr = sec.find("div", class_="fr-view")
+                if fr:
+                    fr_clone = BeautifulSoup(str(fr), "html.parser")
+                    for br in fr_clone.find_all("br"):
+                        br.replace_with("\n")
+                    for h in fr_clone.find_all(["h1", "h2", "h3", "h4"]):
+                        h.replace_with(f"\n#### {h.get_text().strip()}\n")
+                    for li in fr_clone.find_all("li"):
+                        li.replace_with(f"\n- {li.get_text().strip()}\n")
+                    txt = re.sub(r"\n{3,}", "\n\n", fr_clone.get_text()).strip()
+                    if txt:
+                        parts.append(f"{txt}\n")
+            else:
+                title_el = sec.find("div", class_="title") or sec.find(["h1", "h2", "h3"])
+                sec_title = title_el.get_text().strip() if title_el else "Overview"
+                parts.append(f"\n### {sec_title}\n")
+
+                fr = sec.find("div", class_="fr-view") or sec
+                fr_clone = BeautifulSoup(str(fr), "html.parser")
+                for br in fr_clone.find_all("br"):
+                    br.replace_with("\n")
+                for h in fr_clone.find_all(["h1", "h2", "h3", "h4"]):
+                    htext = h.get_text().strip()
+                    if h.name == "h1" and "stage" in htext.lower():
+                        h.replace_with(f"\n### {htext}\n")
+                    else:
+                        h.replace_with(f"\n#### {htext}\n")
+                for li in fr_clone.find_all("li"):
+                    li.replace_with(f"\n- {li.get_text().strip()}\n")
+                txt = re.sub(r"\n{3,}", "\n\n", fr_clone.get_text()).strip()
+                if txt:
+                    parts.append(f"{txt}\n")
+
+        return re.sub(r"\n{3,}", "\n\n", "\n".join(parts)).strip()
+
     def _html_to_markdown(self, html: str) -> str:
         soup = BeautifulSoup(html, "html.parser")
 
         # Strip scripts, styles, forms, navigation
         for tag in soup(["script", "style", "nav", "footer", "header", "aside", "form"]):
             tag.decompose()
+
+        # Insight: Handle PSNProfiles guides with dedicated section boundaries to prevent bleed
+        top_holders = [
+            c for c in soup.find_all("div", class_="section-holder")
+            if not c.find_parent("div", class_="section-holder")
+        ]
+        if top_holders:
+            return self._psnprofiles_to_markdown(top_holders)
 
         main_elem = soup.find("article") or soup.find("main") or soup.body or soup
 
