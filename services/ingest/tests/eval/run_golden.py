@@ -743,9 +743,9 @@ async def evaluate_case(
             selected_trophies = [
                 t
                 for t in pool
-                if "luta" in (getattr(t, "location", None) or getattr(t, "chapter_or_location", "") or "").lower()
-                or "briga" in (getattr(t, "location", None) or getattr(t, "chapter_or_location", "") or "").lower()
-                or "fist" in (getattr(t, "location", None) or getattr(t, "chapter_or_location", "") or "").lower()
+                if any("luta" in str(x).lower() for x in (getattr(t, "location", None) or [getattr(t, "chapter_or_location", "") or ""]))
+                or any("briga" in str(x).lower() for x in (getattr(t, "location", None) or [getattr(t, "chapter_or_location", "") or ""]))
+                or any("fist" in str(x).lower() for x in (getattr(t, "location", None) or [getattr(t, "chapter_or_location", "") or ""]))
                 or (getattr(t, "name", None) or getattr(t, "trophy_name", "")).lower() in ["brawler", "fist of the south star", "brawl master"]
             ]
             filter_description = "lutas/brigas de punho"
@@ -757,7 +757,7 @@ async def evaluate_case(
                 if (getattr(t, "missable", None) if hasattr(t, "missable") else (getattr(t, "is_missable", False) or getattr(t, "trophy_category", "") == "missable"))
                 and (
                     "hearts of stone" in (getattr(t, "dlc", "") or "").lower()
-                    or "hearts of stone" in (getattr(t, "location", None) or getattr(t, "chapter_or_location", "") or "").lower()
+                    or any("hearts of stone" in str(x).lower() for x in (getattr(t, "location", None) or [getattr(t, "chapter_or_location", "") or ""]))
                 )
             ]
             filter_description = "DLC Hearts of Stone missable"
