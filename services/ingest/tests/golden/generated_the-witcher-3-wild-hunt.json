@@ -1,13 +1,14 @@
 {
   "game_id": "the-witcher-3-wild-hunt",
-  "generated_at": "2026-10-29T03:13:18.902730+00:00",
-  "total_cases": 47,
-  "dev_cases": 36,
-  "test_cases": 11,
+  "generated_at": "2026-10-29T16:20:03.983266+00:00",
+  "total_cases": 66,
+  "dev_cases": 51,
+  "test_cases": 15,
   "cases": [
     {
       "id": "GEN_LISTA_TYPE_BRONZE",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "lista",
       "route": "sql",
@@ -94,6 +95,7 @@
     {
       "id": "GEN_LISTA_TYPE_SILVER",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "lista",
       "route": "sql",
@@ -120,6 +122,7 @@
     {
       "id": "GEN_LISTA_TYPE_GOLD",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "lista",
       "route": "sql",
@@ -140,6 +143,7 @@
     {
       "id": "GEN_LISTA_DLC_BASE_GAME",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "lista",
       "route": "sql",
@@ -211,6 +215,7 @@
     {
       "id": "GEN_LISTA_DLC_BLOOD_AND_WINE",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "lista",
       "route": "sql",
@@ -242,6 +247,7 @@
     {
       "id": "GEN_LISTA_DLC_HEARTS_OF_STONE",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "lista",
       "route": "sql",
@@ -273,6 +279,7 @@
     {
       "id": "GEN_LISTA_MISSABLES",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "lista",
       "route": "sql",
@@ -289,9 +296,10 @@
           "Gwent Master",
           "Kingmaker",
           "The Doppler Effect",
+          "When It's Many Against One…",
           "Woodland Spirit"
         ],
-        "count": 10
+        "count": 11
       },
       "filter": {
         "missable": true
@@ -301,13 +309,14 @@
     {
       "id": "GEN_LISTA_MISSABLES_COUNT",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "lista",
       "route": "sql",
       "question": "Quantos troféus perdíveis existem em The Witcher 3: Wild Hunt?",
       "query_en": "How many missable trophies are there in The Witcher 3: Wild Hunt?",
       "expected": {
-        "count": 10
+        "count": 11
       },
       "filter": {
         "missable": true
@@ -317,6 +326,7 @@
     {
       "id": "GEN_LISTA_TOTAL_COUNT",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "lista",
       "route": "sql",
@@ -331,25 +341,37 @@
       "split": "dev"
     },
     {
+      "id": "GEN_DICA_A_FRIEND_IN_NEED",
+      "generated": true,
+      "verified": false,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu A Friend in Need em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the A Friend in Need trophy?",
+      "expected": {
+        "trophy": "A Friend in Need"
+      },
+      "split": "dev"
+    },
+    {
       "id": "GEN_DICA_ALL_IN",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
       "question": "Como pegar o troféu All In em The Witcher 3: Wild Hunt?",
       "query_en": "How to get the All In trophy?",
       "expected": {
-        "trophy": "All In",
-        "must_contain": [
-          "Guide",
-          "Video"
-        ]
+        "trophy": "All In"
       },
       "split": "dev"
     },
     {
       "id": "GEN_DICA_ARMED_AND_DANGEROUS",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -358,8 +380,8 @@
       "expected": {
         "trophy": "Armed and Dangerous",
         "must_contain": [
-          "Scavenger",
-          "Novigrad"
+          "Gear",
+          "pieces"
         ]
       },
       "split": "dev"
@@ -367,6 +389,7 @@
     {
       "id": "GEN_DICA_ASHES_TO_ASHES",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -375,8 +398,8 @@
       "expected": {
         "trophy": "Ashes to Ashes",
         "must_contain": [
-          "Recommendend",
-          "Therazane"
+          "Therazane",
+          "mansion"
         ]
       },
       "split": "test"
@@ -384,6 +407,7 @@
     {
       "id": "GEN_DICA_ASSASSIN_OF_KINGS",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -392,8 +416,8 @@
       "expected": {
         "trophy": "Assassin of Kings",
         "must_contain": [
-          "Advancement",
-          "Blindingly"
+          "Blindingly",
+          "Obvious"
         ]
       },
       "split": "dev"
@@ -401,6 +425,7 @@
     {
       "id": "GEN_DICA_BOMBARDIER",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -409,15 +434,34 @@
       "expected": {
         "trophy": "Bombardier",
         "must_contain": [
-          "Herbalist",
-          "Novigrad"
+          "cost",
+          "Evilest"
         ]
       },
       "split": "test"
     },
     {
+      "id": "GEN_DICA_BOOKWORM",
+      "generated": true,
+      "verified": false,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Bookworm em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Bookworm trophy?",
+      "expected": {
+        "trophy": "Bookworm",
+        "must_contain": [
+          "Books",
+          "document"
+        ]
+      },
+      "split": "dev"
+    },
+    {
       "id": "GEN_DICA_BRAWL_MASTER",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -426,8 +470,8 @@
       "expected": {
         "trophy": "Brawl Master",
         "must_contain": [
-          "Residence",
-          "Unlocking"
+          "fights",
+          "fistfighting"
         ]
       },
       "split": "test"
@@ -435,6 +479,7 @@
     {
       "id": "GEN_DICA_BRAWLER",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -443,8 +488,8 @@
       "expected": {
         "trophy": "Brawler",
         "must_contain": [
-          "Arinbjorn",
-          "Harviken"
+          "Olaf",
+          "unarmed"
         ]
       },
       "split": "test"
@@ -452,6 +497,7 @@
     {
       "id": "GEN_DICA_BUTCHER_OF_BLAVIKEN",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -460,8 +506,7 @@
       "expected": {
         "trophy": "Butcher of Blaviken",
         "must_contain": [
-          "Hanged",
-          "Travel"
+          "duration"
         ]
       },
       "split": "dev"
@@ -469,6 +514,7 @@
     {
       "id": "GEN_DICA_CAN_T_TOUCH_THIS",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -477,7 +523,7 @@
       "expected": {
         "trophy": "Can't Touch This!",
         "must_contain": [
-          "Blaviken",
+          "foes",
           "Toxicity"
         ]
       },
@@ -486,6 +532,7 @@
     {
       "id": "GEN_DICA_CARD_COLLECTOR",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -494,8 +541,8 @@
       "expected": {
         "trophy": "Card Collector",
         "must_contain": [
-          "Congratulations",
-          "Quartermaster"
+          "Inkeep",
+          "random"
         ]
       },
       "split": "dev"
@@ -503,22 +550,21 @@
     {
       "id": "GEN_DICA_DENDROLOGIST",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
       "question": "Como pegar o troféu Dendrologist em The Witcher 3: Wild Hunt?",
       "query_en": "How to get the Dendrologist trophy?",
       "expected": {
-        "trophy": "Dendrologist",
-        "must_contain": [
-          "Dendrologist"
-        ]
+        "trophy": "Dendrologist"
       },
       "split": "dev"
     },
     {
       "id": "GEN_DICA_ENVIRONMENTALLY_UNFRIENDLY",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -527,8 +573,43 @@
       "expected": {
         "trophy": "Environmentally Unfriendly",
         "must_contain": [
-          "Environmentally",
-          "Unfriendly"
+          "Insects",
+          "Objects"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_EVEN_ODDS",
+      "generated": true,
+      "verified": false,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Even Odds em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Even Odds trophy?",
+      "expected": {
+        "trophy": "Even Odds",
+        "must_contain": [
+          "oils"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_FAMILY_COUNSELOR",
+      "generated": true,
+      "verified": false,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Family Counselor em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Family Counselor trophy?",
+      "expected": {
+        "trophy": "Family Counselor",
+        "must_contain": [
+          "daughter",
+          "wife"
         ]
       },
       "split": "dev"
@@ -536,6 +617,7 @@
     {
       "id": "GEN_DICA_FAST_AND_FURIOUS",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -544,8 +626,8 @@
       "expected": {
         "trophy": "Fast and Furious",
         "must_contain": [
-          "Novigrad",
-          "Skellige"
+          "race",
+          "horse"
         ]
       },
       "split": "dev"
@@ -553,6 +635,7 @@
     {
       "id": "GEN_DICA_FEARLESS_VAMPIRE_SLAYER",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -561,8 +644,8 @@
       "expected": {
         "trophy": "Fearless Vampire Slayer",
         "must_contain": [
-          "Recommended",
-          "Contract"
+          "Sarasti",
+          "peasants"
         ]
       },
       "split": "dev"
@@ -570,6 +653,7 @@
     {
       "id": "GEN_DICA_FIEND_OR_FOE",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -578,32 +662,44 @@
       "expected": {
         "trophy": "Fiend or Foe?",
         "must_contain": [
-          "Recommendend",
-          "Contract"
+          "Morvudd",
+          "ruins"
         ]
       },
       "split": "test"
     },
     {
+      "id": "GEN_DICA_FIRE_IN_THE_HOLE",
+      "generated": true,
+      "verified": false,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Fire in the Hole em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Fire in the Hole trophy?",
+      "expected": {
+        "trophy": "Fire in the Hole"
+      },
+      "split": "dev"
+    },
+    {
       "id": "GEN_DICA_FIST_OF_THE_SOUTH_STAR",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
       "question": "Como pegar o troféu Fist of the South Star em The Witcher 3: Wild Hunt?",
       "query_en": "How to get the Fist of the South Star trophy?",
       "expected": {
-        "trophy": "Fist of the South Star",
-        "must_contain": [
-          "Crossroads",
-          "Defeat"
-        ]
+        "trophy": "Fist of the South Star"
       },
       "split": "dev"
     },
     {
       "id": "GEN_DICA_FRIENDS_WITH_BENEFITS",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -612,8 +708,8 @@
       "expected": {
         "trophy": "Friends With Benefits",
         "must_contain": [
-          "Advancement",
-          "Inivtation"
+          "Lamp",
+          "Dark"
         ]
       },
       "split": "dev"
@@ -621,6 +717,7 @@
     {
       "id": "GEN_DICA_FULL_CREW",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -629,8 +726,8 @@
       "expected": {
         "trophy": "Full Crew",
         "must_contain": [
-          "Advancement",
-          "Invitation"
+          "Arms",
+          "Brothers"
         ]
       },
       "split": "dev"
@@ -638,6 +735,7 @@
     {
       "id": "GEN_DICA_GERALT_AND_FRIENDS",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -646,15 +744,51 @@
       "expected": {
         "trophy": "Geralt and Friends",
         "must_contain": [
-          "Friends",
-          "Geralt"
+          "Neutral",
+          "difference"
         ]
       },
       "split": "test"
     },
     {
+      "id": "GEN_DICA_GERALT_THE_PROFESSIONAL",
+      "generated": true,
+      "verified": false,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Geralt: The Professional em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Geralt: The Professional trophy?",
+      "expected": {
+        "trophy": "Geralt: The Professional",
+        "must_contain": [
+          "Phantom",
+          "Eldberg"
+        ]
+      },
+      "split": "test"
+    },
+    {
+      "id": "GEN_DICA_GLOBETROTTER",
+      "generated": true,
+      "verified": false,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Globetrotter em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Globetrotter trophy?",
+      "expected": {
+        "trophy": "Globetrotter",
+        "must_contain": [
+          "signposts"
+        ]
+      },
+      "split": "dev"
+    },
+    {
       "id": "GEN_DICA_GWENT_MASTER",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -663,8 +797,8 @@
       "expected": {
         "trophy": "Gwent Master",
         "must_contain": [
-          "Bookshelves",
-          "Crossroads"
+          "Medic",
+          "Biting"
         ]
       },
       "split": "test"
@@ -672,6 +806,7 @@
     {
       "id": "GEN_DICA_HUMPTY_DUMPTY",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -680,8 +815,8 @@
       "expected": {
         "trophy": "Humpty Dumpty",
         "must_contain": [
-          "Explosive",
-          "Insects"
+          "Aard",
+          "ledges"
         ]
       },
       "split": "test"
@@ -689,6 +824,7 @@
     {
       "id": "GEN_DICA_KAER_MORHEN_TRAINED",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -697,8 +833,8 @@
       "expected": {
         "trophy": "Kaer Morhen Trained",
         "must_contain": [
-          "Intensity",
-          "Mutagens"
+          "parrying",
+          "counterattacks"
         ]
       },
       "split": "dev"
@@ -706,6 +842,7 @@
     {
       "id": "GEN_DICA_KINGMAKER",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -714,15 +851,44 @@
       "expected": {
         "trophy": "Kingmaker",
         "must_contain": [
-          "Preparations",
-          "Blindingly"
+          "Coronation",
+          "Live"
         ]
       },
       "split": "dev"
     },
     {
+      "id": "GEN_DICA_LET_S_COOK",
+      "generated": true,
+      "verified": false,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Let's Cook! em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Let's Cook! trophy?",
+      "expected": {
+        "trophy": "Let's Cook!"
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_LILAC_AND_GOOSEBERRIES",
+      "generated": true,
+      "verified": false,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Lilac and Gooseberries em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Lilac and Gooseberries trophy?",
+      "expected": {
+        "trophy": "Lilac and Gooseberries"
+      },
+      "split": "test"
+    },
+    {
       "id": "GEN_DICA_MASTER_MARKSMAN",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -731,8 +897,8 @@
       "expected": {
         "trophy": "Master Marksman",
         "must_contain": [
-          "Marksman",
-          "Master"
+          "detection",
+          "terrible"
         ]
       },
       "split": "dev"
@@ -740,6 +906,7 @@
     {
       "id": "GEN_DICA_MOO_RDERER",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -748,8 +915,7 @@
       "expected": {
         "trophy": "Moo-rderer",
         "must_contain": [
-          "Farmstead",
-          "Novigrad"
+          "cows"
         ]
       },
       "split": "dev"
@@ -757,6 +923,7 @@
     {
       "id": "GEN_DICA_MUNCHKIN",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -765,8 +932,39 @@
       "expected": {
         "trophy": "Munchkin",
         "must_contain": [
-          "patch",
-          "works"
+          "development"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_MUTANT",
+      "generated": true,
+      "verified": false,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Mutant em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Mutant trophy?",
+      "expected": {
+        "trophy": "Mutant"
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_NECROMANCER",
+      "generated": true,
+      "verified": false,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Necromancer em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Necromancer trophy?",
+      "expected": {
+        "trophy": "Necromancer",
+        "must_contain": [
+          "Skjall",
+          "extract"
         ]
       },
       "split": "dev"
@@ -774,6 +972,7 @@
     {
       "id": "GEN_DICA_OVERKILL",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -782,15 +981,30 @@
       "expected": {
         "trophy": "Overkill",
         "must_contain": [
-          "Broadhead",
-          "Herbalist"
+          "Bleeding",
+          "Poison"
         ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_PASSED_THE_TRIAL",
+      "generated": true,
+      "verified": false,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Passed the Trial em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Passed the Trial trophy?",
+      "expected": {
+        "trophy": "Passed the Trial"
       },
       "split": "dev"
     },
     {
       "id": "GEN_DICA_PEST_CONTROL",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -799,8 +1013,8 @@
       "expected": {
         "trophy": "Pest Control",
         "must_contain": [
-          "HellbornHunter",
-          "Innkeepers"
+          "Skellig",
+          "Hole"
         ]
       },
       "split": "test"
@@ -808,6 +1022,7 @@
     {
       "id": "GEN_DICA_POWER_OVERWHELMING",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -816,8 +1031,8 @@
       "expected": {
         "trophy": "Power Overwhelming",
         "must_contain": [
-          "Activating",
-          "Blackbough"
+          "bonuses",
+          "stones"
         ]
       },
       "split": "dev"
@@ -825,6 +1040,7 @@
     {
       "id": "GEN_DICA_RAD_STEEZ_BRO",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -833,8 +1049,26 @@
       "expected": {
         "trophy": "Rad Steez, Bro!",
         "must_contain": [
-          "Distillery",
-          "Skellige"
+          "Slide",
+          "downhill"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_RAN_THE_GAUNTLET",
+      "generated": true,
+      "verified": false,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Ran the Gauntlet em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Ran the Gauntlet trophy?",
+      "expected": {
+        "trophy": "Ran the Gauntlet",
+        "must_contain": [
+          "Bones",
+          "levels"
         ]
       },
       "split": "dev"
@@ -842,6 +1076,7 @@
     {
       "id": "GEN_DICA_RETURN_TO_SENDER",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -850,8 +1085,7 @@
       "expected": {
         "trophy": "Return to Sender",
         "must_contain": [
-          "Deflection",
-          "Oxenfurt"
+          "Arrow"
         ]
       },
       "split": "dev"
@@ -859,6 +1093,7 @@
     {
       "id": "GEN_DICA_SHRIEKER",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -867,8 +1102,25 @@
       "expected": {
         "trophy": "Shrieker",
         "must_contain": [
-          "Investigate",
-          "Shirker"
+          "child"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_SOMETHING_MORE",
+      "generated": true,
+      "verified": false,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Something More em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Something More trophy?",
+      "expected": {
+        "trophy": "Something More",
+        "must_contain": [
+          "gave",
+          "cursed"
         ]
       },
       "split": "dev"
@@ -876,6 +1128,7 @@
     {
       "id": "GEN_DICA_THAT_IS_THE_EVILEST_THING",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -884,8 +1137,8 @@
       "expected": {
         "trophy": "That Is the Evilest Thing…",
         "must_contain": [
-          "Herbalist",
-          "Novigrad"
+          "effected",
+          "produced"
         ]
       },
       "split": "dev"
@@ -893,6 +1146,7 @@
     {
       "id": "GEN_DICA_THE_DOPPLER_EFFECT",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -901,25 +1155,86 @@
       "expected": {
         "trophy": "The Doppler Effect",
         "must_contain": [
-          "Contract",
-          "Hierarch"
+          "Resolve",
+          "problem"
         ]
       },
       "split": "dev"
     },
     {
+      "id": "GEN_DICA_THE_ENEMY_OF_MY_ENEMY",
+      "generated": true,
+      "verified": false,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu The Enemy of My Enemy em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the The Enemy of My Enemy trophy?",
+      "expected": {
+        "trophy": "The Enemy of My Enemy",
+        "must_contain": [
+          "ally",
+          "puppet"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_THE_KING_IS_DEAD",
+      "generated": true,
+      "verified": false,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu The King is Dead em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the The King is Dead trophy?",
+      "expected": {
+        "trophy": "The King is Dead"
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_THE_LIMITS_OF_THE_POSSIBLE",
+      "generated": true,
+      "verified": false,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu The Limits of the Possible em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the The Limits of the Possible trophy?",
+      "expected": {
+        "trophy": "The Limits of the Possible"
+      },
+      "split": "test"
+    },
+    {
       "id": "GEN_DICA_TRIPLE_THREAT",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
       "question": "Como pegar o troféu Triple Threat em The Witcher 3: Wild Hunt?",
       "query_en": "How to get the Triple Threat trophy?",
       "expected": {
-        "trophy": "Triple Threat",
+        "trophy": "Triple Threat"
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_WALKED_THE_PATH",
+      "generated": true,
+      "verified": false,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Walked the Path em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Walked the Path trophy?",
+      "expected": {
+        "trophy": "Walked the Path",
         "must_contain": [
-          "Broadhead",
-          "Herbalist"
+          "Plus",
+          "Glitches"
         ]
       },
       "split": "dev"
@@ -927,6 +1242,7 @@
     {
       "id": "GEN_DICA_WHAT_WAS_THAT",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -935,8 +1251,8 @@
       "expected": {
         "trophy": "What Was That?",
         "must_contain": [
-          "Contract",
-          "Novigrad"
+          "cast",
+          "training"
         ]
       },
       "split": "dev"
@@ -944,6 +1260,7 @@
     {
       "id": "GEN_DICA_WHEN_IT_S_MANY_AGAINST_ONE",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -953,7 +1270,7 @@
         "trophy": "When It's Many Against One…",
         "must_contain": [
           "Nightmares",
-          "Marriage"
+          "Provoke"
         ]
       },
       "split": "test"
@@ -961,6 +1278,7 @@
     {
       "id": "GEN_DICA_WOODLAND_SPIRIT",
       "generated": true,
+      "verified": false,
       "game_id": "the-witcher-3-wild-hunt",
       "category": "dica",
       "route": "rag",
@@ -969,11 +1287,29 @@
       "expected": {
         "trophy": "Woodland Spirit",
         "must_contain": [
-          "Recommendend",
-          "Investigate"
+          "Sven",
+          "Harald"
         ]
       },
       "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_XENONAUT",
+      "generated": true,
+      "verified": false,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Xenonaut em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Xenonaut trophy?",
+      "expected": {
+        "trophy": "Xenonaut",
+        "must_contain": [
+          "Snowstorm",
+          "betray"
+        ]
+      },
+      "split": "test"
     }
   ]
 }

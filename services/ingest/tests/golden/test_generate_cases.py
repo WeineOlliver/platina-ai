@@ -104,14 +104,16 @@ async def test_expected_content_lista_and_dica():
 
     for lc in lista_cases:
         assert lc["route"] == "sql"
+        assert lc.get("verified") is False
         assert "trophies" in lc["expected"] or "count" in lc["expected"]
 
-    # Check dica case requirements: must_contain = 1 or 2 distinctive non-stopword terms
+    # Check dica case requirements: must_contain = up to 2 distinctive non-stopword terms
     for dc in dica_cases:
         assert dc["route"] == "rag"
+        assert dc.get("verified") is False
         assert "trophy" in dc["expected"]
         must_contain = dc["expected"].get("must_contain", [])
-        assert 1 <= len(must_contain) <= 2, f"dica case {dc['id']} must have 1 or 2 must_contain items"
+        assert len(must_contain) <= 2, f"dica case {dc['id']} must have up to 2 must_contain items"
 
 
 @pytest.mark.anyio

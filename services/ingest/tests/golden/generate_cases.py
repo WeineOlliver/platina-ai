@@ -17,7 +17,8 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
+from collections import Counter
 
 # Ensure services/ingest is on sys.path
 SERVICES_INGEST_DIR = Path(__file__).resolve().parent.parent.parent
@@ -32,7 +33,7 @@ from src.services.entity_linker import get_canonical_game_id
 
 GOLDEN_DIR = SERVICES_INGEST_DIR / "tests" / "golden"
 
-# Insight: Distinctive term extraction ignores frequent generic words
+# Insight: Distinctive term extraction ignores frequent generic words and noise
 STOPWORDS = {
     "about", "above", "after", "again", "against", "all", "also", "and", "any", "are", "because",
     "been", "before", "being", "below", "between", "both", "but", "by", "can", "cannot", "could",
@@ -47,7 +48,12 @@ STOPWORDS = {
     "missions", "level", "press", "button", "screen", "menu", "complete", "completed", "area",
     "location", "place", "found", "around", "follow", "steps", "simply", "easily", "instead",
     "another", "together", "enough", "already", "different", "important", "remember", "note",
-    "time", "times", "good", "best", "great", "every", "going", "right", "left"
+    "time", "times", "good", "best", "great", "every", "going", "right", "left",
+    "congratulations", "hellbornhunter", "recommendend", "inivtation", "shirker", "patch", "works",
+    "credit", "powerpyx", "psnprofiles", "refer", "information", "described", "achieve", "achieved",
+    "order", "along", "beforehand", "attempt", "quick", "breakdown", "either", "without", "between",
+    "something", "anything", "nothing", "everything", "someone", "anyone", "using", "used", "uses",
+    "allows", "allowing", "allowed", "likely", "unlikely", "especially", "considering", "number",
 }
 
 
@@ -57,31 +63,53 @@ def compute_split(case_id: str) -> str:
     return "dev" if val < 70 else "test"
 
 
-def extract_must_contain_terms(trophy_name: str, chunks_content: List[str]) -> List[str]:
+def extract_must_contain_terms(
+    trophy_id: str,
+    trophy_name: str,
+    chunks_content: List[str],
+    trophy_ids_by_word: Dict[str, Set[str]],
+    total_corpus_counter: Counter,
+    catalog_vocab: Set[str],
+) -> List[str]:
     """
-    Extracts 1 or 2 distinctive non-stopword terms from chunk content.
-    Prefers capitalized proper nouns and longer tokens.
+    Extracts 1 or 2 distinctive terms that appear in this trophy's chunks
+    and DO NOT appear in any other trophy's chunks of the same game.
+    Requires at least 2 occurrences in corpus or presence in catalog vocabulary.
+    Returns empty list if no distinctive term meets criteria.
     """
     full_text = " ".join(chunks_content)
     words = re.findall(r"\b[A-Za-z]{4,}\b", full_text)
     tname_words = set(re.findall(r"\b[A-Za-z]+\b", trophy_name.lower()))
 
-    # Candidates: not in stop words, not part of trophy name
-    candidates = [w for w in words if w.lower() not in STOPWORDS and w.lower() not in tname_words]
-    if not candidates:
-        # Fallback 1: allow words from trophy name if non-stopwords
-        candidates = [w for w in words if w.lower() not in STOPWORDS]
-    if not candidates:
-        # Fallback 2: any word length >= 4
-        candidates = [w for w in words if len(w) >= 4]
+    word_counts = Counter(w.lower() for w in words)
+    candidates = []
 
-    # Deterministic deduplication preserving order, then ranked by capitalization and length
-    unique = list(dict.fromkeys(candidates))
-    ranked = sorted(
-        unique,
-        key=lambda w: (not (w[0].isupper() and w.isalpha()), -len(w), w.lower())
-    )
-    return ranked[:2]
+    for w, count in word_counts.items():
+        if w in STOPWORDS:
+            continue
+        if w in tname_words:
+            continue
+        # Distinctiveness: must not appear in chunks of other trophies of this game
+        other_trophies = trophy_ids_by_word.get(w, set()) - {trophy_id}
+        if other_trophies:
+            continue
+        # Frequency check: at least 2 in corpus or in catalog vocabulary
+        corpus_count = total_corpus_counter.get(w, 0)
+        if corpus_count < 2 and w not in catalog_vocab:
+            continue
+        candidates.append((w, count, corpus_count))
+
+    if not candidates:
+        return []
+
+    casing_map = {}
+    for original_word in words:
+        low = original_word.lower()
+        if low not in casing_map or (original_word[0].isupper() and not casing_map[low][0].isupper()):
+            casing_map[low] = original_word
+
+    candidates.sort(key=lambda item: (-item[1], not casing_map[item[0]][0].isupper(), item[0]))
+    return [casing_map[item[0]] for item in candidates[:2]]
 
 
 async def generate_cases_for_game(game_slug_or_title: str) -> List[Dict[str, Any]]:
@@ -122,6 +150,7 @@ async def generate_cases_for_game(game_slug_or_title: str) -> List[Dict[str, Any
         cases.append({
             "id": cid,
             "generated": True,
+            "verified": False,
             "game_id": game.id,
             "category": "lista",
             "route": "sql",
@@ -141,6 +170,7 @@ async def generate_cases_for_game(game_slug_or_title: str) -> List[Dict[str, Any
     cases.append({
         "id": cid_base,
         "generated": True,
+        "verified": False,
         "game_id": game.id,
         "category": "lista",
         "route": "sql",
@@ -162,6 +192,7 @@ async def generate_cases_for_game(game_slug_or_title: str) -> List[Dict[str, Any
         cases.append({
             "id": cid_dlc,
             "generated": True,
+            "verified": False,
             "game_id": game.id,
             "category": "lista",
             "route": "sql",
@@ -181,6 +212,7 @@ async def generate_cases_for_game(game_slug_or_title: str) -> List[Dict[str, Any
     cases.append({
         "id": cid_miss,
         "generated": True,
+        "verified": False,
         "game_id": game.id,
         "category": "lista",
         "route": "sql",
@@ -198,6 +230,7 @@ async def generate_cases_for_game(game_slug_or_title: str) -> List[Dict[str, Any
     cases.append({
         "id": cid_miss_cnt,
         "generated": True,
+        "verified": False,
         "game_id": game.id,
         "category": "lista",
         "route": "sql",
@@ -215,6 +248,7 @@ async def generate_cases_for_game(game_slug_or_title: str) -> List[Dict[str, Any
     cases.append({
         "id": cid_total,
         "generated": True,
+        "verified": False,
         "game_id": game.id,
         "category": "lista",
         "route": "sql",
@@ -229,8 +263,24 @@ async def generate_cases_for_game(game_slug_or_title: str) -> List[Dict[str, Any
 
     # 2. RAG DICA Cases (for trophies that have linked guide_chunks)
     chunks_by_trophy: Dict[str, List[GuideChunkModel]] = {}
+    total_corpus_counter: Counter = Counter()
     for c in chunks:
         chunks_by_trophy.setdefault(c.trophy_id, []).append(c)
+        for w in re.findall(r"\b[A-Za-z]{4,}\b", c.content or ""):
+            total_corpus_counter[w.lower()] += 1
+
+    catalog_vocab: Set[str] = set()
+    for t in trophies:
+        catalog_vocab.update(w.lower() for w in re.findall(r"\b[A-Za-z]{3,}\b", t.name))
+        if t.description:
+            catalog_vocab.update(w.lower() for w in re.findall(r"\b[A-Za-z]{3,}\b", t.description))
+
+    trophy_ids_by_word: Dict[str, Set[str]] = {}
+    for t_id, linked_chunks in chunks_by_trophy.items():
+        text = " ".join(c.content for c in linked_chunks if c.content)
+        words = set(w.lower() for w in re.findall(r"\b[A-Za-z]{4,}\b", text))
+        for w in words:
+            trophy_ids_by_word.setdefault(w, set()).add(t_id)
 
     trophies_by_id = {t.id: t for t in trophies}
     for t_id, linked_chunks in sorted(chunks_by_trophy.items()):
@@ -239,23 +289,32 @@ async def generate_cases_for_game(game_slug_or_title: str) -> List[Dict[str, Any
             continue
 
         raw_contents = [c.content for c in linked_chunks if c.content]
-        must_contain = extract_must_contain_terms(trophy.name, raw_contents)
+        must_contain = extract_must_contain_terms(
+            trophy_id=t_id,
+            trophy_name=trophy.name,
+            chunks_content=raw_contents,
+            trophy_ids_by_word=trophy_ids_by_word,
+            total_corpus_counter=total_corpus_counter,
+            catalog_vocab=catalog_vocab,
+        )
 
         slug_name = re.sub(r"[^A-Za-z0-9]+", "_", trophy.name).strip("_").upper()
         cid = f"GEN_DICA_{slug_name}"
 
+        exp_dict: Dict[str, Any] = {"trophy": trophy.name}
+        if must_contain:
+            exp_dict["must_contain"] = must_contain
+
         cases.append({
             "id": cid,
             "generated": True,
+            "verified": False,
             "game_id": game.id,
             "category": "dica",
             "route": "rag",
             "question": f"Como pegar o troféu {trophy.name} em {game.title}?",
             "query_en": f"How to get the {trophy.name} trophy?",
-            "expected": {
-                "trophy": trophy.name,
-                "must_contain": must_contain,
-            },
+            "expected": exp_dict,
             "split": compute_split(cid),
         })
 
