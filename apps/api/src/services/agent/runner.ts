@@ -345,7 +345,7 @@ Gere DIRETAMENTE a saudação e o briefing tático (ou resposta de status) em 1 
 You have access to tools to:
 1. "check_player_progress": check earned and pending trophies for a player on PSN.
 2. "get_trophy_guide": look up a specific trophy in the canonical catalog to get its metadata and exact guide walkthrough (no vector search).
-3. "list_trophies": structured SQL query for lists, counts, and missable trophies by location or DLC.
+3. "list_trophies": structured SQL query for lists, counts, missable trophies by location/DLC, or description keywords (description_query).
 4. "get_game_overview": get platinum overview stats (difficulty, hours, playthroughs, type and DLC counts).
 5. "search_trophy_guides": search verified excerpts in the trophy guide vector database for vague queries or quest walkthroughs.
 
@@ -371,7 +371,7 @@ ${personaInstructions}`
 Você tem acesso a ferramentas para:
 1. "check_player_progress": consultar os troféus já conquistados e pendentes de um jogador na PSN.
 2. "get_trophy_guide": consultar um troféu específico no catálogo canônico obtendo metadados e guia ordenado (sem busca vetorial).
-3. "list_trophies": consulta estruturada SQL para listas, contagens e troféus perdíveis por região ou DLC.
+3. "list_trophies": consulta estruturada SQL para listas, contagens, troféus perdíveis por região/DLC ou palavras na descrição (description_query).
 4. "get_game_overview": obter panorama de platina (dificuldade, tempo em horas, jogadas necessárias e contagens por tipo/DLC).
 5. "search_trophy_guides": buscar trechos verificados no banco vetorial de guias para buscas vagas ou walkthroughs de quests.
 

@@ -672,25 +672,21 @@ async def evaluate_case(
             ]
             filter_description = "type='silver' & dlc=None (base game)"
         elif cid == "L04":
-            # Contrato de bruxo
+            # Insight: Contrato de bruxo via description_query ('contract')
             selected_trophies = [
                 t
                 for t in pool
-                if "contrato" in (getattr(t, "location", None) or getattr(t, "chapter_or_location", "") or "").lower()
-                or "contract" in (getattr(t, "location", None) or getattr(t, "chapter_or_location", "") or "").lower()
-                or "contrato" in (getattr(t, "name", None) or getattr(t, "trophy_name", "")).lower()
-                or "contract" in (getattr(t, "name", None) or getattr(t, "trophy_name", "")).lower()
+                if "contract" in (getattr(t, "description", None) or "").lower()
             ]
-            filter_description = "localização contém 'contrato'"
+            filter_description = "descrição contém 'contract'"
         elif cid == "L05":
-            # Dificuldade
+            # Insight: Dificuldade via description_query ('difficulty')
             selected_trophies = [
                 t
                 for t in pool
-                if "dificuldade" in (getattr(t, "location", None) or getattr(t, "chapter_or_location", "") or "").lower()
-                or "difficulty" in (getattr(t, "location", None) or getattr(t, "chapter_or_location", "") or "").lower()
+                if "difficulty" in (getattr(t, "description", None) or "").lower()
             ]
-            filter_description = "localização contém 'dificuldade'"
+            filter_description = "descrição contém 'difficulty'"
         elif cid == "L06":
             # Briga de punho
             selected_trophies = [
