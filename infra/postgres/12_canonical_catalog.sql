@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS trophies (
     type VARCHAR(20) NOT NULL,
     description TEXT,
     dlc VARCHAR(100),
-    location TEXT,
+    location TEXT[],
     missable BOOLEAN DEFAULT FALSE,
     missable_sources TEXT[] DEFAULT '{}'::text[],
     aliases TEXT[] DEFAULT '{}'::text[],

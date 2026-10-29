@@ -1,7 +1,7 @@
 import difflib
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, HTTPException, Query
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_, func, cast, Text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_db_session
@@ -131,6 +131,7 @@ async def list_catalog_trophies(
     type: Optional[str] = Query(None, description="Filter by type (bronze, silver, gold, platinum)"),
     dlc: Optional[str] = Query(None, description="Filter by DLC (e.g. 'Hearts of Stone', 'Base Game')"),
     location: Optional[str] = Query(None, description="Filter by location (e.g. 'Novigrad', 'Velen')"),
+    description_query: Optional[str] = Query(None, description="Filter by description query using full-text search"),
     missable: Optional[bool] = Query(None, description="Filter missables only"),
     missing_for_psn_id: Optional[str] = Query(None, description="Filter trophies pending for PSN ID"),
 ) -> Dict[str, Any]:
@@ -161,7 +162,7 @@ async def list_catalog_trophies(
             loc_pattern = f"%{location.strip()}%"
             # Insight: Check trophy location or linked guide chunks matching location
             conditions.append(
-                (TrophyModel.location.ilike(loc_pattern))
+                (cast(TrophyModel.location, Text).ilike(loc_pattern))
                 | (
                     TrophyModel.id.in_(
                         select(GuideChunkModel.trophy_id).where(
@@ -173,6 +174,15 @@ async def list_catalog_trophies(
                             )
                         )
                     )
+                )
+            )
+
+        if description_query:
+            # Insight: English full-text query on trophy descriptions
+            clean_q = description_query.strip()
+            conditions.append(
+                func.to_tsvector("english", func.coalesce(TrophyModel.description, "")).op("@@")(
+                    func.plainto_tsquery("english", clean_q)
                 )
             )
 

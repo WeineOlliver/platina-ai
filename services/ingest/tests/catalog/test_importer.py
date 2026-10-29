@@ -335,3 +335,13 @@ async def test_import_catalog_idempotent(tmp_path):
     async with get_db_session() as session:
         await session.execute(text("DELETE FROM trophies WHERE game_id = :gid"), {"gid": game_id})
         await session.execute(text("DELETE FROM games WHERE id = :gid"), {"gid": game_id})
+
+
+def test_normalize_catalog_name():
+    # Insight: Ensures apostrophes, curly quotes and ellipses unify across sources
+    from src.catalog.importer import normalize_catalog_name
+
+    assert normalize_catalog_name("When It's Many Against One…") == "when it s many against one"
+    assert normalize_catalog_name("When It’s Many Against One...") == "when it s many against one"
+    assert normalize_catalog_name("Crow’s Perch") == "crow s perch"
+    assert normalize_catalog_name("Crow's Perch") == "crow s perch"

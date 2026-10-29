@@ -6,6 +6,7 @@ export const listTrophiesParamsSchema = z.object({
   type: z.enum(['bronze', 'silver', 'gold', 'platinum']).optional().describe('Filter by trophy type'),
   dlc: z.string().optional().describe('Filter by DLC or expansion name (e.g. "Hearts of Stone", "Blood and Wine"), or "Base Game" / "base" for main game only'),
   location: z.string().optional().describe('Filter by region/location (e.g. "Novigrad", "Velen", "White Orchard", "Skellige")'),
+  description_query: z.string().optional().describe('English keyword filter on trophy description (e.g. "contract", "difficulty")'),
   missable: z.boolean().optional().describe('Filter missable trophies only (true/false)'),
   missing_for_psn_id: z.string().optional().describe('Filter only trophies not yet unlocked by this player PSN ID'),
 });
@@ -18,7 +19,7 @@ export interface ListTrophiesItem {
   type: string;
   description?: string | null;
   dlc?: string | null;
-  location?: string | null;
+  location?: string | string[] | null;
   missable: boolean;
   missable_sources?: string[];
   linked_chunks_count?: number;
@@ -64,6 +65,10 @@ export class ListTrophiesTool {
             type: 'string',
             description: 'Filter by location (e.g. "Novigrad", "Velen", "White Orchard", "Skellige")',
           },
+          description_query: {
+            type: 'string',
+            description: 'Filter trophies by English words in their description (e.g. "contract", "difficulty")',
+          },
           missable: {
             type: 'boolean',
             description: 'Filter missable trophies only',
@@ -98,13 +103,14 @@ export class ListTrophiesTool {
       };
     }
 
-    const { game, type, dlc, location, missable, missing_for_psn_id } = validated.data;
+    const { game, type, dlc, location, description_query, missable, missing_for_psn_id } = validated.data;
 
     try {
       const urlParams = new URLSearchParams({ game });
       if (type) urlParams.append('type', type);
       if (dlc) urlParams.append('dlc', dlc);
       if (location) urlParams.append('location', location);
+      if (description_query) urlParams.append('description_query', description_query);
       if (missable !== undefined) urlParams.append('missable', String(missable));
       if (missing_for_psn_id) urlParams.append('missing_for_psn_id', missing_for_psn_id);
 

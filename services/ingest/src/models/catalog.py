@@ -37,7 +37,7 @@ class TrophyModel(Base):
     type = Column(String(20), nullable=False)
     description = Column(Text, nullable=True)
     dlc = Column(String(100), nullable=True)  # null = base game
-    location = Column(Text, nullable=True)
+    location = Column(ARRAY(Text), nullable=True)
     missable = Column(Boolean, default=False, nullable=False, index=True)
     missable_sources = Column(ARRAY(Text), default=list)
     aliases = Column(ARRAY(Text), default=list)

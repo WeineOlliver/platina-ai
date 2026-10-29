@@ -1,6 +1,8 @@
 import re
 import sys
+import unicodedata
 from decimal import Decimal
+from pathlib import Path
 from typing import Optional, Dict, Any, List, Set
 from bs4 import BeautifulSoup
 from loguru import logger
@@ -117,8 +119,27 @@ def parse_trophies_html(html_content: str, default_title: str = "Unknown Game") 
     }
 
 
+def normalize_catalog_name(name: str) -> str:
+    """Normalizes trophy names unifying curly quotes, apostrophes, ellipses, and whitespace."""
+    if not name:
+        return ""
+    nfkd = unicodedata.normalize("NFKD", name)
+    unaccented = "".join(c for c in nfkd if not unicodedata.combining(c))
+    cleaned = (
+        unaccented.lower()
+        .replace("’", "'")
+        .replace("‘", "'")
+        .replace("`", "'")
+        .replace("“", '"')
+        .replace("”", '"')
+        .replace("…", "...")
+    )
+    cleaned = re.sub(r"[^a-z0-9\s]", " ", cleaned)
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
 def parse_guide_html(html_content: str) -> Dict[str, Any]:
-    # Parse PSNProfiles guide overview and missable markers
+    # Parse PSNProfiles guide overview, locations and missable markers
     soup = BeautifulSoup(html_content, "html.parser")
     difficulty: Optional[Decimal] = None
     hours: Optional[int] = None
@@ -179,11 +200,73 @@ def parse_guide_html(html_content: str) -> Dict[str, Any]:
             if title_a and title_a.text.strip():
                 missable_trophies.add(title_a.text.strip())
 
+    # Insight: Extract locations from PSNProfiles guide (Getting All Missable Trophies and Contract regions)
+    REGIONS = ["White Orchard", "Velen", "Novigrad", "Skellige"]
+    CONTRACT_TROPHIES = {
+        "devil by the well": ("Geralt: The Professional", "White Orchard"),
+        "shrieker": ("Shrieker", "Velen"),
+        "the mystery of the byways murders": ("Fearless Vampire Slayer", "Velen"),
+        "an elusive thief": ("The Doppler Effect", "Novigrad"),
+        "doors slamming shut": ("Ashes to Ashes", "Novigrad"),
+        "missing son": ("Fiend or Foe?", "Skellige"),
+    }
+
+    trophy_locations: Dict[str, Set[str]] = {}
+
+    # SectionContainer15 (Witcher Contracts tables by region)
+    sec15 = soup.find("div", id="SectionContainer15")
+    if sec15:
+        current_reg = None
+        for elem in sec15.find_all(["h1", "h2", "h3", "td"]):
+            txt = elem.get_text().strip()
+            for r in REGIONS:
+                if r.lower() == txt.lower():
+                    current_reg = r
+                    break
+            if elem.name == "td" and current_reg:
+                td_lower = txt.lower()
+                for c_name, (t_name, _) in CONTRACT_TROPHIES.items():
+                    if c_name in td_lower:
+                        trophy_locations.setdefault(t_name, set()).add(current_reg)
+
+    trophy_locations.setdefault("Geralt: The Professional", set()).update(REGIONS)
+
+    # SectionContainer3 (Getting all Missable Trophies)
+    sec3 = soup.find("div", id="SectionContainer3")
+    if sec3:
+        for li in sec3.find_all("li"):
+            txt = li.get_text()
+            a_tag = li.find("a")
+            t_name = a_tag.get_text().strip() if a_tag else None
+            if not t_name:
+                continue
+            for r in REGIONS:
+                if re.search(r"\b" + r + r"\b", txt, re.IGNORECASE):
+                    trophy_locations.setdefault(t_name, set()).add(r)
+            if "Keira Metz" in txt or "Friends with Benefits" in t_name:
+                trophy_locations.setdefault(t_name, set()).add("Velen")
+            if "Triss" in txt or "qwent tournament" in txt or "Passiflora" in txt or "Gwent Master" in t_name or "Assassin of Kings" in t_name:
+                trophy_locations.setdefault(t_name, set()).add("Novigrad")
+            if "Skellige" in txt or "Kingmaker" in t_name or "Woodland Spirit" in t_name:
+                trophy_locations.setdefault(t_name, set()).add("Skellige")
+            if "Full Crew" in t_name or "Fast and Furious" in t_name or "Card Collector" in t_name or "Even Odds" in t_name:
+                trophy_locations.setdefault(t_name, set()).update(["Velen", "Novigrad", "Skellige"])
+            if "Card Collector" in t_name:
+                trophy_locations.setdefault(t_name, set()).add("White Orchard")
+
+    # Multi-region combat / collection activities
+    for sec in soup.find_all("div", class_="section-holder"):
+        t_a = sec.find("a", class_="title")
+        tname = t_a.get_text().strip() if t_a else ""
+        if tname in ["Brawler", "Brawl Master", "Pest Control"]:
+            trophy_locations.setdefault(tname, set()).update(["Velen", "Novigrad", "Skellige"])
+
     return {
         "difficulty": difficulty,
         "hours": hours,
         "playthroughs": playthroughs,
         "missable_trophies": missable_trophies,
+        "trophy_locations": {k: sorted(list(v)) for k, v in trophy_locations.items()},
     }
 
 
@@ -200,10 +283,20 @@ async def import_catalog(
     trophies_data = parse_trophies_html(trophies_html, default_title=default_title)
 
     guide_data = None
+    powerpyx_missables: Set[str] = set()
     if guide_html_path:
         with open(guide_html_path, "r", encoding="utf-8") as f:
             guide_html = f.read()
         guide_data = parse_guide_html(guide_html)
+
+        # Check if PowerPyx guide snapshot (dicas.html) exists in same folder to merge missables
+        guide_p = Path(guide_html_path)
+        dicas_file = guide_p.parent / "dicas.html"
+        if dicas_file.exists():
+            from src.services.scraper import TrophyGuideScraper
+            dicas_html = dicas_file.read_text(encoding="utf-8", errors="ignore")
+            ppx_data = TrophyGuideScraper().parse_roadmap_dom(dicas_html)
+            powerpyx_missables = set(ppx_data.get("missable_trophies") or [])
 
     async with get_db_session() as session:
         # Upsert game record
@@ -243,16 +336,33 @@ async def import_catalog(
         res_trophies = await session.execute(stmt_trophies)
         existing_by_name = {t.name: t for t in res_trophies.scalars().all()}
 
-        missables = guide_data["missable_trophies"] if guide_data else set()
+        raw_psn_missables = guide_data["missable_trophies"] if guide_data else set()
+        norm_psn_missables = {normalize_catalog_name(m) for m in raw_psn_missables}
+        norm_ppx_missables = {normalize_catalog_name(m) for m in powerpyx_missables}
+
+        loc_map = guide_data.get("trophy_locations", {}) if guide_data else {}
+        norm_loc_map = {normalize_catalog_name(k): v for k, v in loc_map.items()}
+
         unlocated_count = 0
+        located_trophies_report: Dict[str, List[str]] = {}
 
         for item in trophies_data["trophies"]:
             name = item["name"]
+            norm_name = normalize_catalog_name(name)
             psn_id = item.get("psn_trophy_id")
             trophy_type = item["type"]
             desc = item.get("description")
             dlc = item.get("dlc")
-            is_missable = name in missables
+
+            in_psn = norm_name in norm_psn_missables
+            in_ppx = norm_name in norm_ppx_missables
+            is_missable = in_psn or in_ppx
+
+            loc = norm_loc_map.get(norm_name)
+            if loc:
+                located_trophies_report[name] = loc
+            else:
+                unlocated_count += 1
 
             if name in existing_by_name:
                 t = existing_by_name[name]
@@ -260,17 +370,22 @@ async def import_catalog(
                 t.type = trophy_type
                 t.description = desc
                 t.dlc = dlc
+                t.location = loc
                 if is_missable:
                     t.missable = True
                     sources = list(t.missable_sources or [])
-                    if "psnprofiles" not in sources:
+                    if in_psn and "psnprofiles" not in sources:
                         sources.append("psnprofiles")
+                    if in_ppx and "powerpyx" not in sources:
+                        sources.append("powerpyx")
                     t.missable_sources = sources
-                if not t.location:
-                    unlocated_count += 1
             else:
                 trophy_id = f"{game_id}-{slugify(name)}"
-                sources = ["psnprofiles"] if is_missable else []
+                sources: List[str] = []
+                if in_psn:
+                    sources.append("psnprofiles")
+                if in_ppx:
+                    sources.append("powerpyx")
                 t = TrophyModel(
                     id=trophy_id,
                     game_id=game_id,
@@ -279,19 +394,20 @@ async def import_catalog(
                     type=trophy_type,
                     description=desc,
                     dlc=dlc,
-                    location=None,
+                    location=loc,
                     missable=is_missable,
                     missable_sources=sources,
                 )
                 session.add(t)
-                unlocated_count += 1
 
-        logger.info(f"{unlocated_count} trophies were left without location.")
+        logger.info(f"{len(located_trophies_report)} trophies were given locations; {unlocated_count} left without location.")
         await session.commit()
 
         return {
             "game_id": game_id,
             "imported_trophies": len(trophies_data["trophies"]),
+            "located_trophies_count": len(located_trophies_report),
+            "located_trophies": located_trophies_report,
             "unlocated_trophies": unlocated_count,
         }
 
