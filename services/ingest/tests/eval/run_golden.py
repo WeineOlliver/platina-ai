@@ -31,7 +31,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import selectinload
 
 from src.database import get_db_session
-from src.models.catalog import TrophyModel
+from src.models.catalog import GameModel, TrophyModel
 from src.models.chunk import GuideChunkModel
 from src.models.player import PlayerGameModel, PlayerModel, PlayerTrophyModel
 from src.schemas.chunk import IngestGuideRequest
@@ -305,7 +305,12 @@ def classify_agent_runs(runs: List[Dict[str, Any]]) -> Tuple[str, str]:
 AGENT_SEMAPHORE = asyncio.Semaphore(1)
 
 
-async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophyModel], canonical_trophies: Optional[List[Any]] = None) -> Dict[str, Any]:
+async def evaluate_case(
+    case: Dict[str, Any],
+    player_trophies: List[PlayerTrophyModel],
+    canonical_trophies: Optional[List[Any]] = None,
+    canonical_game: Optional[Any] = None,
+) -> Dict[str, Any]:
     cid = case["id"]
     category = case.get("category", "")
     route = case.get("route", "")
@@ -527,10 +532,14 @@ async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophy
 
     # Route: SQL (catálogo / progresso)
     if route == "sql":
+        pool = canonical_trophies if canonical_trophies is not None else player_trophies
+
         if category == "contaminacao":
             # C03: Verificar se o catálogo do jogador para Witcher 3 traz troféus de Witcher 2
             witcher2_trophies = [
-                t.trophy_name for t in player_trophies if "witcher 2" in t.trophy_name.lower()
+                (getattr(t, "name", None) or getattr(t, "trophy_name", ""))
+                for t in pool
+                if "witcher 2" in (getattr(t, "name", None) or getattr(t, "trophy_name", "")).lower()
             ]
             passed = len(witcher2_trophies) == 0
             return {
@@ -544,21 +553,49 @@ async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophy
                 "metrics": {"contamination_error_count": len(witcher2_trophies)},
             }
 
-        # O01: Métricas de Roadmap (dificuldade, horas, jogadas)
+        # O01: Métricas de Roadmap (dificuldade, horas, jogadas) via GameModel canônico
         if cid == "O01":
-            # O modelo SQL de player_games / player_trophies não persiste métricas de roadmap (horas, playthroughs)
+            if not canonical_game:
+                return {
+                    "id": cid,
+                    "category": category,
+                    "route": route,
+                    "question": question,
+                    "query_en": query_en,
+                    "status": "FAILED",
+                    "reason": "GameModel('the-witcher-3-wild-hunt') não encontrado no catálogo.",
+                    "metrics": {"completeness": 0.0},
+                }
+
+            exp_diff = expected.get("difficulty", "")
+            exp_hours = expected.get("hours")
+            exp_playthroughs = expected.get("playthroughs")
+
+            game_diff_str = str(int(canonical_game.difficulty)) if canonical_game.difficulty is not None else ""
+            diff_ok = bool(game_diff_str and (game_diff_str in str(exp_diff)))
+            hours_ok = (canonical_game.hours == exp_hours)
+            play_ok = (canonical_game.playthroughs == exp_playthroughs)
+
+            matches = sum([diff_ok, hours_ok, play_ok])
+            completeness = matches / 3.0
+            passed = (matches == 3)
+            reasons = []
+            if not diff_ok:
+                reasons.append(f"Dificuldade: obtido {canonical_game.difficulty}, esperado {exp_diff}")
+            if not hours_ok:
+                reasons.append(f"Horas: obtido {canonical_game.hours}, esperado {exp_hours}")
+            if not play_ok:
+                reasons.append(f"Playthroughs: obtido {canonical_game.playthroughs}, esperado {exp_playthroughs}")
+
             return {
                 "id": cid,
                 "category": category,
                 "route": route,
                 "question": question,
                 "query_en": query_en,
-                "status": "FAILED",
-                "reason": (
-                    "Divergência de schema: Tabelas SQL de catálogo/progresso (player_games, player_trophies) "
-                    "não armazenam 'difficulty', 'hours' ou 'playthroughs' (dados pertencem ao guia/roadmap)."
-                ),
-                "metrics": {"completeness": 0.0},
+                "status": "PASSED" if passed else "FAILED",
+                "reason": "; ".join(reasons) if not passed else "",
+                "metrics": {"completeness": round(completeness, 2)},
             }
 
         # Lista de troféus esperados
@@ -573,7 +610,6 @@ async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophy
         # Insight: Handle generated SQL cases from canonical catalog
         gen_filter = case.get("filter") or expected.get("filter")
         if case.get("generated") or cid.startswith("GEN_") or gen_filter:
-            pool = canonical_trophies if canonical_trophies else player_trophies
             f_type = gen_filter.get("type") if gen_filter else None
             f_dlc = gen_filter.get("dlc") if gen_filter else None
             f_missable = gen_filter.get("missable") if gen_filter else None
@@ -619,64 +655,75 @@ async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophy
                 selected_trophies.append(t)
             filter_description = f"Generated filter (type={f_type}, dlc={f_dlc}, missable={f_missable}, total={f_total})"
         elif cid in ["L01", "L02"]:
-            # Missables
+            # Missables in base game (platinum)
             selected_trophies = [
-                t for t in player_trophies if t.is_missable or t.trophy_category == "missable"
+                t for t in pool
+                if (getattr(t, "missable", None) if hasattr(t, "missable") else (getattr(t, "is_missable", False) or getattr(t, "trophy_category", "") == "missable"))
+                and not getattr(t, "dlc", None)
             ]
-            filter_description = "missable=True ou category='missable'"
+            filter_description = "missable=True & dlc=None (base game)"
         elif cid == "L03":
-            # Prata
+            # Prata no jogo base
             selected_trophies = [
-                t for t in player_trophies if t.trophy_type.lower() == "silver"
+                t for t in pool
+                if (getattr(t, "type", None) or getattr(t, "trophy_type", "")).lower() == "silver"
+                and not getattr(t, "dlc", None)
             ]
-            filter_description = "trophy_type='silver'"
+            filter_description = "type='silver' & dlc=None (base game)"
         elif cid == "L04":
             # Contrato de bruxo
             selected_trophies = [
                 t
-                for t in player_trophies
-                if "contrato" in (t.chapter_or_location or "").lower()
-                or "contrato" in t.trophy_name.lower()
+                for t in pool
+                if "contrato" in (getattr(t, "location", None) or getattr(t, "chapter_or_location", "") or "").lower()
+                or "contract" in (getattr(t, "location", None) or getattr(t, "chapter_or_location", "") or "").lower()
+                or "contrato" in (getattr(t, "name", None) or getattr(t, "trophy_name", "")).lower()
+                or "contract" in (getattr(t, "name", None) or getattr(t, "trophy_name", "")).lower()
             ]
             filter_description = "localização contém 'contrato'"
         elif cid == "L05":
             # Dificuldade
             selected_trophies = [
                 t
-                for t in player_trophies
-                if "dificuldade" in (t.chapter_or_location or "").lower()
+                for t in pool
+                if "dificuldade" in (getattr(t, "location", None) or getattr(t, "chapter_or_location", "") or "").lower()
+                or "difficulty" in (getattr(t, "location", None) or getattr(t, "chapter_or_location", "") or "").lower()
             ]
             filter_description = "localização contém 'dificuldade'"
         elif cid == "L06":
             # Briga de punho
             selected_trophies = [
                 t
-                for t in player_trophies
-                if "luta" in (t.chapter_or_location or "").lower()
-                or "briga" in (t.chapter_or_location or "").lower()
-                or t.trophy_name.lower() in ["brawler", "fist of the south star", "brawl master"]
+                for t in pool
+                if "luta" in (getattr(t, "location", None) or getattr(t, "chapter_or_location", "") or "").lower()
+                or "briga" in (getattr(t, "location", None) or getattr(t, "chapter_or_location", "") or "").lower()
+                or "fist" in (getattr(t, "location", None) or getattr(t, "chapter_or_location", "") or "").lower()
+                or (getattr(t, "name", None) or getattr(t, "trophy_name", "")).lower() in ["brawler", "fist of the south star", "brawl master"]
             ]
             filter_description = "lutas/brigas de punho"
         elif cid == "L07":
             # Hearts of Stone missables
             selected_trophies = [
                 t
-                for t in player_trophies
-                if (t.is_missable or t.trophy_category == "missable")
-                and "hearts of stone" in (t.chapter_or_location or "").lower()
+                for t in pool
+                if (getattr(t, "missable", None) if hasattr(t, "missable") else (getattr(t, "is_missable", False) or getattr(t, "trophy_category", "") == "missable"))
+                and (
+                    "hearts of stone" in (getattr(t, "dlc", "") or "").lower()
+                    or "hearts of stone" in (getattr(t, "location", None) or getattr(t, "chapter_or_location", "") or "").lower()
+                )
             ]
             filter_description = "DLC Hearts of Stone missable"
         elif cid == "L08":
             # História principal
             selected_trophies = [
                 t
-                for t in player_trophies
-                if t.trophy_category == "standard"
-                or t.trophy_name.lower() in [e.lower() for e in expected_trophies]
+                for t in pool
+                if getattr(t, "trophy_category", "") == "standard"
+                or (getattr(t, "name", None) or getattr(t, "trophy_name", "")).lower() in [e.lower() for e in expected_trophies]
             ]
             filter_description = "história principal"
         else:
-            selected_trophies = list(player_trophies)
+            selected_trophies = list(pool)
 
         selected_names = [getattr(t, "name", None) or getattr(t, "trophy_name", "") for t in selected_trophies]
         selected_names_norm = [normalize_str(n) for n in selected_names]
@@ -831,6 +878,12 @@ async def main(split: str = "dev"):
         )
         canonical_trophies = (await session.execute(stmt_canon)).scalars().all()
 
+        stmt_game = (
+            select(GameModel)
+            .where(GameModel.id == "the-witcher-3-wild-hunt")
+        )
+        canonical_game = (await session.execute(stmt_game)).scalar_one_or_none()
+
     # 4. Avalia casos (RAG e SQL sequenciais, depois Agent casos sequenciais)
     print("Avaliando casos diretos (RAG e SQL)...")
     direct_cases = [c for c in filtered_cases if c.get("route") not in ["hybrid", "none"]]
@@ -838,13 +891,13 @@ async def main(split: str = "dev"):
 
     results: List[Dict[str, Any]] = []
     for dc in direct_cases:
-        res = await evaluate_case(dc, player_trophies, canonical_trophies)
+        res = await evaluate_case(dc, player_trophies, canonical_trophies, canonical_game)
         res["generated"] = bool(dc.get("generated", False) or str(dc.get("id", "")).startswith("GEN_"))
         results.append(res)
 
     print(f"Avaliando {len(agent_cases)} casos com Agente LLM...")
     for ac in agent_cases:
-        res = await evaluate_case(ac, player_trophies, canonical_trophies)
+        res = await evaluate_case(ac, player_trophies, canonical_trophies, canonical_game)
         res["generated"] = bool(ac.get("generated", False) or str(ac.get("id", "")).startswith("GEN_"))
         results.append(res)
         await asyncio.sleep(2.0)
@@ -901,10 +954,12 @@ async def main(split: str = "dev"):
             metrics_summary["contamination"]["total"] += 1
             if m["contamination_error_count"] == 0:
                 metrics_summary["contamination"]["success"] += 1
-        if "faithfulness" in m:
+        # Insight: Faithfulness and answer_relevance strictly on hybrid route cases that did NOT abstain
+        is_hybrid_non_abstained = (r.get("route") == "hybrid" and m.get("is_abstained", 0.0) == 0.0)
+        if "faithfulness" in m and is_hybrid_non_abstained:
             metrics_summary["faithfulness"]["total"] += 1
             metrics_summary["faithfulness"]["total_score"] += m["faithfulness"]
-        if "answer_relevance" in m:
+        if "answer_relevance" in m and is_hybrid_non_abstained:
             metrics_summary["answer_relevance"]["total"] += 1
             metrics_summary["answer_relevance"]["total_score"] += m["answer_relevance"]
         if "is_abstained" in m and r.get("category") == "fora_escopo":
