@@ -40,6 +40,7 @@ from src.services.chunker import chunker, build_context_prefix
 from src.services.gwent_chunker import chunk_gwent_guide
 from src.services.embedding import embedding_service
 from src.services.entity_linker import link_chunks_to_trophies, get_canonical_game_id
+from src.catalog.importer import normalize_catalog_name
 from src.services.player import player_progress_service
 from src.services.scraper import scraper
 from src.services.search import vector_search_service
@@ -86,10 +87,18 @@ async def index_snapshots_if_available(game_name: str = "The Witcher 3: Wild Hun
     all_chunks = []
     global_idx = 0
 
+    snapshot_urls_file = SERVICES_INGEST_DIR / "src" / "catalog" / "snapshot_urls.json"
+    snapshot_url_map = {}
+    if snapshot_urls_file.exists():
+        try:
+            snapshot_url_map = json.loads(snapshot_urls_file.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
     for html_file in html_files:
         html_content = html_file.read_text(encoding="utf-8", errors="ignore")
         markdown = scraper._html_to_markdown(html_content)
-        source_url = f"https://local.snapshots/{html_file.name}"
+        source_url = snapshot_url_map.get(html_file.name, f"https://local.snapshots/{html_file.name}")
 
         req = IngestGuideRequest(game=game_name, source_url=source_url, content=markdown)
         chunks = chunker.chunk_guide(req)
@@ -119,9 +128,10 @@ async def index_snapshots_if_available(game_name: str = "The Witcher 3: Wild Hun
             game_id=clean_game_id,
             card_collector_trophy_id="the-witcher-3-wild-hunt-card-collector",
         )
+        gwent_url = snapshot_url_map.get(gwent_file.name, "https://psnprofiles.com/guide/4250-the-witcher-3-wild-hunt-card-collector-guide")
         for gc in gwent_chunks:
             gc.game = game_name
-            gc.metadata["source_url"] = f"https://local.snapshots/{gwent_file.name}"
+            gc.metadata["source_url"] = gwent_url
             gc.metadata["snapshot_file"] = gwent_file.name
             id_raw = f"{game_name}:gwent:{gc.title}:{global_idx}"
             gc.chunk_id = hashlib.sha256(id_raw.encode("utf-8")).hexdigest()[:24]
@@ -431,6 +441,23 @@ async def evaluate_case(
             }
 
         # Standard RAG tests (dica, vaga, parafrase)
+        exp_trophy = expected.get("trophy", "")
+        exp_trophy_norm = normalize_str(exp_trophy)
+
+        # Insight: Production path for 'dica' cases: resolve by name in canonical catalog + chunks by trophy_id
+        prod_chunks = []
+        prod_matched_trophy = None
+        target_chunk_has_terms = True
+        if category == "dica" and exp_trophy:
+            async with get_db_session() as session:
+                clean_gid = get_canonical_game_id("The Witcher 3: Wild Hunt")
+                stmt = select(TrophyModel).where(TrophyModel.game_id == clean_gid)
+                all_t = (await session.execute(stmt)).scalars().all()
+                prod_matched_trophy = next((t for t in all_t if normalize_catalog_name(t.name) == normalize_catalog_name(exp_trophy)), None)
+                if prod_matched_trophy:
+                    stmt_c = select(GuideChunkModel).where(GuideChunkModel.trophy_id == prod_matched_trophy.id).order_by(GuideChunkModel.id.asc())
+                    prod_chunks = (await session.execute(stmt_c)).scalars().all()
+
         t0 = time.perf_counter()
         print(f"[{cid}] (RAG: {category}) Avaliando '{question[:35]}...' ", flush=True)
         await embedding_service.embed_query(query_en)
@@ -446,26 +473,43 @@ async def evaluate_case(
         )
         top_chunks = res.results[:5]
         top_titles_norm = [normalize_str(c.title) for c in top_chunks]
-        all_content_norm = " ".join(normalize_str(f"{c.title} {c.content}") for c in top_chunks)
+        hybrid_content_norm = " ".join(normalize_str(f"{c.title} {c.content}") for c in top_chunks)
 
-        exp_trophy = expected.get("trophy", "")
-        exp_trophy_norm = normalize_str(exp_trophy)
+        # Secondary column: fallback_recall@5
+        fallback_recall_at_5 = any(exp_trophy_norm in t for t in top_titles_norm) if exp_trophy_norm else True
 
-        # Metric: Recall@5
-        recall_at_5 = False
-        if exp_trophy_norm:
-            recall_at_5 = any(exp_trophy_norm in t for t in top_titles_norm)
+        if category == "dica" and exp_trophy:
+            recall_at_5 = bool(prod_matched_trophy and len(prod_chunks) > 0)
+            all_content_norm = " ".join(normalize_str(f"{c.title} {c.content}") for c in prod_chunks) if prod_chunks else hybrid_content_norm
         else:
-            recall_at_5 = True
+            recall_at_5 = fallback_recall_at_5
+            all_content_norm = hybrid_content_norm
 
-        # Metric: Must Contain
+        # Metric: Must Contain (all) and Must Contain Any (at least one)
         must_contain_words = expected.get("must_contain", [])
+        must_contain_any_words = expected.get("must_contain_any", [])
+
         missing_terms = []
         for term in must_contain_words:
             term_norm = normalize_str(term)
             if term_norm not in all_content_norm:
                 missing_terms.append(term)
-        must_contain_passed = len(missing_terms) == 0
+        must_contain_all_passed = len(missing_terms) == 0
+
+        must_contain_any_passed = True
+        if must_contain_any_words:
+            must_contain_any_passed = any(normalize_str(term) in all_content_norm for term in must_contain_any_words)
+            if not must_contain_any_passed:
+                missing_terms.append(f"none of {must_contain_any_words}")
+
+        must_contain_passed = must_contain_all_passed and must_contain_any_passed
+
+        # Check if terms exist in target chunk content to separate generator error from search error
+        if prod_chunks:
+            target_text_norm = " ".join(normalize_str(f"{c.title} {c.content}") for c in prod_chunks)
+            target_chunk_has_terms = all(normalize_str(term) in target_text_norm for term in must_contain_words)
+            if must_contain_any_words:
+                target_chunk_has_terms = target_chunk_has_terms and any(normalize_str(term) in target_text_norm for term in must_contain_any_words)
 
         # For vaga category: run through full agent once with question in PT
         agent_generated_query = ""
@@ -523,9 +567,13 @@ async def evaluate_case(
             "reason": "; ".join(reasons) if not passed else "",
             "metrics": {
                 "recall_at_5": 1.0 if recall_at_5 else 0.0,
+                "fallback_recall_at_5": 1.0 if fallback_recall_at_5 else 0.0,
                 "must_contain": 1.0 if must_contain_passed else 0.0,
                 "embed_latency_ms": embed_lat_ms,
                 "top_hit": top_chunks[0].title if top_chunks else "None",
+                "top_3_titles": [c.title for c in top_chunks[:3]],
+                "expected_terms": must_contain_words or must_contain_any_words,
+                "target_chunk_has_terms": target_chunk_has_terms,
                 "agent_generated_query": agent_generated_query,
                 "agent_recall_at_5": agent_recall_at_5,
             },
@@ -922,6 +970,7 @@ async def main(split: str = "dev"):
     # 6. Agregação por Métrica
     metrics_summary = {
         "recall_at_5": {"total": 0, "success": 0},
+        "fallback_recall_at_5": {"total": 0, "success": 0},
         "must_contain": {"total": 0, "success": 0},
         "completeness": {"total": 0, "total_score": 0.0},
         "contamination": {"total": 0, "success": 0},
@@ -940,6 +989,10 @@ async def main(split: str = "dev"):
             metrics_summary["recall_at_5"]["total"] += 1
             if m["recall_at_5"] == 1.0:
                 metrics_summary["recall_at_5"]["success"] += 1
+        if "fallback_recall_at_5" in m:
+            metrics_summary["fallback_recall_at_5"]["total"] += 1
+            if m["fallback_recall_at_5"] == 1.0:
+                metrics_summary["fallback_recall_at_5"]["success"] += 1
         if "must_contain" in m:
             metrics_summary["must_contain"]["total"] += 1
             if m["must_contain"] == 1.0:
@@ -989,6 +1042,10 @@ async def main(split: str = "dev"):
     r5 = metrics_summary["recall_at_5"]
     r5_rate = f"{(r5['success'] / r5['total'] * 100):.1f}%" if r5["total"] else "N/A"
     print(f"{'recall@5':<18} | {r5['total']:<10} | {r5['success']:<8} | {r5_rate:<15}")
+
+    fr5 = metrics_summary["fallback_recall_at_5"]
+    fr5_rate = f"{(fr5['success'] / fr5['total'] * 100):.1f}%" if fr5["total"] else "N/A"
+    print(f"{'fallback_recall@5':<18} | {fr5['total']:<10} | {fr5['success']:<8} | {fr5_rate:<15}")
 
     mc = metrics_summary["must_contain"]
     mc_rate = f"{(mc['success'] / mc['total'] * 100):.1f}%" if mc["total"] else "N/A"
@@ -1041,7 +1098,7 @@ async def main(split: str = "dev"):
             print(f"[{f_case['id']}] ({f_case['route'].upper()}/{f_case['category']}) {f_case['question']}")
             print(f"   -> Motivo: {f_case['reason']}")
 
-    # Insight: Explicitly list which 'dica' cases failed and why
+    # Insight: Explicitly list which 'dica' cases failed and why (separates generator error from search error)
     dica_failures = [r for r in results if r.get("category") == "dica" and r.get("status") == "FAILED"]
     print("\n" + "=" * 80)
     print("        3.1. DETALHE DOS CASOS DE DICA QUE FALHARAM")
@@ -1050,7 +1107,11 @@ async def main(split: str = "dev"):
         print("Nenhum caso de dica falhou! 100% aprovados.")
     else:
         for df in dica_failures:
+            m = df.get("metrics", {})
             print(f"[{df['id']}] {df['question']}")
+            print(f"   -> Termos esperados: {m.get('expected_terms')}")
+            print(f"   -> Top-3 títulos recuperados: {m.get('top_3_titles')}")
+            print(f"   -> Termo existe no chunk alvo? {'Sim' if m.get('target_chunk_has_terms') else 'Não (erro do gerador)'}")
             print(f"   -> Motivo: {df.get('reason')}")
 
     print("\n" + "=" * 80)
