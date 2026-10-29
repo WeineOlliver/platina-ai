@@ -8,6 +8,7 @@ registra 'hybrid' e 'none' como SKIPPED, e gera relatório estruturado em tela e
 Exit code 0 sempre, garantindo que o relatório seja informativo e não quebre o CI.
 """
 
+import argparse
 import asyncio
 import datetime
 import hashlib
@@ -30,6 +31,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import selectinload
 
 from src.database import get_db_session
+from src.models.catalog import TrophyModel
 from src.models.chunk import GuideChunkModel
 from src.models.player import PlayerGameModel, PlayerModel, PlayerTrophyModel
 from src.schemas.chunk import IngestGuideRequest
@@ -303,7 +305,7 @@ def classify_agent_runs(runs: List[Dict[str, Any]]) -> Tuple[str, str]:
 AGENT_SEMAPHORE = asyncio.Semaphore(1)
 
 
-async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophyModel]) -> Dict[str, Any]:
+async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophyModel], canonical_trophies: Optional[List[Any]] = None) -> Dict[str, Any]:
     cid = case["id"]
     category = case.get("category", "")
     route = case.get("route", "")
@@ -565,10 +567,58 @@ async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophy
         must_not_contain = expected.get("must_not_contain", [])
 
         # Subconjunto de troféus selecionados do catálogo baseado no caso
-        selected_trophies: List[PlayerTrophyModel] = []
+        selected_trophies: List[Any] = []
         filter_description = ""
 
-        if cid in ["L01", "L02"]:
+        # Insight: Handle generated SQL cases from canonical catalog
+        gen_filter = case.get("filter") or expected.get("filter")
+        if case.get("generated") or cid.startswith("GEN_") or gen_filter:
+            pool = canonical_trophies if canonical_trophies else player_trophies
+            f_type = gen_filter.get("type") if gen_filter else None
+            f_dlc = gen_filter.get("dlc") if gen_filter else None
+            f_missable = gen_filter.get("missable") if gen_filter else None
+            f_total = gen_filter.get("total") if gen_filter else None
+
+            if not gen_filter:
+                cid_u = cid.upper()
+                if "BRONZE" in cid_u:
+                    f_type = "bronze"
+                elif "SILVER" in cid_u:
+                    f_type = "silver"
+                elif "GOLD" in cid_u:
+                    f_type = "gold"
+                elif "BASE_GAME" in cid_u:
+                    f_dlc = "Base Game"
+                elif "HEARTS_OF_STONE" in cid_u:
+                    f_dlc = "Hearts of Stone"
+                elif "BLOOD_AND_WINE" in cid_u:
+                    f_dlc = "Blood and Wine"
+                elif "MISSABLE" in cid_u:
+                    f_missable = True
+                elif "TOTAL" in cid_u:
+                    f_total = True
+
+            selected_trophies = []
+            for t in pool:
+                t_type = (getattr(t, "type", None) or getattr(t, "trophy_type", "")).lower()
+                t_dlc = getattr(t, "dlc", None)
+                t_missable = getattr(t, "missable", None) if hasattr(t, "missable") else (getattr(t, "is_missable", False) or getattr(t, "trophy_category", "") == "missable")
+
+                if f_type and t_type != f_type.lower():
+                    continue
+                if f_dlc:
+                    if f_dlc.lower() in ("base", "base game"):
+                        if t_dlc is not None:
+                            continue
+                    else:
+                        if not t_dlc or t_dlc.lower() != f_dlc.lower():
+                            continue
+                if f_missable is not None:
+                    if bool(t_missable) != bool(f_missable):
+                        continue
+                selected_trophies.append(t)
+            filter_description = f"Generated filter (type={f_type}, dlc={f_dlc}, missable={f_missable}, total={f_total})"
+        elif cid in ["L01", "L02"]:
             # Missables
             selected_trophies = [
                 t for t in player_trophies if t.is_missable or t.trophy_category == "missable"
@@ -628,7 +678,7 @@ async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophy
         else:
             selected_trophies = list(player_trophies)
 
-        selected_names = [t.trophy_name for t in selected_trophies]
+        selected_names = [getattr(t, "name", None) or getattr(t, "trophy_name", "") for t in selected_trophies]
         selected_names_norm = [normalize_str(n) for n in selected_names]
 
         # Avaliação de contagem explícita (L02)
@@ -706,7 +756,7 @@ async def evaluate_case(case: Dict[str, Any], player_trophies: List[PlayerTrophy
     }
 
 
-async def main():
+async def main(split: str = "dev"):
     emb_provider = os.getenv("EMBEDDING_PROVIDER", "local").strip().lower()
     if emb_provider == "fastembed":
         emb_model = "BAAI/bge-small-en-v1.5 (384 dims)"
@@ -721,23 +771,51 @@ async def main():
     print("=" * 80)
     print(f"[CONFIG] Embedding Provider: {emb_provider} ({emb_model})")
     print(f"[CONFIG] Full-Text TSVector: {tsv_config}")
+    print(f"[CONFIG] Split selecionado: {split.upper()}")
     print("=" * 80)
-
-    if not GOLDEN_FILE.exists():
-        print(f"[ERRO] Arquivo golden não encontrado em: {GOLDEN_FILE}")
-        return
 
     # 1. Index snapshots
     await index_snapshots_if_available("The Witcher 3: Wild Hunt")
 
-    # 2. Carrega Golden Dataset
-    with open(GOLDEN_FILE, "r", encoding="utf-8") as f:
-        golden_data = json.load(f)
+    # 2. Carrega Golden Dataset (Manual e Gerados)
+    cases: List[Dict[str, Any]] = []
+    if GOLDEN_FILE.exists():
+        with open(GOLDEN_FILE, "r", encoding="utf-8") as f:
+            golden_data = json.load(f)
+        manual_cases = golden_data.get("cases", [])
+        for mc in manual_cases:
+            mc["split"] = "dev"
+            mc["generated"] = False
+        cases.extend(manual_cases)
+        print(f"Cenários manuais carregados ({GOLDEN_FILE.name}): {len(manual_cases)}")
+    else:
+        print(f"[AVISO] Arquivo golden manual não encontrado em: {GOLDEN_FILE}")
 
-    cases = golden_data.get("cases", [])
-    print(f"\nTotal de cenários carregados: {len(cases)}")
+    gen_files = sorted(list(GOLDEN_DIR.glob("generated_*.json")))
+    for gf in gen_files:
+        try:
+            with open(gf, "r", encoding="utf-8") as f:
+                gen_data = json.load(f)
+            gcases = gen_data.get("cases", []) if isinstance(gen_data, dict) else gen_data
+            for gc in gcases:
+                gc.setdefault("generated", True)
+                if "split" not in gc:
+                    val = int(hashlib.sha256(gc["id"].encode("utf-8")).hexdigest(), 16) % 100
+                    gc["split"] = "dev" if val < 70 else "test"
+            cases.extend(gcases)
+            print(f"Cenários gerados carregados ({gf.name}): {len(gcases)}")
+        except Exception as e:
+            print(f"[AVISO] Falha ao carregar arquivo gerado {gf.name}: {e}")
 
-    # 3. Consulta troféus de Witcher 3 do banco via caminho de playerProgress
+    # Filtragem pelo split selecionado
+    if split != "all":
+        filtered_cases = [c for c in cases if c.get("split") == split]
+    else:
+        filtered_cases = cases
+
+    print(f"\n[SPLIT: {split.upper()}] Cenários selecionados para avaliação: {len(filtered_cases)} de {len(cases)} totais")
+
+    # 3. Consulta troféus de Witcher 3 do banco via caminho de playerProgress e catálogo canônico
     async with get_db_session() as session:
         stmt = (
             select(PlayerTrophyModel)
@@ -747,39 +825,49 @@ async def main():
         res = await session.execute(stmt)
         player_trophies = res.scalars().all()
 
+        stmt_canon = (
+            select(TrophyModel)
+            .where(TrophyModel.game_id == "the-witcher-3-wild-hunt")
+        )
+        canonical_trophies = (await session.execute(stmt_canon)).scalars().all()
+
     # 4. Avalia casos (RAG e SQL sequenciais, depois Agent casos sequenciais)
     print("Avaliando casos diretos (RAG e SQL)...")
-    direct_cases = [c for c in cases if c.get("route") not in ["hybrid", "none"]]
-    agent_cases = [c for c in cases if c.get("route") in ["hybrid", "none"]]
+    direct_cases = [c for c in filtered_cases if c.get("route") not in ["hybrid", "none"]]
+    agent_cases = [c for c in filtered_cases if c.get("route") in ["hybrid", "none"]]
 
     results: List[Dict[str, Any]] = []
     for dc in direct_cases:
-        res = await evaluate_case(dc, player_trophies)
+        res = await evaluate_case(dc, player_trophies, canonical_trophies)
+        res["generated"] = bool(dc.get("generated", False) or str(dc.get("id", "")).startswith("GEN_"))
         results.append(res)
 
     print(f"Avaliando {len(agent_cases)} casos com Agente LLM...")
     for ac in agent_cases:
-        res = await evaluate_case(ac, player_trophies)
+        res = await evaluate_case(ac, player_trophies, canonical_trophies)
+        res["generated"] = bool(ac.get("generated", False) or str(ac.get("id", "")).startswith("GEN_"))
         results.append(res)
         await asyncio.sleep(2.0)
 
-    # 5. Agregação por Categoria
+    # 5. Agregação por Categoria (separando manual vs gerado)
     categories: Dict[str, Dict[str, int]] = {}
     total_errors = 0
     for r in results:
-        cat = r["category"]
-        if cat not in categories:
-            categories[cat] = {"total": 0, "passed": 0, "failed": 0, "error": 0, "skipped": 0}
-        categories[cat]["total"] += 1
+        is_gen = r.get("generated", False) or str(r.get("id", "")).startswith("GEN_")
+        origin = "generated" if is_gen else "manual"
+        cat_key = f"{r['category']} ({origin})"
+        if cat_key not in categories:
+            categories[cat_key] = {"total": 0, "passed": 0, "failed": 0, "error": 0, "skipped": 0}
+        categories[cat_key]["total"] += 1
         if r["status"] == "PASSED":
-            categories[cat]["passed"] += 1
+            categories[cat_key]["passed"] += 1
         elif r["status"] == "FAILED":
-            categories[cat]["failed"] += 1
+            categories[cat_key]["failed"] += 1
         elif r["status"] == "ERROR":
-            categories[cat]["error"] += 1
+            categories[cat_key]["error"] += 1
             total_errors += 1
         elif r["status"] == "SKIPPED":
-            categories[cat]["skipped"] += 1
+            categories[cat_key]["skipped"] += 1
 
     # 6. Agregação por Métrica
     metrics_summary = {
@@ -828,16 +916,16 @@ async def main():
     print("\n" + "=" * 80)
     print("                    1. RELATÓRIO POR CATEGORIA")
     print("=" * 80)
-    print(f"{'Categoria':<18} | {'Total':<6} | {'Passou':<7} | {'Falhou':<7} | {'Erro (API)':<10} | {'Ignorado':<8} | {'Taxa Efetiva':<12}")
-    print("-" * 85)
-    for cat, counts in categories.items():
+    print(f"{'Categoria (Origem)':<26} | {'Total':<6} | {'Passou':<7} | {'Falhou':<7} | {'Erro (API)':<10} | {'Ignorado':<8} | {'Taxa Efetiva':<12}")
+    print("-" * 88)
+    for cat, counts in sorted(categories.items()):
         evaluated = counts["passed"] + counts["failed"]
         rate = f"{(counts['passed'] / evaluated * 100):.1f}%" if evaluated > 0 else "(N/A)"
         print(
-            f"{cat:<18} | {counts['total']:<6} | {counts['passed']:<7} | {counts['failed']:<7} | "
+            f"{cat:<26} | {counts['total']:<6} | {counts['passed']:<7} | {counts['failed']:<7} | "
             f"{counts['error']:<10} | {counts['skipped']:<8} | {rate:<12}"
         )
-    print("-" * 85)
+    print("-" * 88)
     print(f"[STATUS ERROR TOTAL]: {total_errors} caso(s) com timeout ou falha de infraestrutura de API/rede.")
 
     print("\n" + "=" * 80)
@@ -949,7 +1037,8 @@ async def main():
     export_payload = {
         "timestamp": timestamp,
         "golden_set": "golden_witcher3.json",
-        "total_cases": len(cases),
+        "split": split,
+        "total_cases": len(filtered_cases),
         "categories_summary": categories,
         "metrics_summary": {
             "recall_at_5": r5_rate,
@@ -970,4 +1059,12 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser(description="Runner de avaliação de RAG e Catálogo/SQL")
+    parser.add_argument(
+        "--split",
+        choices=["dev", "test", "all"],
+        default="dev",
+        help="Split de casos para avaliar (dev, test, all). Default: dev",
+    )
+    args = parser.parse_args()
+    asyncio.run(main(split=args.split))

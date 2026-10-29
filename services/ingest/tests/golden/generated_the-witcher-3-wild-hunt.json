@@ -1,0 +1,979 @@
+{
+  "game_id": "the-witcher-3-wild-hunt",
+  "generated_at": "2026-10-29T03:01:00.935301+00:00",
+  "total_cases": 47,
+  "dev_cases": 36,
+  "test_cases": 11,
+  "cases": [
+    {
+      "id": "GEN_LISTA_TYPE_BRONZE",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "lista",
+      "route": "sql",
+      "question": "Quais troféus de bronze existem em The Witcher 3: Wild Hunt?",
+      "query_en": "Which bronze trophies exist in The Witcher 3: Wild Hunt?",
+      "expected": {
+        "trophies": [
+          "A Friend in Need",
+          "A Knight to Remember",
+          "All In",
+          "Ashes to Ashes",
+          "Assassin of Kings",
+          "Bombardier",
+          "Bookworm",
+          "Brawl Master",
+          "Can Quit Anytime I Want",
+          "Can't Touch This!",
+          "Card Collector",
+          "Curator of Nightmares",
+          "David and Golyat",
+          "Dendrologist",
+          "Dressed to Kill",
+          "Embodiment of the Five Virtues",
+          "Environmentally Unfriendly",
+          "Family Counselor",
+          "Fast and Furious",
+          "Fearless Vampire Slayer",
+          "Fiend or Foe?",
+          "Fire in the Hole",
+          "Fist of the South Star",
+          "Friends With Benefits",
+          "Full Crew",
+          "Geralt and Friends",
+          "Geralt: The Professional",
+          "Globetrotter",
+          "Gwent Master",
+          "Hasta la Vista™",
+          "Humpty Dumpty",
+          "I Have a Gwent Problem",
+          "I Wore Ofieri Before It Was Cool",
+          "I'm Not Kissing That",
+          "Kaer Morhen Trained",
+          "Killed It",
+          "Kingmaker",
+          "Kling of the Clink",
+          "Last Action Hero",
+          "Let the Good Times Roll!",
+          "Let's Cook!",
+          "Lilac and Gooseberries",
+          "Master Marksman",
+          "Moo-rderer",
+          "Mutant",
+          "Necromancer",
+          "Pacta Sunt Servanda",
+          "Passed the Trial",
+          "Playing House",
+          "Power Overwhelming",
+          "Rad Steez, Bro!",
+          "Return to Sender",
+          "Shopaholic",
+          "Shrieker",
+          "Something More",
+          "That Is the Evilest Thing…",
+          "The Doppler Effect",
+          "The Enemy of My Enemy",
+          "The Grapes of Wrath Stomped",
+          "The Witcher's Gone South",
+          "Triple Threat",
+          "Turned Every Stone",
+          "Weapon \"W\"",
+          "What Was That?",
+          "When It's Many Against One…",
+          "Wild Rose Dethorned",
+          "Woodland Spirit",
+          "Xenonaut"
+        ],
+        "count": 68
+      },
+      "filter": {
+        "type": "bronze"
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_LISTA_TYPE_SILVER",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "lista",
+      "route": "sql",
+      "question": "Quais troféus de prata existem em The Witcher 3: Wild Hunt?",
+      "query_en": "Which silver trophies exist in The Witcher 3: Wild Hunt?",
+      "expected": {
+        "trophies": [
+          "Armed and Dangerous",
+          "Brawler",
+          "Butcher of Blaviken",
+          "Even Odds",
+          "Overkill",
+          "Pest Control",
+          "Ran the Gauntlet",
+          "The King is Dead"
+        ],
+        "count": 8
+      },
+      "filter": {
+        "type": "silver"
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_LISTA_TYPE_GOLD",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "lista",
+      "route": "sql",
+      "question": "Quais troféus de ouro existem em The Witcher 3: Wild Hunt?",
+      "query_en": "Which gold trophies exist in The Witcher 3: Wild Hunt?",
+      "expected": {
+        "trophies": [
+          "Munchkin",
+          "Walked the Path"
+        ],
+        "count": 2
+      },
+      "filter": {
+        "type": "gold"
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_LISTA_DLC_BASE_GAME",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "lista",
+      "route": "sql",
+      "question": "Quais troféus são do jogo base de The Witcher 3: Wild Hunt?",
+      "query_en": "Which trophies are from the base game of The Witcher 3: Wild Hunt?",
+      "expected": {
+        "trophies": [
+          "A Friend in Need",
+          "All In",
+          "Armed and Dangerous",
+          "Ashes to Ashes",
+          "Assassin of Kings",
+          "Bombardier",
+          "Bookworm",
+          "Brawl Master",
+          "Brawler",
+          "Butcher of Blaviken",
+          "Can't Touch This!",
+          "Card Collector",
+          "Dendrologist",
+          "Environmentally Unfriendly",
+          "Even Odds",
+          "Family Counselor",
+          "Fast and Furious",
+          "Fearless Vampire Slayer",
+          "Fiend or Foe?",
+          "Fire in the Hole",
+          "Fist of the South Star",
+          "Friends With Benefits",
+          "Full Crew",
+          "Geralt and Friends",
+          "Geralt: The Professional",
+          "Globetrotter",
+          "Gwent Master",
+          "Humpty Dumpty",
+          "Kaer Morhen Trained",
+          "Kingmaker",
+          "Let's Cook!",
+          "Lilac and Gooseberries",
+          "Master Marksman",
+          "Munchkin",
+          "Mutant",
+          "Necromancer",
+          "Overkill",
+          "Passed the Trial",
+          "Pest Control",
+          "Power Overwhelming",
+          "Ran the Gauntlet",
+          "Shrieker",
+          "Something More",
+          "That Is the Evilest Thing…",
+          "The Doppler Effect",
+          "The Enemy of My Enemy",
+          "The King is Dead",
+          "The Limits of the Possible",
+          "Triple Threat",
+          "Walked the Path",
+          "What Was That?",
+          "Woodland Spirit",
+          "Xenonaut"
+        ],
+        "count": 53
+      },
+      "filter": {
+        "dlc": "Base Game"
+      },
+      "split": "test"
+    },
+    {
+      "id": "GEN_LISTA_DLC_BLOOD_AND_WINE",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "lista",
+      "route": "sql",
+      "question": "Quais troféus são da DLC Blood and Wine?",
+      "query_en": "Which trophies are from the Blood and Wine DLC?",
+      "expected": {
+        "trophies": [
+          "A Knight to Remember",
+          "David and Golyat",
+          "Dressed to Kill",
+          "Embodiment of the Five Virtues",
+          "Hasta la Vista™",
+          "I Have a Gwent Problem",
+          "Kling of the Clink",
+          "Last Action Hero",
+          "Playing House",
+          "The Grapes of Wrath Stomped",
+          "The Witcher's Gone South",
+          "Turned Every Stone",
+          "Weapon \"W\""
+        ],
+        "count": 13
+      },
+      "filter": {
+        "dlc": "Blood and Wine"
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_LISTA_DLC_HEARTS_OF_STONE",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "lista",
+      "route": "sql",
+      "question": "Quais troféus são da DLC Hearts of Stone?",
+      "query_en": "Which trophies are from the Hearts of Stone DLC?",
+      "expected": {
+        "trophies": [
+          "Can Quit Anytime I Want",
+          "Curator of Nightmares",
+          "I Wore Ofieri Before It Was Cool",
+          "I'm Not Kissing That",
+          "Killed It",
+          "Let the Good Times Roll!",
+          "Moo-rderer",
+          "Pacta Sunt Servanda",
+          "Rad Steez, Bro!",
+          "Return to Sender",
+          "Shopaholic",
+          "When It's Many Against One…",
+          "Wild Rose Dethorned"
+        ],
+        "count": 13
+      },
+      "filter": {
+        "dlc": "Hearts of Stone"
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_LISTA_MISSABLES",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "lista",
+      "route": "sql",
+      "question": "Quais troféus são perdíveis em The Witcher 3: Wild Hunt?",
+      "query_en": "Which trophies are missable in The Witcher 3: Wild Hunt?",
+      "expected": {
+        "trophies": [
+          "Assassin of Kings",
+          "Card Collector",
+          "Even Odds",
+          "Fast and Furious",
+          "Friends With Benefits",
+          "Full Crew",
+          "Gwent Master",
+          "Kingmaker",
+          "The Doppler Effect",
+          "Woodland Spirit"
+        ],
+        "count": 10
+      },
+      "filter": {
+        "missable": true
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_LISTA_MISSABLES_COUNT",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "lista",
+      "route": "sql",
+      "question": "Quantos troféus perdíveis existem em The Witcher 3: Wild Hunt?",
+      "query_en": "How many missable trophies are there in The Witcher 3: Wild Hunt?",
+      "expected": {
+        "count": 10
+      },
+      "filter": {
+        "missable": true
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_LISTA_TOTAL_COUNT",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "lista",
+      "route": "sql",
+      "question": "Quantos troféus existem no total em The Witcher 3: Wild Hunt?",
+      "query_en": "How many total trophies are there in The Witcher 3: Wild Hunt?",
+      "expected": {
+        "count": 79
+      },
+      "filter": {
+        "total": true
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_ALL_IN",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu All In em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the All In trophy?",
+      "expected": {
+        "trophy": "All In",
+        "must_contain": [
+          "Guide",
+          "Video"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_ARMED_AND_DANGEROUS",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Armed and Dangerous em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Armed and Dangerous trophy?",
+      "expected": {
+        "trophy": "Armed and Dangerous",
+        "must_contain": [
+          "Scavenger",
+          "Novigrad"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_ASHES_TO_ASHES",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Ashes to Ashes em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Ashes to Ashes trophy?",
+      "expected": {
+        "trophy": "Ashes to Ashes",
+        "must_contain": [
+          "Recommendend",
+          "Therazane"
+        ]
+      },
+      "split": "test"
+    },
+    {
+      "id": "GEN_DICA_ASSASSIN_OF_KINGS",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Assassin of Kings em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Assassin of Kings trophy?",
+      "expected": {
+        "trophy": "Assassin of Kings",
+        "must_contain": [
+          "Advancement",
+          "Blindingly"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_BOMBARDIER",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Bombardier em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Bombardier trophy?",
+      "expected": {
+        "trophy": "Bombardier",
+        "must_contain": [
+          "Herbalist",
+          "Novigrad"
+        ]
+      },
+      "split": "test"
+    },
+    {
+      "id": "GEN_DICA_BRAWL_MASTER",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Brawl Master em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Brawl Master trophy?",
+      "expected": {
+        "trophy": "Brawl Master",
+        "must_contain": [
+          "Residence",
+          "Unlocking"
+        ]
+      },
+      "split": "test"
+    },
+    {
+      "id": "GEN_DICA_BRAWLER",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Brawler em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Brawler trophy?",
+      "expected": {
+        "trophy": "Brawler",
+        "must_contain": [
+          "Arinbjorn",
+          "Harviken"
+        ]
+      },
+      "split": "test"
+    },
+    {
+      "id": "GEN_DICA_BUTCHER_OF_BLAVIKEN",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Butcher of Blaviken em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Butcher of Blaviken trophy?",
+      "expected": {
+        "trophy": "Butcher of Blaviken",
+        "must_contain": [
+          "Hanged",
+          "Travel"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_CAN_T_TOUCH_THIS",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Can't Touch This! em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Can't Touch This! trophy?",
+      "expected": {
+        "trophy": "Can't Touch This!",
+        "must_contain": [
+          "Blaviken",
+          "Toxicity"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_CARD_COLLECTOR",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Card Collector em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Card Collector trophy?",
+      "expected": {
+        "trophy": "Card Collector",
+        "must_contain": [
+          "Congratulations",
+          "Quartermaster"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_DENDROLOGIST",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Dendrologist em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Dendrologist trophy?",
+      "expected": {
+        "trophy": "Dendrologist",
+        "must_contain": [
+          "Dendrologist"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_ENVIRONMENTALLY_UNFRIENDLY",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Environmentally Unfriendly em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Environmentally Unfriendly trophy?",
+      "expected": {
+        "trophy": "Environmentally Unfriendly",
+        "must_contain": [
+          "Environmentally",
+          "Unfriendly"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_FAST_AND_FURIOUS",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Fast and Furious em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Fast and Furious trophy?",
+      "expected": {
+        "trophy": "Fast and Furious",
+        "must_contain": [
+          "Novigrad",
+          "Skellige"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_FEARLESS_VAMPIRE_SLAYER",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Fearless Vampire Slayer em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Fearless Vampire Slayer trophy?",
+      "expected": {
+        "trophy": "Fearless Vampire Slayer",
+        "must_contain": [
+          "Recommended",
+          "Contract"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_FIEND_OR_FOE",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Fiend or Foe? em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Fiend or Foe? trophy?",
+      "expected": {
+        "trophy": "Fiend or Foe?",
+        "must_contain": [
+          "Recommendend",
+          "Contract"
+        ]
+      },
+      "split": "test"
+    },
+    {
+      "id": "GEN_DICA_FIST_OF_THE_SOUTH_STAR",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Fist of the South Star em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Fist of the South Star trophy?",
+      "expected": {
+        "trophy": "Fist of the South Star",
+        "must_contain": [
+          "Crossroads",
+          "Defeat"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_FRIENDS_WITH_BENEFITS",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Friends With Benefits em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Friends With Benefits trophy?",
+      "expected": {
+        "trophy": "Friends With Benefits",
+        "must_contain": [
+          "Advancement",
+          "Inivtation"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_FULL_CREW",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Full Crew em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Full Crew trophy?",
+      "expected": {
+        "trophy": "Full Crew",
+        "must_contain": [
+          "Advancement",
+          "Invitation"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_GERALT_AND_FRIENDS",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Geralt and Friends em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Geralt and Friends trophy?",
+      "expected": {
+        "trophy": "Geralt and Friends",
+        "must_contain": [
+          "Friends",
+          "Geralt"
+        ]
+      },
+      "split": "test"
+    },
+    {
+      "id": "GEN_DICA_GWENT_MASTER",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Gwent Master em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Gwent Master trophy?",
+      "expected": {
+        "trophy": "Gwent Master",
+        "must_contain": [
+          "Bookshelves",
+          "Crossroads"
+        ]
+      },
+      "split": "test"
+    },
+    {
+      "id": "GEN_DICA_HUMPTY_DUMPTY",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Humpty Dumpty em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Humpty Dumpty trophy?",
+      "expected": {
+        "trophy": "Humpty Dumpty",
+        "must_contain": [
+          "Explosive",
+          "Insects"
+        ]
+      },
+      "split": "test"
+    },
+    {
+      "id": "GEN_DICA_KAER_MORHEN_TRAINED",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Kaer Morhen Trained em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Kaer Morhen Trained trophy?",
+      "expected": {
+        "trophy": "Kaer Morhen Trained",
+        "must_contain": [
+          "Intensity",
+          "Mutagens"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_KINGMAKER",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Kingmaker em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Kingmaker trophy?",
+      "expected": {
+        "trophy": "Kingmaker",
+        "must_contain": [
+          "Preparations",
+          "Blindingly"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_MASTER_MARKSMAN",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Master Marksman em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Master Marksman trophy?",
+      "expected": {
+        "trophy": "Master Marksman",
+        "must_contain": [
+          "Marksman",
+          "Master"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_MOO_RDERER",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Moo-rderer em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Moo-rderer trophy?",
+      "expected": {
+        "trophy": "Moo-rderer",
+        "must_contain": [
+          "Farmstead",
+          "Novigrad"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_MUNCHKIN",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Munchkin em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Munchkin trophy?",
+      "expected": {
+        "trophy": "Munchkin",
+        "must_contain": [
+          "patch",
+          "works"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_OVERKILL",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Overkill em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Overkill trophy?",
+      "expected": {
+        "trophy": "Overkill",
+        "must_contain": [
+          "Broadhead",
+          "Herbalist"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_PEST_CONTROL",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Pest Control em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Pest Control trophy?",
+      "expected": {
+        "trophy": "Pest Control",
+        "must_contain": [
+          "HellbornHunter",
+          "Innkeepers"
+        ]
+      },
+      "split": "test"
+    },
+    {
+      "id": "GEN_DICA_POWER_OVERWHELMING",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Power Overwhelming em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Power Overwhelming trophy?",
+      "expected": {
+        "trophy": "Power Overwhelming",
+        "must_contain": [
+          "Activating",
+          "Blackbough"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_RAD_STEEZ_BRO",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Rad Steez, Bro! em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Rad Steez, Bro! trophy?",
+      "expected": {
+        "trophy": "Rad Steez, Bro!",
+        "must_contain": [
+          "Distillery",
+          "Skellige"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_RETURN_TO_SENDER",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Return to Sender em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Return to Sender trophy?",
+      "expected": {
+        "trophy": "Return to Sender",
+        "must_contain": [
+          "Deflection",
+          "Oxenfurt"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_SHRIEKER",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Shrieker em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Shrieker trophy?",
+      "expected": {
+        "trophy": "Shrieker",
+        "must_contain": [
+          "Investigate",
+          "Shirker"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_THAT_IS_THE_EVILEST_THING",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu That Is the Evilest Thing… em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the That Is the Evilest Thing… trophy?",
+      "expected": {
+        "trophy": "That Is the Evilest Thing…",
+        "must_contain": [
+          "Herbalist",
+          "Novigrad"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_THE_DOPPLER_EFFECT",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu The Doppler Effect em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the The Doppler Effect trophy?",
+      "expected": {
+        "trophy": "The Doppler Effect",
+        "must_contain": [
+          "Contract",
+          "Hierarch"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_TRIPLE_THREAT",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Triple Threat em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Triple Threat trophy?",
+      "expected": {
+        "trophy": "Triple Threat",
+        "must_contain": [
+          "Broadhead",
+          "Herbalist"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_WHAT_WAS_THAT",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu What Was That? em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the What Was That? trophy?",
+      "expected": {
+        "trophy": "What Was That?",
+        "must_contain": [
+          "Contract",
+          "Novigrad"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "GEN_DICA_WHEN_IT_S_MANY_AGAINST_ONE",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu When It's Many Against One… em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the When It's Many Against One… trophy?",
+      "expected": {
+        "trophy": "When It's Many Against One…",
+        "must_contain": [
+          "Nightmares",
+          "Marriage"
+        ]
+      },
+      "split": "test"
+    },
+    {
+      "id": "GEN_DICA_WOODLAND_SPIRIT",
+      "generated": true,
+      "game_id": "the-witcher-3-wild-hunt",
+      "category": "dica",
+      "route": "rag",
+      "question": "Como pegar o troféu Woodland Spirit em The Witcher 3: Wild Hunt?",
+      "query_en": "How to get the Woodland Spirit trophy?",
+      "expected": {
+        "trophy": "Woodland Spirit",
+        "must_contain": [
+          "Recommendend",
+          "Investigate"
+        ]
+      },
+      "split": "dev"
+    }
+  ]
+}
