@@ -1,0 +1,35 @@
+# services/ingest/sources.yaml - Authoritative sources registry for Platina AI pipeline v2
+# Each entry defines a snapshot file, its canonical game_id, parser kind, guide role, priority and source URL.
+
+sources:
+  - id: psnprofiles_trophy_list
+    game_id: the-witcher-3-wild-hunt
+    kind: psnprofiles_trophy_list
+    role: catalog
+    priority: 1
+    url: https://psnprofiles.com/trophies/3573-the-witcher-3-wild-hunt
+    file: data/the-witcher-3-wild-hunt/raw/psnprofiles_trophies_witcher3.html
+
+  - id: psnprofiles_guide
+    game_id: the-witcher-3-wild-hunt
+    kind: psnprofiles_guide
+    role: primary_guide
+    priority: 1
+    url: https://psnprofiles.com/guide/2842-the-witcher-3-wild-hunt-trophy-guide
+    file: data/the-witcher-3-wild-hunt/raw/psnprofiles_guide_witcher3.html
+
+  - id: powerpyx_guide
+    game_id: the-witcher-3-wild-hunt
+    kind: powerpyx_guide
+    role: secondary_guide
+    priority: 2
+    url: https://powerpyx.com/guides/the-witcher-3-wild-hunt-trophy-guide.html
+    file: data/the-witcher-3-wild-hunt/raw/dicas.html
+
+  - id: gwent_cards_guide
+    game_id: the-witcher-3-wild-hunt
+    kind: gwent_cards_guide
+    role: supplement
+    priority: 1
+    url: https://psnprofiles.com/guide/4250-the-witcher-3-wild-hunt-card-collector-guide
+    file: data/the-witcher-3-wild-hunt/raw/gwent_cards_witcher3.html
