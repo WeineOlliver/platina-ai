@@ -336,6 +336,7 @@ async def evaluate_case(
             print(f"[{cid}] (Run {run_idx}/3: {route}) Avaliando '{question[:35]}...' ", flush=True)
             res_i = await asyncio.to_thread(run_agent_eval_case, case)
             runs.append(res_i)
+            print(f"[{cid}] Run {run_idx}/3 status: {res_i.get('status')} (toolCalls: {len(res_i.get('toolCalls', []))})", flush=True)
             await asyncio.sleep(2.0)
 
         # Count passes, fails, errors
