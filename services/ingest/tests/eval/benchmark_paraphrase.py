@@ -29,7 +29,8 @@ from src.services.chunker import chunker, build_context_prefix
 from src.services.embedding import get_embedding_service
 from src.services.scraper import scraper
 
-SNAPSHOT_FILE = SERVICES_INGEST_DIR / "tests" / "golden" / "snapshots" / "dicas.html"
+# Snapshot moved to data/the-witcher-3-wild-hunt/raw/ in pipeline v2
+SNAPSHOT_FILE = SERVICES_INGEST_DIR / "data" / "the-witcher-3-wild-hunt" / "raw" / "dicas.html"
 
 PARAPHRASES = [
     ("P01", "Slaughter twenty cattle", "Moo-rderer"),

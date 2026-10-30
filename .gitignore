@@ -72,6 +72,10 @@ terraform.rc
 *.swo
 *~
 
+# Third-party data & snapshots
+services/ingest/data/
+data/
+
 # Golden Evaluation Artifacts
 services/ingest/tests/golden/snapshots/
 services/ingest/tests/eval/results/

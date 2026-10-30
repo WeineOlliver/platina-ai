@@ -16,7 +16,8 @@ import httpx
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 GOLDEN_JSON = REPO_ROOT / "services" / "ingest" / "tests" / "golden" / "golden_witcher3.json"
-SNAPSHOTS_DIR = REPO_ROOT / "services" / "ingest" / "tests" / "golden" / "snapshots"
+# Updated to data/the-witcher-3-wild-hunt/raw in pipeline v2
+SNAPSHOTS_DIR = REPO_ROOT / "services" / "ingest" / "data" / "the-witcher-3-wild-hunt" / "raw"
 
 HEADERS = {
     "User-Agent": (

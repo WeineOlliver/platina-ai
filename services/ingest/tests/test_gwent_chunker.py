@@ -2,7 +2,8 @@ import pytest
 from pathlib import Path
 from src.services.gwent_chunker import chunk_gwent_guide
 
-SNAPSHOT_PATH = Path(__file__).resolve().parent / "golden" / "snapshots" / "gwent_cards_witcher3.html"
+# Snapshot moved to data/the-witcher-3-wild-hunt/raw/ in pipeline v2
+SNAPSHOT_PATH = Path(__file__).resolve().parent.parent / "data" / "the-witcher-3-wild-hunt" / "raw" / "gwent_cards_witcher3.html"
 TROPHY_ID = "the-witcher-3-wild-hunt-card-collector"
 GAME_ID = "the-witcher-3-wild-hunt"
 

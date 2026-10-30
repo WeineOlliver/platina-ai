@@ -115,7 +115,9 @@ async def fetch_and_index_guide(request: FetchAndIndexRequest):
         pages = await scraper.fetch_game_guide_with_subpages(request.game, source_url=request.source_url)
         
         # Check if local snapshot for PowerPyx exists if remote failed
-        snapshots_dir = Path(__file__).resolve().parent.parent.parent / "tests" / "golden" / "snapshots"
+        raw_data_dir = Path(__file__).resolve().parent.parent.parent / "data" / "the-witcher-3-wild-hunt" / "raw"
+        legacy_snapshots_dir = Path(__file__).resolve().parent.parent.parent / "tests" / "golden" / "snapshots"
+        snapshots_dir = raw_data_dir if raw_data_dir.exists() else legacy_snapshots_dir
         snapshot_urls_file = Path(__file__).resolve().parent.parent / "catalog" / "snapshot_urls.json"
         snapshot_url_map = {}
         if snapshot_urls_file.exists():
