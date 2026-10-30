@@ -7,6 +7,7 @@ import logging
 from sqlalchemy import select, func, delete, update
 
 logger = logging.getLogger(__name__)
+from src.config import settings
 from src.database import get_db_session
 from src.models.chunk import GuideChunkModel
 from src.models.catalog import GameModel
@@ -98,6 +99,13 @@ async def fetch_and_index_guide(request: FetchAndIndexRequest):
     fetches/scrapes the guide and all discovered subpages, chunks them semantically,
     embeds them, and stores chunks with pgvector and full-text search.
     """
+    # Pipeline v2: Return 404 when on-demand ingestion is disabled
+    if not settings.ON_DEMAND_INGESTION:
+        raise HTTPException(
+            status_code=404,
+            detail="On-demand ingestion is disabled (ON_DEMAND_INGESTION=false).",
+        )
+
     try:
         # 1. Check if game is already indexed (unless force_reindex is True)
         if not request.force_reindex:

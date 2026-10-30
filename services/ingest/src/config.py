@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"
     EMBEDDING_DIMENSIONS: int = 384
 
+    # Pipeline v2: On-demand live scraping flag (default false)
+    ON_DEMAND_INGESTION: bool = False
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

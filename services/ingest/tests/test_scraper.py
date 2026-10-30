@@ -21,6 +21,12 @@ async def async_client():
 
 
 @pytest.fixture(autouse=True)
+def enable_on_demand_for_legacy_tests(monkeypatch):
+    from src.config import settings
+    monkeypatch.setattr(settings, "ON_DEMAND_INGESTION", True)
+
+
+@pytest.fixture(autouse=True)
 async def cleanup_test_game():
     async with get_db_session() as session:
         await session.execute(delete(GuideChunkModel).where(GuideChunkModel.game.ilike("Test%")))

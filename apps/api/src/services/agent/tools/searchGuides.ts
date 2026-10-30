@@ -118,6 +118,9 @@ export class SearchGuidesTool {
         reranker_latency_ms = searchRes.reranker_latency_ms;
       }
 
+      // Pipeline v2: live scraping disabled; searchGuides no longer triggers on-demand fetchAndIndex
+      // Preserved per spec (do not delete legacy code yet):
+      /*
       if (results.length === 0 && resolvedGame && process.env.PLATINA_DISABLE_LIVE_SCRAPING !== 'true') {
         try {
           await ingestionClient.fetchAndIndex(resolvedGame);
@@ -133,6 +136,7 @@ export class SearchGuidesTool {
           // Graceful fallback if on-demand ingestion fails
         }
       }
+      */
 
       // Insight: Return explicit status for runner abstention determination
       if (results.length === 0) {
