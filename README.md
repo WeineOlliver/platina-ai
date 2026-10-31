@@ -1,29 +1,32 @@
 <div align="center">
 
 # 🏆 Platina AI
-**Production-Grade Autonomous AI Assistant & RAG Engine for PlayStation Trophy Hunting**
+**Autonomous AI Assistant & RAG Engine for PlayStation Trophy Hunters**
 
 [![CI - Lint, Test & Validate](https://github.com/WeineOlliver/platina-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/WeineOlliver/platina-ai/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Architecture: Polyglot](https://img.shields.io/badge/Stack-Node.js%20%7C%20Python%20%7C%20pgvector%20%7C%20Kubernetes-emerald)](docs/architecture.md)
 [![MCP Compliant](https://img.shields.io/badge/Protocol-Model%20Context%20Protocol%20(MCP)-purple)](packages/mcp-server)
 
-*An autonomous AI agent engineered to prevent missable trophies, optimize platinum roadmaps, and synchronize owner PSN progress with verified walkthrough vector embeddings.*
+*An autonomous AI agent engineered for PlayStation trophy hunters to prevent missable trophies, optimize platinum roadmaps, and track trophy progress against verified walkthrough vector embeddings.*
 
-[Architecture](#-system-architecture) • [Key Features](#-key-features) • [Tech Stack](#-technology-stack) • [Roadmap](ROADMAP.md) • [FinOps & Costs](#-finops--cloud-cost-strategy) • [Quickstart](#-quickstart--local-setup)
+[Overview](#-overview) • [Architecture](#-system-architecture) • [Key Features](#-key-features) • [Tech Stack](#-technology-stack) • [Roadmap](ROADMAP.md) • [FinOps & Costs](#-finops--cloud-cost-strategy) • [Quickstart](#-quickstart--local-setup)
 
 </div>
 
 ---
 
-## 🎯 The Problem & Business Value
-In complex video games (e.g., *Bloodborne*, *Elden Ring*, *Spider-Man*), platinum trophy hunters face **irreversible lockouts**: advancing past narrative milestones or defeating specific bosses without completing prerequisites locks players out of sidequests permanently, forcing a full 40+ hour replay.
+## 🎮 Overview
 
-Generic LLMs fail here due to hallucinated prerequisites and static prompt boundaries. **Platina AI** solves this through:
-1. **Live Telemetry & Save State Ingestion:** Optional PlayStation Network (PSN) integration that reads exclusively the project owner's profile via their personal NPSSO token using the community psn-api library (no third-party user data is accepted, queried, or stored).
-2. **Deterministic Missable Risk Prioritization:** Prioritizes pending missable trophies (`is_missable = true`) over generic story progression.
-3. **Autonomous Multi-Hop ReAct Agent:** Dynamically queries pgvector semantic guide chunks on demand rather than naively stuffing prompts.
-4. **Universal Interoperability via MCP:** Exposes guides and tools to developer tools (Claude Desktop, Cursor) via the open **Model Context Protocol (MCP)** standard.
+**Platina AI** is an autonomous assistant built specifically for **PlayStation trophy hunters and completionists**. 
+
+In massive games like *The Witcher 3: Wild Hunt*, *Bloodborne*, *Elden Ring*, and *Grand Theft Auto V*, players face **irreversible missable trophies**: advancing past a story milestone or failing a sidequest lock out the Platinum trophy permanently, forcing a 40+ to 100+ hour replay.
+
+Generic chatbots fail because they hallucinate quest prerequisites and cannot inspect game state. **Platina AI** provides:
+1. **Targeted for Trophy Hunters:** Structured tracking of missable warnings, point-of-no-return alerts, and tactical cleanup roadmaps.
+2. **Canonical Catalog & Entity Linking:** Exact relational catalog of games and trophies linked to verified guide chunks, preventing hallucinations.
+3. **Owner PSN Telemetry:** Optional live trophy synchronization for the project owner's profile via NPSSO (`psn-api`), comparing unlocked trophies against pending missables.
+4. **Universal Interoperability via MCP:** Exposes guides and tools to developer environments (Claude Desktop, Cursor) via the open **Model Context Protocol (MCP)** standard.
 
 ---
 
