@@ -1,5 +1,6 @@
+import asyncio
+import asyncpg
 import pytest
-import socket
 from urllib.parse import urlparse
 from src.config import settings
 
@@ -8,11 +9,26 @@ def is_database_available() -> bool:
     try:
         url = settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
         parsed = urlparse(url)
+        user = parsed.username or "platina"
+        password = parsed.password or "change_me"
+        database = parsed.path.lstrip("/") or "platina_rag"
         host = parsed.hostname or "localhost"
         port = parsed.port or 5432
-        with socket.create_connection((host, port), timeout=1.0):
+
+        async def _check():
+            conn = await asyncpg.connect(
+                user=user,
+                password=password,
+                database=database,
+                host=host,
+                port=port,
+                timeout=1.5,
+            )
+            await conn.close()
             return True
-    except (socket.timeout, ConnectionRefusedError, OSError):
+
+        return asyncio.run(_check())
+    except Exception:
         return False
 
 
