@@ -10,7 +10,7 @@
 
 *An autonomous AI agent engineered to prevent missable trophies, optimize platinum roadmaps, and synchronize owner PSN progress with verified walkthrough vector embeddings.*
 
-[Architecture](#-system-architecture) • [Key Features](#-key-features) • [Tech Stack](#-technology-stack) • [FinOps & Costs](#-finops--cloud-cost-strategy) • [Quickstart](#-quickstart--local-setup) • [Interview Q&A](#-senior-interview-preparation)
+[Architecture](#-system-architecture) • [Key Features](#-key-features) • [Tech Stack](#-technology-stack) • [Roadmap](ROADMAP.md) • [FinOps & Costs](#-finops--cloud-cost-strategy) • [Quickstart](#-quickstart--local-setup)
 
 </div>
 
@@ -194,6 +194,17 @@ Topics covered:
 - **Python & RAG:** Semantic chunking hierarchies, HNSW indexing metrics, and automated context precision/recall evaluation.
 - **AI Agents & MCP:** ReAct loop orchestration, Zod schema validation barriers, and Model Context Protocol stdio transport.
 - **DevOps & Cloud:** Multi-stage Docker security, Helm templating, 3-tier VPC security group chaining, and FinOps budget guardrails.
+
+---
+
+## 🗺️ Engineering Roadmap
+
+Planned architectural improvements, infrastructure expansions, and upcoming milestones (40h+ of scoped work) are tracked in **[ROADMAP.md](ROADMAP.md)**:
+- Canonical ingestion engine v2 with Pydantic contracts and multi-game expansion
+- Terraform module decomposition (`modules/vpc`, `modules/rds`, `modules/compute`, `modules/ecr`)
+- Production Helm chart hardening (HPA, PDBs, automated ACM TLS termination)
+- CI/CD automation pipeline (matrix testing, vulnerability scanning, and automated Kubernetes releases)
+- Agent response caching and SSE backpressure handling
 
 ---
 
