@@ -16,7 +16,7 @@ export const GOLDEN_RAG_TRIAD_DATASET: EvaluationScenario[] = [
     category: 'missable_trophy',
     query: 'Como pegar a Lança de Gransax em Elden Ring antes que fique inacessível?',
     contexts: [
-      'A Lança de Gransax é uma arma lendária fincada na lança gigante cravada em Leyndell, Capital Real. Ela DEVE ser coletada antes de derrotar Maliketh em Farum Azula. Após Farum Azula, Leyndell vira a Capital das Cinzas e a lança fica inacessível para sempre no seu playthrough atual.',
+      'A Lança de Gransax é uma arma lendária fincada na lança monumental dourada gigante cravada em Leyndell, Capital Real. Ela DEVE ser coletada antes de derrotar Maliketh em Farum Azula. Após Farum Azula, a capital vira cinzas e a lança fica inacessível para sempre no seu playthrough atual.',
     ],
     answer: 'Troféu: Lança de Gransax em Leyndell, Capital Real.\n- Suba na lança monumental dourada fincada no centro da cidade.\n- Colete a arma antes de derrotar Maliketh em Farum Azula.\nQuer os detalhes completos e rotas deste troféu?',
     expectedThresholds: {

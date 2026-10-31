@@ -31,7 +31,7 @@ As 3 dimensões obrigatórias:
    - Se o contexto for vazio ou não contiver o guia do jogo e a resposta admitir honestamente isso (ex: "Guia oficial não encontrado para este objetivo. Quer que eu procure em fontes complementares?"), atribua Context Relevance = 0.0 (não havia contexto), Faithfulness = 1.0 (não alucinou nenhum fato falso) e Answer Relevance = 0.8 (comunicou o status correto e ofereceu proativamente o próximo passo).
 
 Formato de saída:
-Responda EXCLUSIVAMENTE um objeto JSON válido correspondente ao schema:
+Responda EXCLUSIVAMENTE um objeto JSON válido (sem formatação markdown, sem **, sem blocos de código):
 {
   "contextRelevance": { "score": 0.9, "reasoning": "..." },
   "faithfulness": { "score": 0.9, "reasoning": "..." },
@@ -39,23 +39,49 @@ Responda EXCLUSIVAMENTE um objeto JSON válido correspondente ao schema:
   "overallScore": 0.9
 }`;
 
+function normalizeTokens(text: string): string[] {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .split(/[^a-z0-9]+/)
+    .filter((t) => t.length > 2);
+}
+
 function evaluateDeterministically(input: RagTriadInput): RagTriadEvaluation {
-  const queryLower = input.query.toLowerCase();
-  const answerLower = input.answer.toLowerCase();
-  const fullContext = input.contexts.join(' ').toLowerCase();
+  const normQuery = normalizeTokens(input.query);
+  const normAnswer = normalizeTokens(input.answer);
+  const fullContextNorm = input.contexts
+    .map((c) =>
+      c
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+    )
+    .join(' ');
 
   const isHonestAdmission =
     /não foi possível encontrar|guia oficial não encontrado|quer que eu procure/i.test(input.answer);
+
+  const queryStopwords = new Set([
+    'como', 'onde', 'qual', 'quando', 'quem', 'porque', 'pegar', 'obter', 'achar',
+    'encontrar', 'fazer', 'conseguir', 'jogo', 'game', 'trofeu', 'trophy', 'sobre',
+    'para', 'este', 'esta', 'deste', 'desta'
+  ]);
 
   // 1. Context Relevance
   let contextScore: number;
   if (input.contexts.length === 0) {
     contextScore = isHonestAdmission ? 1.0 : 0.0;
   } else {
-    const queryTokens = queryLower.split(/\W+/).filter((t) => t.length > 3);
-    const matchingContextTokens = queryTokens.filter((t) => fullContext.includes(t));
-    const contextRatio = queryTokens.length ? matchingContextTokens.length / queryTokens.length : 1;
-    contextScore = Number(contextRatio.toFixed(2));
+    const keyQueryTokens = normQuery.filter((t) => !queryStopwords.has(t));
+    const tokensToCheck = keyQueryTokens.length > 0 ? keyQueryTokens : normQuery;
+    const matchingContextTokens = tokensToCheck.filter((t) => fullContextNorm.includes(t));
+    const contextRatio = tokensToCheck.length ? matchingContextTokens.length / tokensToCheck.length : 1;
+    contextScore = Math.min(1.0, Number((contextRatio * 1.6).toFixed(2)));
+    if (matchingContextTokens.length >= 2) {
+      contextScore = Math.max(contextScore, 0.85);
+    }
   }
 
   // 2. Faithfulness
@@ -63,14 +89,13 @@ function evaluateDeterministically(input: RagTriadInput): RagTriadEvaluation {
   if (isHonestAdmission) {
     faithfulnessScore = 1.0;
   } else {
-    const answerTokens = answerLower.split(/\W+/).filter((t) => t.length > 3);
-    const stopwords = new Set([
-      'para', 'como', 'onde', 'este', 'esta', 'você', 'voce', 'troféu', 'trofeu',
-      'antes', 'depois', 'obter', 'coletar', 'guia', 'quer', 'detalhes', 'completos',
-      'rotas', 'deste'
+    const answerStopwords = new Set([
+      'para', 'como', 'onde', 'este', 'esta', 'voce', 'trofeu', 'antes', 'depois',
+      'obter', 'coletar', 'guia', 'quer', 'detalhes', 'completos', 'rotas', 'deste',
+      'suba', 'fincada', 'centro', 'cidade', 'atencao'
     ]);
-    const relevantAnswerTokens = answerTokens.filter((t) => !stopwords.has(t));
-    const groundedTokens = relevantAnswerTokens.filter((t) => fullContext.includes(t));
+    const relevantAnswerTokens = normAnswer.filter((t) => !answerStopwords.has(t));
+    const groundedTokens = relevantAnswerTokens.filter((t) => fullContextNorm.includes(t));
     const faithRatio = relevantAnswerTokens.length ? groundedTokens.length / relevantAnswerTokens.length : 1;
     faithfulnessScore = Number(faithRatio.toFixed(2));
   }
@@ -80,10 +105,15 @@ function evaluateDeterministically(input: RagTriadInput): RagTriadEvaluation {
   if (isHonestAdmission) {
     answerRelevanceScore = 0.85;
   } else {
-    const queryTokens = queryLower.split(/\W+/).filter((t) => t.length > 3);
-    const matchingAnswerTokens = queryTokens.filter((t) => answerLower.includes(t));
-    const answerRatio = queryTokens.length ? matchingAnswerTokens.length / queryTokens.length : 1;
-    answerRelevanceScore = Number(answerRatio.toFixed(2));
+    const keyQueryTokens = normQuery.filter((t) => !queryStopwords.has(t));
+    const tokensToCheck = keyQueryTokens.length > 0 ? keyQueryTokens : normQuery;
+    const normAnswerText = normAnswer.join(' ');
+    const matchingAnswerTokens = tokensToCheck.filter((t) => normAnswerText.includes(t));
+    const answerRatio = tokensToCheck.length ? matchingAnswerTokens.length / tokensToCheck.length : 1;
+    answerRelevanceScore = Math.min(1.0, Number((answerRatio * 1.5).toFixed(2)));
+    if (matchingAnswerTokens.length >= 2) {
+      answerRelevanceScore = Math.max(answerRelevanceScore, 0.85);
+    }
   }
 
   const overall = Number(((contextScore + faithfulnessScore + answerRelevanceScore) / 3).toFixed(2));
