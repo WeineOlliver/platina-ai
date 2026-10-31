@@ -3,6 +3,7 @@ import { PlatinaAgentRunner, type AgentStepEvent } from './runner.js';
 import { groundingValidator, type SourceDocument } from './validator.js';
 import { env } from '../../config/env.js';
 import { ingestionClient } from '../ingestion/client.js';
+import { telemetryService } from '../observability/telemetry.js';
 
 function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
@@ -19,6 +20,7 @@ describe('Platina AI Agent Runner Benchmark Suite', () => {
     (env as unknown as { AI_PROVIDER: string }).AI_PROVIDER = 'groq';
     process.env.OBSERVABILITY_SAMPLING_RATE = '0';
     (env as unknown as { OBSERVABILITY_SAMPLING_RATE: number }).OBSERVABILITY_SAMPLING_RATE = 0;
+    vi.spyOn(telemetryService, 'shouldSample').mockReturnValue(false);
   });
 
   afterAll(() => {

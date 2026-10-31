@@ -44,7 +44,7 @@ export const GOLDEN_RAG_TRIAD_DATASET: EvaluationScenario[] = [
     category: 'missable_trophy',
     query: 'Onde comprar as cartas perdíveis de Elsa no início de The Witcher 3?',
     contexts: [
-      'Para o troféu Card Collector (Colecionador de Cartas) em Pomar Branco: Compre todas as cartas de Gwent da estalajadeira Elsa na taverna do Pomar Branco antes de partir para Vizima. Mais tarde, vença as 3 partidas no torneio durante o baile de máscaras na propriedade Vegelbud para ganhar a carta Dandelion.',
+      'Para o troféu Card Collector (Colecionador de Cartas) em Pomar Branco: Compre todas as cartas de Gwent da estalajadeira Elsa na taverna do Pomar Branco antes de partir para Vizima, pois Elsa deixa o local após o prólogo e as cartas tornam-se inacessíveis. Mais tarde, vença as 3 partidas no torneio durante o baile de máscaras na propriedade Vegelbud para ganhar a carta Dandelion.',
     ],
     answer: 'Troféu: Card Collector em Pomar Branco.\n- Compre todas as cartas de Gwent com Elsa na taverna antes de ir para Vizima.\n- Atenção: Elsa deixa o local após o prólogo e as cartas tornam-se inacessíveis.\nQuer os detalhes completos e rotas deste troféu?',
     expectedThresholds: {
