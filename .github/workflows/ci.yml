@@ -66,7 +66,7 @@ jobs:
           POSTGRES_PORT: 5432
           POSTGRES_DB: platina_rag
           POSTGRES_USER: platina
-          POSTGRES_PASSWORD: platina123
+          POSTGRES_PASSWORD: change_me
 
   test-iac:
     name: Infrastructure as Code (Helm & Terraform)
