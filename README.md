@@ -29,7 +29,7 @@ Generic LLMs fail here due to hallucinated prerequisites and static prompt bound
 
 ## 🏛️ System Architecture
 
-Platina AI is built as a polyglot microservice ecosystem running in Docker, local Kubernetes (**Kind**), and AWS cloud infrastructure (**k3s on Graviton / Amazon EKS**) provisioned declaratively via **Terraform** and **Helm**.
+Platina AI is built as a polyglot microservice ecosystem running in Docker Compose, local Kubernetes (**Kind**), and AWS cloud infrastructure (**k3s on EC2 Graviton**) provisioned declaratively via **Terraform** and **Helm** (with enterprise Amazon EKS migration outlined in [ROADMAP.md](ROADMAP.md)).
 
 ```mermaid
 graph TB
@@ -112,7 +112,7 @@ graph TB
 - **Protocol Interoperability:** `@modelcontextprotocol/sdk` (Model Context Protocol).
 - **Containerization & K8s:** Multi-stage Docker (`node:22-alpine`, `python:3.12-slim`), Docker Compose, Helm v2, Kind, k3s.
 - **Cloud Infrastructure as Code:** OpenTofu / Terraform (AWS S3 remote backend, DynamoDB locks, VPC, RDS, ECR, AWS Budgets).
-- **CI/CD & Testing:** GitHub Actions, Vitest (23 tests), Pytest (8 tests including RAG evaluation suite).
+- **CI/CD & Testing:** GitHub Actions, Vitest (110+ unit & benchmark tests), Pytest (110 unit, entity linking, and RAG evaluation tests).
 
 ---
 
@@ -156,8 +156,7 @@ Run an autonomous multi-step reasoning query testing player progress and vector 
 curl -sN -X POST http://localhost:3000/api/v1/agent/run \
   -H "Content-Type: application/json" \
   -d '{
-    "message": "Eu sou o jogador OlliverHunter. Qual o meu próximo passo urgente na platina de Bloodborne?",
-    "psnId": "OlliverHunter",
+    "message": "Qual o meu próximo passo urgente na platina de Bloodborne?",
     "game": "Bloodborne"
   }'
 ```
@@ -166,7 +165,7 @@ curl -sN -X POST http://localhost:3000/api/v1/agent/run \
 ```bash
 curl -s -X POST http://localhost:3000/api/v1/agent/next-step \
   -H "Content-Type: application/json" \
-  -d '{"psnId": "OlliverHunter", "game": "Bloodborne"}' | jq .
+  -d '{"game": "Bloodborne"}' | jq .
 ```
 
 ---
@@ -180,20 +179,6 @@ Key architectural trade-offs are documented following standard ADR conventions i
 - [ADR 0003: Agentic Architecture, Tool Calling Contracts, and MCP Server](docs/adr/0003-agent-architecture-and-mcp.md)
 - [ADR 0004: Kubernetes Infrastructure: Amazon EKS vs. Lightweight k3s / Kind](docs/adr/0004-eks-vs-k3s.md)
 - [ADR 0005: Terraform Cloud Architecture Organization and FinOps Controls](docs/adr/0005-terraform-organization.md)
-
----
-
-## 🎯 Senior Interview Preparation
-
-This project was built to train and demonstrate senior-level competencies for global remote engineering roles. A comprehensive guide containing **52 in-depth technical interview questions** with 60-second soundbites is maintained in:
-
-👉 **[`docs/interview-prep.md`](docs/interview-prep.md)**
-
-Topics covered:
-- **Fastify & Node.js:** Event-loop non-blocking streaming, SSE socket lifecycles, and JWT stateless scalability.
-- **Python & RAG:** Semantic chunking hierarchies, HNSW indexing metrics, and automated context precision/recall evaluation.
-- **AI Agents & MCP:** ReAct loop orchestration, Zod schema validation barriers, and Model Context Protocol stdio transport.
-- **DevOps & Cloud:** Multi-stage Docker security, Helm templating, 3-tier VPC security group chaining, and FinOps budget guardrails.
 
 ---
 
