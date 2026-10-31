@@ -9,7 +9,8 @@ GAME_ID = "the-witcher-3-wild-hunt"
 
 
 def test_chunk_gwent_guide_parses_snapshot_and_preserves_structure():
-    assert SNAPSHOT_PATH.exists(), f"Snapshot not found at {SNAPSHOT_PATH}"
+    if not SNAPSHOT_PATH.exists():
+        pytest.skip(f"Snapshot not found at {SNAPSHOT_PATH} (local gitignored snapshot required)")
     html_content = SNAPSHOT_PATH.read_text(encoding="utf-8")
 
     chunks = chunk_gwent_guide(

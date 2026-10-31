@@ -36,4 +36,5 @@ pythonpath = ["."]
 testpaths = ["tests"]
 markers = [
     "integration: tests requiring external services (PostgreSQL database or network)",
+    "requires_witcher_catalog: tests requiring Witcher 3 canonical catalog to be seeded in database",
 ]

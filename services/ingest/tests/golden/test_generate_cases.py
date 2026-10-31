@@ -14,6 +14,7 @@ def anyio_backend():
 
 @pytest.mark.anyio
 @pytest.mark.integration
+@pytest.mark.requires_witcher_catalog
 async def test_deterministic_case_generation():
     """Generates cases twice and verifies output is identical byte-for-byte and ID-for-ID."""
     from tests.golden.generate_cases import generate_cases_for_game
@@ -31,6 +32,7 @@ async def test_deterministic_case_generation():
 
 @pytest.mark.anyio
 @pytest.mark.integration
+@pytest.mark.requires_witcher_catalog
 async def test_exact_case_schema():
     """Validates each generated case adheres to the exact required schema."""
     from tests.golden.generate_cases import generate_cases_for_game
@@ -55,6 +57,7 @@ async def test_exact_case_schema():
 
 @pytest.mark.anyio
 @pytest.mark.integration
+@pytest.mark.requires_witcher_catalog
 async def test_deterministic_dev_test_split_ratio():
     """Verifies 70/30 deterministic dev/test split based on SHA-256 of case id."""
     from tests.golden.generate_cases import generate_cases_for_game
@@ -82,6 +85,7 @@ async def test_deterministic_dev_test_split_ratio():
 
 @pytest.mark.anyio
 @pytest.mark.integration
+@pytest.mark.requires_witcher_catalog
 async def test_expected_content_lista_and_dica():
     """Verifies content of generated lista (route sql) and dica (route rag) cases."""
     from tests.golden.generate_cases import generate_cases_for_game
@@ -122,6 +126,7 @@ async def test_expected_content_lista_and_dica():
 
 @pytest.mark.anyio
 @pytest.mark.integration
+@pytest.mark.requires_witcher_catalog
 async def test_output_file_generation():
     """Verifies running the generation pipeline produces generated_the-witcher-3-wild-hunt.json without touching manual golden."""
     from tests.golden.generate_cases import generate_and_save_cases

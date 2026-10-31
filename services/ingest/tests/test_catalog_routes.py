@@ -4,7 +4,7 @@ from src.main import create_app
 from src.schemas.search import SearchQueryRequest
 from src.services.search import vector_search_service
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.requires_witcher_catalog]
 
 
 @pytest.fixture

@@ -41,6 +41,7 @@ def test_normalize_for_matching():
 
 @pytest.mark.anyio
 @pytest.mark.integration
+@pytest.mark.requires_witcher_catalog
 async def test_link_chunk_to_trophy_database():
     game_id = "the-witcher-3-wild-hunt"
     async with get_db_session() as session:
@@ -68,6 +69,7 @@ async def test_link_chunk_to_trophy_database():
 
 @pytest.mark.anyio
 @pytest.mark.integration
+@pytest.mark.requires_witcher_catalog
 async def test_link_chunk_to_trophy_with_alias():
     game_id = "the-witcher-3-wild-hunt"
     async with get_db_session() as session:
@@ -97,6 +99,7 @@ async def test_link_chunk_to_trophy_with_alias():
 
 @pytest.mark.anyio
 @pytest.mark.integration
+@pytest.mark.requires_witcher_catalog
 async def test_link_chunks_to_trophies_batch_and_summary():
     game_id = "the-witcher-3-wild-hunt"
     chunks = [
