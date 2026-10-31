@@ -122,7 +122,7 @@ export class PlatinaAgentRunner {
 
   constructor() {
     this.model = env.GROQ_MODEL;
-    if (env.GROQ_API_KEY) {
+    if (env.GROQ_API_KEY && env.AI_PROVIDER !== 'mock' && process.env.AI_PROVIDER !== 'mock') {
       this.client = new Groq({ apiKey: env.GROQ_API_KEY });
     }
   }
@@ -183,7 +183,7 @@ export class PlatinaAgentRunner {
     const isEn = lang === 'en';
 
     // Fallback if no LLM client is configured
-    if (!this.client || env.AI_PROVIDER === 'mock' || process.env.AI_PROVIDER === 'mock') {
+    if (!this.client) {
       yield {
         type: 'chunk',
         content: isEn
