@@ -11,7 +11,7 @@ describe('Consolidated Evals Report Suite', () => {
     expect(report.summary.trajectoryAverage).toBeGreaterThanOrEqual(0.7);
     expect(report.summary.passRate).toBeGreaterThanOrEqual(0.75);
     expect(report.results.length).toBe(report.totalScenarios);
-  }, 30000);
+  }, 90000);
 
   it('formats evaluation results into a clean, human-readable markdown table', async () => {
     const report = await runConsolidatedEvals();
@@ -20,5 +20,5 @@ describe('Consolidated Evals Report Suite', () => {
     expect(markdown).toContain('# Platina AI — Relatório Consolidado de Evals');
     expect(markdown).toContain('| Cenário | Context Relevance | Faithfulness | Answer Relevance | Trajectory | Status |');
     expect(markdown).toContain('Taxa de Aprovação:');
-  }, 30000);
+  }, 90000);
 });

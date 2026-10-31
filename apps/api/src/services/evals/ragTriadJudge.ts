@@ -156,7 +156,24 @@ ${input.answer}
       return validation.data;
     }
     console.warn('⚠️ RAG Triad Judge JSON validation error, falling back to deterministic evaluation:', validation.error.format());
-  } catch (err) {
+  } catch (err: unknown) {
+    const errorObj = err as { error?: { failed_generation?: string }; failed_generation?: string };
+    const failedGen = errorObj?.error?.failed_generation || errorObj?.failed_generation;
+    if (typeof failedGen === 'string') {
+      try {
+        const cleaned = failedGen.replace(/\*\*/g, '');
+        const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          const validation = ragTriadEvaluationSchema.safeParse(parsed);
+          if (validation.success) {
+            return validation.data;
+          }
+        }
+      } catch {
+        // continue to deterministic fallback
+      }
+    }
     console.warn('⚠️ RAG Triad Judge LLM call failed, falling back to deterministic evaluation:', err);
   }
 

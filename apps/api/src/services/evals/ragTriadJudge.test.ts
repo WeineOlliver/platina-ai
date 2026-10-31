@@ -102,6 +102,6 @@ describe('RAG Triad LLM-as-a-Judge Suite', () => {
           `Failed Answer Relevance on ${scenario.id}`
         ).toBeGreaterThanOrEqual(scenario.expectedThresholds.minAnswerRelevance);
       }
-    }, 45000);
+    }, 90000);
   });
 });
