@@ -61,14 +61,14 @@ async def record_demo():
         chip = page.locator(".chip-btn", has_text="The Witcher 3: Wild Hunt")
         await chip.click()
 
-        # 4. Wait for instant single-turn player briefing in English
-        print("Waiting for player status briefing...")
+        # 4. Wait for game roadmap overview
+        print("Waiting for game overview & roadmap...")
         await asyncio.sleep(0.5)
         await page.wait_for_function(
             "document.getElementById('sendBtn').disabled === false",
             timeout=60000
         )
-        print("Player status briefing complete!")
+        print("Game overview complete!")
         await asyncio.sleep(1.8)
 
         # 5. Type and send missables question in English
@@ -112,6 +112,7 @@ async def record_demo():
 def convert_to_mp4_and_gif(raw_video_path):
     mp4_out = os.path.join(VIDEO_DIR, "platina-ai-demo.mp4")
     gif_out = os.path.join(VIDEO_DIR, "platina-ai-demo.gif")
+    gif_light_out = os.path.join(VIDEO_DIR, "platina-ai-demo-light.gif")
 
     print(f"Converting to high-quality MP4 using {FFMPEG_BIN}...")
     subprocess.run([
@@ -134,8 +135,16 @@ def convert_to_mp4_and_gif(raw_video_path):
         gif_out
     ], check=True)
 
-    print(f"SUCCESS!\nMP4: {mp4_out}\nGIF: {gif_out}")
-    return mp4_out, gif_out
+    print(f"Converting to lightweight GIF using {FFMPEG_BIN}...")
+    subprocess.run([
+        FFMPEG_BIN, "-y",
+        "-i", raw_video_path,
+        "-vf", "fps=8,scale=640:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=64[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3",
+        gif_light_out
+    ], check=True)
+
+    print(f"SUCCESS!\nMP4: {mp4_out}\nGIF: {gif_out}\nLight GIF: {gif_light_out}")
+    return mp4_out, gif_out, gif_light_out
 
 if __name__ == "__main__":
     raw_video = asyncio.run(record_demo())
