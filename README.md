@@ -8,7 +8,7 @@
 [![Architecture: Polyglot](https://img.shields.io/badge/Stack-Node.js%20%7C%20Python%20%7C%20pgvector%20%7C%20Kubernetes-emerald)](docs/architecture.md)
 [![MCP Compliant](https://img.shields.io/badge/Protocol-Model%20Context%20Protocol%20(MCP)-purple)](packages/mcp-server)
 
-*An autonomous AI agent engineered for PlayStation trophy hunters to prevent missable trophies, optimize platinum roadmaps, and track trophy progress against verified walkthrough vector embeddings.*
+*An autonomous AI agent engineered for PlayStation trophy hunters to prevent missable trophies, optimize platinum roadmaps, and query verified walkthroughs and canonical trophy data.*
 
 [Overview](#-overview) • [Architecture](#-system-architecture) • [Key Features](#-key-features) • [Tech Stack](#-technology-stack) • [Roadmap](ROADMAP.md) • [FinOps & Costs](#-finops--cloud-cost-strategy) • [Quickstart](#-quickstart--local-setup)
 
