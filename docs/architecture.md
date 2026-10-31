@@ -36,7 +36,7 @@ graph TB
     subgraph Ingest_Pod [" services/ingest (Python 3.12 / FastAPI) "]
       Chunker["Semantic Markdown Chunker<br/>(Hierarchy & Missable Detection)"]
       VectorSearch["VectorSearchService<br/>(Hybrid Filter + Cosine Sim)"]
-      PlayerSvc["PlayerProgressService<br/>(PSN State Inspector)"]
+      PlayerSvc["PlayerProgressService<br/>(Owner PSN State Inspector)"]
     end
   end
 
@@ -83,12 +83,14 @@ graph TB
 
 ## 2. Multi-Step Agent Execution Flow (ReAct Loop)
 
-When a player asks: *"I am OlliverHunter. What is my next urgent step in Bloodborne?"*:
+> **Privacy & PSN Integration Note**: Integration with the PlayStation Network (PSN) is strictly optional and reads exclusively the project owner's profile via their personal NPSSO token using the community `psn-api` library. The system does not accept, search, or store third-party player identifiers or data.
+
+When a player asks: *"What is my next urgent step in Bloodborne?"*:
 
 ```mermaid
 sequenceDiagram
   autonumber
-  actor User as 🎮 Player / Client
+  actor User as 🎮 Project Owner / Client
   participant Fastify as ⚡ Fastify API (Node.js)
   participant LLM as 🧠 Groq LLM (120B Model)
   participant Ingest as 🐍 Python Microservice
@@ -96,13 +98,13 @@ sequenceDiagram
 
   User->>Fastify: POST /api/v1/agent/run (SSE stream requested)
   Fastify->>LLM: Prompt with available Tools [check_player_progress, search_trophy_guides]
-  LLM-->>Fastify: tool_call: check_player_progress(psnId="OlliverHunter", game="Bloodborne")
+  LLM-->>Fastify: tool_call: check_player_progress(game="Bloodborne")
   Fastify->>User: SSE data: {"type": "tool_call", "name": "check_player_progress"}
   
-  Fastify->>Ingest: GET /api/v1/players/OlliverHunter/progress?game=Bloodborne
-  Ingest->>DB: Query players, games, and pending missables
+  Fastify->>Ingest: GET /api/v1/players/me/progress?game=Bloodborne
+  Ingest->>DB: Query owner player, games, and pending missables
   DB-->>Ingest: 50% done, Pending Missable: "Amigo dos Corvos (Eileen)"
-  Ingest-->>Fastify: Return player progress JSON
+  Ingest-->>Fastify: Return owner progress JSON
   Fastify->>User: SSE data: {"type": "tool_result", "data": {...}}
 
   Fastify->>LLM: Append tool_result to message history

@@ -11,17 +11,28 @@ class PlayerProgressService:
     Queries player progress and trophy state across games for Agent tool use.
     """
 
-    async def get_progress(self, psn_id: str, game_title: str) -> Optional[PlayerProgressResponse]:
+    async def get_progress(self, psn_id: str = "me", game_title: str = "") -> Optional[PlayerProgressResponse]:
         async with get_db_session() as session:
-            stmt = (
-                select(PlayerGameModel)
-                .join(PlayerModel, PlayerModel.id == PlayerGameModel.player_id)
-                .where(
-                    PlayerModel.psn_id.ilike(psn_id.strip()),
-                    PlayerGameModel.game_title.ilike(f"%{game_title.strip()}%"),
+            effective_psn = (psn_id or "me").strip()
+            if effective_psn.lower() == "me":
+                stmt = (
+                    select(PlayerGameModel)
+                    .join(PlayerModel, PlayerModel.id == PlayerGameModel.player_id)
+                    .where(
+                        PlayerGameModel.game_title.ilike(f"%{game_title.strip()}%"),
+                    )
+                    .options(selectinload(PlayerGameModel.trophies))
                 )
-                .options(selectinload(PlayerGameModel.trophies))
-            )
+            else:
+                stmt = (
+                    select(PlayerGameModel)
+                    .join(PlayerModel, PlayerModel.id == PlayerGameModel.player_id)
+                    .where(
+                        PlayerModel.psn_id.ilike(effective_psn),
+                        PlayerGameModel.game_title.ilike(f"%{game_title.strip()}%"),
+                    )
+                    .options(selectinload(PlayerGameModel.trophies))
+                )
             result = await session.execute(stmt)
             game_record = result.scalars().first()
 
@@ -66,7 +77,7 @@ class PlayerProgressService:
             ]
 
             return PlayerProgressResponse(
-                psn_id=psn_id,
+                psn_id=effective_psn,
                 game=game_record.game_title,
                 platform=game_record.platform or "PS5",
                 total_trophies=total_count,

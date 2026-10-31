@@ -5,19 +5,21 @@ from src.schemas.player import PlayerProgressResponse
 router = APIRouter(prefix="/api/v1/players", tags=["Player Progress"])
 
 
+@router.get("/me/progress", response_model=PlayerProgressResponse)
+@router.get("/progress", response_model=PlayerProgressResponse)
 @router.get("/{psn_id}/progress", response_model=PlayerProgressResponse)
 async def get_player_progress(
-    psn_id: str,
-    game: str = Query(..., min_length=2, description="Nome do jogo para consultar o progresso"),
+    game: str = Query(..., min_length=2, description="Game title to query trophy progress"),
+    psn_id: str = "me",
 ):
     """
-    Retorna o progresso atual do jogador no jogo, destacando troféus pendentes e missables.
-    Usado como ferramenta (Tool) para Agentes de IA.
+    Returns current trophy progress for the project owner, highlighting pending and missable trophies.
+    Used as an Agent Tool. Only the project owner's profile is tracked.
     """
     progress = await player_progress_service.get_progress(psn_id, game)
     if not progress:
         raise HTTPException(
             status_code=404,
-            detail=f"Nenhum registro de troféus encontrado para o jogador '{psn_id}' no jogo '{game}'."
+            detail=f"No trophy progress found for game '{game}' on project owner profile."
         )
     return progress

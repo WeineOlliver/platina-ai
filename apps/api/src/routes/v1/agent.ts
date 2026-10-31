@@ -4,8 +4,8 @@ import { platinaAgentRunner } from '../../services/agent/runner.js';
 import { nextStepAdvisor } from '../../services/agent/nextStep.js';
 
 const nextStepQuerySchema = z.object({
-  psnId: z.string().min(2, 'PSN ID é obrigatório'),
   game: z.string().min(2, 'Nome do jogo é obrigatório'),
+  psnId: z.string().optional(),
 });
 
 const agentQuerySchema = z.object({
@@ -31,9 +31,9 @@ export const agentRoutes: FastifyPluginAsync = async (app) => {
       return reply.badRequest(validation.error.message);
     }
 
-    const { psnId, game } = validation.data;
+    const { game, psnId } = validation.data;
     try {
-      const advice = await nextStepAdvisor.generateNextStepAdvice(psnId, game);
+      const advice = await nextStepAdvisor.generateNextStepAdvice(game, psnId || 'me');
       return reply.status(200).send(advice);
     } catch (err: unknown) {
       request.log.error({ err }, 'Erro ao gerar recomendação de próximo passo');

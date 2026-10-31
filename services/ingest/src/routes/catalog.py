@@ -133,7 +133,7 @@ async def list_catalog_trophies(
     location: Optional[str] = Query(None, description="Filter by location (e.g. 'Novigrad', 'Velen')"),
     description_query: Optional[str] = Query(None, description="Filter by description query using full-text search"),
     missable: Optional[bool] = Query(None, description="Filter missables only"),
-    missing_for_psn_id: Optional[str] = Query(None, description="Filter trophies pending for PSN ID"),
+    missing_for_psn_id: Optional[str] = Query(None, description="Filter trophies pending for project owner (e.g. 'me')"),
 ) -> Dict[str, Any]:
     """
     SQL-only structured filtering of catalog trophies. Returns complete lists and chunk coverage counts.

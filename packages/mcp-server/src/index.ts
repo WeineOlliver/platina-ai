@@ -79,39 +79,37 @@ export function createPlatinaMcpServer() {
       tools: [
         {
           name: 'get_player_trophies',
-          description: 'Consulta o progresso e troféus desbloqueados/pendentes de um jogador na PSN.',
+          description: 'Inspect earned and pending trophies for the project owner on PSN for a specific game.',
           inputSchema: {
             type: 'object',
             properties: {
-              psnId: { type: 'string', description: 'PSN ID do jogador' },
-              game: { type: 'string', description: 'Nome do jogo' },
+              game: { type: 'string', description: 'Game title' },
             },
-            required: ['psnId', 'game'],
+            required: ['game'],
           },
         },
         {
           name: 'search_trophy_guide',
-          description: 'Busca semântica em guias de troféus no banco vetorial pgvector.',
+          description: 'Semantic search in trophy guides via pgvector database.',
           inputSchema: {
             type: 'object',
             properties: {
-              query: { type: 'string', description: 'Termo de busca ou dúvida sobre troféu' },
-              game: { type: 'string', description: 'Filtrar por jogo específico' },
-              missableOnly: { type: 'boolean', description: 'Restringir a troféus perdíveis' },
+              query: { type: 'string', description: 'Search term or question about trophy' },
+              game: { type: 'string', description: 'Filter by specific game' },
+              missableOnly: { type: 'boolean', description: 'Restrict to missable trophies' },
             },
             required: ['query'],
           },
         },
         {
           name: 'get_next_step_briefing',
-          description: 'Gera um briefing tático estruturado com alertas de troféus perdíveis para a sessão atual.',
+          description: 'Generate a structured tactical briefing with missable trophy alerts for the project owner in the current game session.',
           inputSchema: {
             type: 'object',
             properties: {
-              psnId: { type: 'string', description: 'PSN ID do jogador' },
-              game: { type: 'string', description: 'Nome do jogo' },
+              game: { type: 'string', description: 'Game title' },
             },
-            required: ['psnId', 'game'],
+            required: ['game'],
           },
         },
       ],
@@ -122,12 +120,11 @@ export function createPlatinaMcpServer() {
     const { name, arguments: args } = request.params;
 
     if (name === 'get_player_trophies') {
-      const psnId = String(args?.psnId || '');
       const game = String(args?.game || '');
-      const res = await fetch(`${INGESTION_SERVICE_URL}/api/v1/players/${encodeURIComponent(psnId)}/progress?game=${encodeURIComponent(game)}`);
+      const res = await fetch(`${INGESTION_SERVICE_URL}/api/v1/players/me/progress?game=${encodeURIComponent(game)}`);
       if (!res.ok) {
         return {
-          content: [{ type: 'text', text: `Erro ao buscar progresso: HTTP ${res.status}` }],
+          content: [{ type: 'text', text: `Failed to fetch trophy progress: HTTP ${res.status}` }],
           isError: true,
         };
       }
@@ -149,7 +146,7 @@ export function createPlatinaMcpServer() {
       });
       if (!res.ok) {
         return {
-          content: [{ type: 'text', text: `Erro na busca vetorial: HTTP ${res.status}` }],
+          content: [{ type: 'text', text: `Vector search query failed: HTTP ${res.status}` }],
           isError: true,
         };
       }
@@ -160,16 +157,15 @@ export function createPlatinaMcpServer() {
     }
 
     if (name === 'get_next_step_briefing') {
-      const psnId = String(args?.psnId || '');
       const game = String(args?.game || '');
       const res = await fetch(`${API_SERVICE_URL}/api/v1/agent/next-step`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ psnId, game }),
+        body: JSON.stringify({ game }),
       });
       if (!res.ok) {
         return {
-          content: [{ type: 'text', text: `Erro ao gerar briefing: HTTP ${res.status}` }],
+          content: [{ type: 'text', text: `Failed to generate tactical briefing: HTTP ${res.status}` }],
           isError: true,
         };
       }

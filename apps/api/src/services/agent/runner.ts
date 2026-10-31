@@ -331,11 +331,11 @@ Sua resposta final deve ter no total MENOS DE 180 PALAVRAS.`);
     const prefetchPromptAddition = shouldPrefetch
       ? (isEn
         ? `\n\nImmediate Execution Directive (Single Roundtrip):
-The progress for player "${targetPsnId}" in "${targetGame}" has already been queried and injected via the "check_player_progress" tool.
+The progress for the project owner in "${targetGame}" has already been queried and injected via the "check_player_progress" tool.
 DO NOT execute the "check_player_progress" tool again.
 DIRECTLY generate the greeting and tactical briefing (or status response) in a single turn based on already available data.`
         : `\n\nDiretriz de Execução Imediata (Single Roundtrip):
-O progresso do jogador "${targetPsnId}" em "${targetGame}" já foi consultado e os dados estão injetados na conversa via ferramenta "check_player_progress".
+O progresso do dono do projeto em "${targetGame}" já foi consultado e os dados estão injetados na conversa via ferramenta "check_player_progress".
 NÃO execute a ferramenta "check_player_progress" novamente.
 Gere DIRETAMENTE a saudação e o briefing tático (ou resposta de status) em 1 único turno com base nos dados já disponíveis.`)
       : '';
@@ -343,7 +343,7 @@ Gere DIRETAMENTE a saudação e o briefing tático (ou resposta de status) em 1 
     const systemPrompt = isEn
       ? `You are Platina AI Agent, an autonomous PlayStation trophy hunting specialist.
 You have access to tools to:
-1. "check_player_progress": check earned and pending trophies for a player on PSN.
+1. "check_player_progress": check earned and pending trophies for the project owner on PSN.
 2. "get_trophy_guide": look up a specific trophy in the canonical catalog to get its metadata and exact guide walkthrough (no vector search).
 3. "list_trophies": structured SQL query for lists, counts, missable trophies by location/DLC, or description keywords (description_query).
 4. "get_game_overview": get platinum overview stats (difficulty, hours, playthroughs, type and DLC counts).
@@ -360,7 +360,7 @@ Agent Guidelines & Language Architecture:
   - For difficulty, platinum hours, playthroughs, or trophy counts by type/DLC, ALWAYS call "get_game_overview".
   - For vague queries, story points of no return, or quests without a cited trophy name, use "search_trophy_guides".
 - IMPORTANT Query Rule: Only use an official trophy or quest name in a tool query when the user actually cited that name. If the user only described a requirement (e.g. "Qual troféu é de matar vaca?"), describe the requirement in English (e.g. query: "kill cows"), NEVER guess or invent a nonexistent trophy name.
-- If the user mentions a PSN ID or asks what to do next in a game, call "check_player_progress" to inspect their actual progress.
+- If the user asks what to do next or checks trophy progress in a game, call "check_player_progress" with the game title to inspect the owner's actual progress.
 - When searching guides with "search_trophy_guides", ALWAYS send clean, concise English keywords (e.g. query: "Card Collector", "Masterminds", "Kifflom"), NEVER concatenate long descriptions or words like "silver" or "bronze".${isDeepWalkthrough ? ' In detailed mode, pass limit: 8 to obtain comprehensive context.' : ''}
 - Gwent Cards Domain Rule: Card Collector strictly requires the 120 unique cards from the base game. 195 is the total counting duplicates; DLC cards do not count towards the trophy. When answering about card counts, explicitly state "120 unique base game cards for the trophy" and, if mentioning 195 or DLC, explain the distinction. Never state a number without this context.
 - If player progress was identified and no additional guide search is required, respond tactically using "check_player_progress" data.
@@ -369,7 +369,7 @@ Agent Guidelines & Language Architecture:
 ${personaInstructions}`
       : `Você é o Platina AI Agent, um assistente gamer autônomo especialista em platinas PlayStation.
 Você tem acesso a ferramentas para:
-1. "check_player_progress": consultar os troféus já conquistados e pendentes de um jogador na PSN.
+1. "check_player_progress": consultar os troféus já conquistados e pendentes do dono do projeto na PSN.
 2. "get_trophy_guide": consultar um troféu específico no catálogo canônico obtendo metadados e guia ordenado (sem busca vetorial).
 3. "list_trophies": consulta estruturada SQL para listas, contagens, troféus perdíveis por região/DLC ou palavras na descrição (description_query).
 4. "get_game_overview": obter panorama de platina (dificuldade, tempo em horas, jogadas necessárias e contagens por tipo/DLC).
@@ -385,7 +385,7 @@ Diretrizes do Agente e Arquitetura de Idioma:
   - Perguntas vagas, pontos de não retorno de história ou contratos sem nome exato por "search_trophy_guides".
 - REGRA CRÍTICA DE QUERY: Só use nome oficial de troféu ou quest na query quando o usuário tiver citado esse nome. Se ele só descreveu o requisito (ex: "Qual troféu é de matar vaca?"), a query descreve o requisito em inglês (ex: query: "kill cows"), NUNCA adivinhe ou invente um nome de troféu inexistente.
 - A resposta final destinada ao usuário deve ser escrita em português (o idioma da sessão/pergunta).
-- Se o usuário mencionar um PSN ID ou perguntar o que precisa fazer a seguir, chame "check_player_progress".
+- Se o usuário perguntar o que precisa fazer a seguir ou quiser consultar o progresso, chame "check_player_progress" com o jogo.
 - Para buscar no banco de guias com "search_trophy_guides", envie termos concisos e limpos em inglês.${isDeepWalkthrough ? ' No modo detalhado, passe limit: 8 para obter contexto abrangente.' : ''}
 - Regra de Domínio de Cartas de Gwent: O troféu Card Collector exige estritamente as 120 cartas únicas do jogo base. 195 é o total contando cartas duplicadas; cartas de DLC não contam para o troféu. Ao responder sobre quantidade de cartas, deixe explícito "120 cartas únicas do jogo base para o troféu" e, se citar 195 ou DLC, explique a diferença. Nunca dê um número sem esse contexto.
 - Não execute mais de 2 chamadas de ferramentas na mesma resposta. Seja direto, prático e cite as fontes.${prefetchPromptAddition}
@@ -467,19 +467,18 @@ ${personaInstructions}`;
       }
     };
 
-    if (shouldPrefetch && targetPsnId && targetGame) {
+    if (shouldPrefetch && targetGame) {
       if (options.signal?.aborted) return;
 
       yield {
         type: 'tool_call',
         toolName: PlayerProgressTool.name,
-        toolArgs: { psnId: targetPsnId, game: targetGame },
+        toolArgs: { game: targetGame },
       };
 
       let prefetchResult: unknown;
       try {
         prefetchResult = await this.executeTool(PlayerProgressTool.name, {
-          psnId: targetPsnId,
           game: targetGame,
         });
       } catch (err: unknown) {
@@ -514,7 +513,7 @@ ${personaInstructions}`;
             type: 'function',
             function: {
               name: PlayerProgressTool.name,
-              arguments: JSON.stringify({ psnId: targetPsnId, game: targetGame }),
+              arguments: JSON.stringify({ game: targetGame }),
             },
           },
         ],

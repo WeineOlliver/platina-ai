@@ -8,7 +8,7 @@
 [![Architecture: Polyglot](https://img.shields.io/badge/Stack-Node.js%20%7C%20Python%20%7C%20pgvector%20%7C%20Kubernetes-emerald)](docs/architecture.md)
 [![MCP Compliant](https://img.shields.io/badge/Protocol-Model%20Context%20Protocol%20(MCP)-purple)](packages/mcp-server)
 
-*An autonomous AI agent engineered to prevent missable trophies, optimize platinum roadmaps, and synchronize live PSN player progress with verified walkthrough vector embeddings.*
+*An autonomous AI agent engineered to prevent missable trophies, optimize platinum roadmaps, and synchronize owner PSN progress with verified walkthrough vector embeddings.*
 
 [Architecture](#-system-architecture) • [Key Features](#-key-features) • [Tech Stack](#-technology-stack) • [FinOps & Costs](#-finops--cloud-cost-strategy) • [Quickstart](#-quickstart--local-setup) • [Interview Q&A](#-senior-interview-preparation)
 
@@ -20,7 +20,7 @@
 In complex video games (e.g., *Bloodborne*, *Elden Ring*, *Spider-Man*), platinum trophy hunters face **irreversible lockouts**: advancing past narrative milestones or defeating specific bosses without completing prerequisites locks players out of sidequests permanently, forcing a full 40+ hour replay.
 
 Generic LLMs fail here due to hallucinated prerequisites and static prompt boundaries. **Platina AI** solves this through:
-1. **Live Telemetry & Save State Ingestion:** Ingests player trophy progress directly from PSN databases.
+1. **Live Telemetry & Save State Ingestion:** Optional PlayStation Network (PSN) integration that reads exclusively the project owner's profile via their personal NPSSO token using the community psn-api library (no third-party user data is accepted, queried, or stored).
 2. **Deterministic Missable Risk Prioritization:** Prioritizes pending missable trophies (`is_missable = true`) over generic story progression.
 3. **Autonomous Multi-Hop ReAct Agent:** Dynamically queries pgvector semantic guide chunks on demand rather than naively stuffing prompts.
 4. **Universal Interoperability via MCP:** Exposes guides and tools to developer tools (Claude Desktop, Cursor) via the open **Model Context Protocol (MCP)** standard.

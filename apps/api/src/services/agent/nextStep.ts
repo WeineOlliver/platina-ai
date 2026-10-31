@@ -32,10 +32,10 @@ export class NextStepAdvisor {
     }
   }
 
-  async generateNextStepAdvice(psnId: string, game: string): Promise<NextStepAdvice> {
-    // 1. Fetch live player progress
+  async generateNextStepAdvice(game: string, psnId: string = 'me'): Promise<NextStepAdvice> {
+    // 1. Fetch live player progress for project owner
     let progress: PlayerProgressResult;
-    const progressRes = await playerProgressTool.execute({ psnId, game });
+    const progressRes = await playerProgressTool.execute({ game });
     if ('error' in progressRes) {
       if (!this.client || env.AI_PROVIDER === 'mock' || process.env.AI_PROVIDER === 'mock') {
         progress = {

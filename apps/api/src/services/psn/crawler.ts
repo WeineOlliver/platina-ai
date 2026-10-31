@@ -1,7 +1,6 @@
 import {
   exchangeNpssoForCode,
   exchangeCodeForAccessToken,
-  makeUniversalSearch,
   getUserTitles,
   getUserTrophiesEarnedForTitle,
   getTitleTrophies,
@@ -37,7 +36,7 @@ export class PsnCrawlerService {
   private async getAuth() {
     const npsso = this.getNpsso();
     if (!npsso) {
-      throw new Error('PSN_WORKER_NPSSO não configurado nas variáveis de ambiente.');
+      throw new Error('PSN_WORKER_NPSSO environment variable is not configured.');
     }
     if (!this.authTokens) {
       const accessCode = await exchangeNpssoForCode(npsso);
@@ -46,34 +45,24 @@ export class PsnCrawlerService {
     return this.authTokens;
   }
 
-  async getPlayerTrophies(psnId: string, gameKeyword: string = 'Grand Theft Auto V'): Promise<PsnTrophySyncResult> {
+  async getPlayerTrophies(gameKeyword: string = 'Grand Theft Auto V'): Promise<PsnTrophySyncResult> {
     const auth = await this.getAuth();
 
-    // 1. Search for user accountId by onlineId
-    const searchRes = await makeUniversalSearch(auth, psnId, 'SocialAllAccounts');
-    const domain = searchRes.domainResponses?.[0];
-    const userResult = domain?.results?.[0];
-    const accountId = userResult?.socialMetadata?.accountId;
-
-    if (!accountId) {
-      throw new Error(`Perfil da PSN não encontrado para o ID "${psnId}".`);
-    }
-
-    // 2. Fetch user played titles
-    const titlesRes = await getUserTitles(auth, accountId, { limit: 100 });
+    // 1. Fetch user played titles using authenticated owner account 'me'
+    const titlesRes = await getUserTitles(auth, 'me', { limit: 100 });
     const targetTitle = titlesRes.trophyTitles.find((t: any) =>
       t.trophyTitleName.toLowerCase().includes(gameKeyword.toLowerCase())
     );
 
     if (!targetTitle) {
-      throw new Error(`Nenhum histórico de "${gameKeyword}" encontrado para o jogador "${psnId}".`);
+      throw new Error(`No trophy history for "${gameKeyword}" found on the project owner profile.`);
     }
 
     const npCommId = targetTitle.npCommunicationId;
 
-    // 3. Fetch full trophy definitions and user earned statuses
+    // 2. Fetch full trophy definitions and user earned statuses using 'me'
     const [userTrophies, titleTrophies] = await Promise.all([
-      getUserTrophiesEarnedForTitle(auth, accountId, npCommId, 'all'),
+      getUserTrophiesEarnedForTitle(auth, 'me', npCommId, 'all'),
       getTitleTrophies(auth, npCommId, 'all'),
     ]);
 
@@ -84,7 +73,7 @@ export class PsnCrawlerService {
 
     const trophies = userTrophies.trophies.map((ut: any) => {
       const meta = titleMap.get(ut.trophyId) || {};
-      const name = meta.trophyName || `Troféu #${ut.trophyId}`;
+      const name = meta.trophyName || `Trophy #${ut.trophyId}`;
       const detail = meta.trophyDetail || '';
       
       // Known missable or challenging criteria detection
@@ -102,14 +91,14 @@ export class PsnCrawlerService {
         isUnlocked: Boolean(ut.earned),
         earnedDateTime: ut.earnedDateTime,
         isMissable,
-        chapterOrLocation: ut.trophyGroupId === 'default' ? 'Modo História / Base' : `DLC / Grupo ${ut.trophyGroupId}`,
+        chapterOrLocation: ut.trophyGroupId === 'default' ? 'Story Mode / Base' : `DLC / Group ${ut.trophyGroupId}`,
       };
     });
 
     const unlockedCount = trophies.filter((t: any) => t.isUnlocked).length;
 
     return {
-      psnId,
+      psnId: 'me',
       game: targetTitle.trophyTitleName,
       platform: targetTitle.trophyTitlePlatform,
       totalTrophies: trophies.length,

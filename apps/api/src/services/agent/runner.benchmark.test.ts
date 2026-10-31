@@ -614,7 +614,6 @@ describe('Platina AI Agent Runner Benchmark Suite', () => {
 
       // Assert playerProgressTool was pre-fetched before dispatching completion
       expect(executeToolSpy).toHaveBeenCalledWith('check_player_progress', {
-        psnId: 'OlliverHunter',
         game: 'Grand Theft Auto V',
       });
 
@@ -885,7 +884,7 @@ describe('Platina AI Agent Runner Benchmark Suite', () => {
       });
       const mockCreate = vi
         .fn()
-        .mockResolvedValueOnce(toolCall('call_progress_w3', 'check_player_progress', { psnId: 'olliverW9', game: W3 }))
+        .mockResolvedValueOnce(toolCall('call_progress_w3', 'check_player_progress', { game: W3 }))
         .mockResolvedValueOnce(toolCall('call_missables_w3', 'search_trophy_guides', { query: 'missable', game: W3, missableOnly: true }))
         .mockResolvedValue({ choices: [{ message: { role: 'assistant', content: answer } }] });
 

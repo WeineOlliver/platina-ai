@@ -7,7 +7,6 @@ import { psnCrawlerService } from '../../psn/crawler.js';
 // whether to call the tool, and the Zod schema used to validate the tool arguments at runtime.
 // Official game titles and arguments are always in English.
 export const checkPlayerProgressParamsSchema = z.object({
-  psnId: z.string().min(2).describe('PSN ID or PlayStation Network username of the player'),
   game: z.string().min(2).describe('Official game title in English (e.g. "The Witcher 3: Wild Hunt", "Bloodborne")'),
 });
 
@@ -60,7 +59,7 @@ export type PlayerProgressData = PlayerProgressResult;
 export class PlayerProgressTool {
   static readonly name = 'check_player_progress';
   static readonly description = 
-    'Consulta os troféus já conquistados e pendentes de um jogador na PlayStation Network (PSN) para um jogo específico. Use esta ferramenta para descobrir quais troféus o jogador ainda precisa fazer e se ele tem troféus perdíveis pendentes.';
+    "Inspect earned and pending trophies for the project owner on the PlayStation Network (PSN) for a specific game. Use this tool to discover which trophies the project owner still needs and check for pending missable trophies.";
 
   static readonly toolDefinition = {
     type: 'function' as const,
@@ -70,16 +69,12 @@ export class PlayerProgressTool {
       parameters: {
         type: 'object',
         properties: {
-          psnId: {
-            type: 'string',
-            description: 'Player PSN ID username (e.g. OlliverHunter)',
-          },
           game: {
             type: 'string',
             description: 'Official game title in English (e.g. "The Witcher 3: Wild Hunt", "Bloodborne")',
           },
         },
-        required: ['psnId', 'game'],
+        required: ['game'],
       },
     },
   };
@@ -93,14 +88,14 @@ export class PlayerProgressTool {
   async execute(params: CheckPlayerProgressParams): Promise<PlayerProgressResult | { error: string }> {
     const validated = checkPlayerProgressParamsSchema.safeParse(params);
     if (!validated.success) {
-      return { error: `Parâmetros inválidos: ${validated.error.message}` };
+      return { error: `Invalid parameters: ${validated.error.message}` };
     }
 
-    const { psnId, game } = validated.data;
+    const { game } = validated.data;
 
-    // First attempt: internal microservice database query
+    // First attempt: internal microservice database query for owner profile
     try {
-      const url = `${this.baseUrl}/api/v1/players/${encodeURIComponent(psnId)}/progress?game=${encodeURIComponent(game)}`;
+      const url = `${this.baseUrl}/api/v1/players/me/progress?game=${encodeURIComponent(game)}`;
       const response = await fetch(url);
 
       if (response.ok) {
@@ -113,7 +108,7 @@ export class PlayerProgressTool {
     // Fallback: live crawl via PlayStation Network Worker (if configured)
     if (env.PSN_WORKER_NPSSO || process.env.PSN_WORKER_NPSSO) {
       try {
-        const liveData = await psnCrawlerService.getPlayerTrophies(psnId, game);
+        const liveData = await psnCrawlerService.getPlayerTrophies(game);
         const unlocked = liveData.trophies.filter(t => t.isUnlocked);
         const pending = liveData.trophies.filter(t => !t.isUnlocked);
         const pendingMissables = pending.filter(t => t.isMissable);
@@ -184,25 +179,25 @@ export class PlayerProgressTool {
 
     // Direct error check if microservice gave a specific error response
     try {
-      const url = `${this.baseUrl}/api/v1/players/${encodeURIComponent(psnId)}/progress?game=${encodeURIComponent(game)}`;
+      const url = `${this.baseUrl}/api/v1/players/me/progress?game=${encodeURIComponent(game)}`;
       const response = await fetch(url);
       if (response.status === 404) {
         return {
-          error: `Jogador "${psnId}" ou jogo "${game}" não encontrado no banco de dados da PSN.`,
+          error: `Game "${game}" not found in project owner profile on PSN.`,
         };
       }
       if (!response.ok) {
         return {
-          error: `Erro ao consultar serviço de troféus: HTTP ${response.status}`,
+          error: `Error querying trophy service: HTTP ${response.status}`,
         };
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Falha na conexão com serviço de progresso';
-      return { error: `Falha na requisição: ${message}` };
+      const message = err instanceof Error ? err.message : 'Failed to connect to progress service';
+      return { error: `Request failed: ${message}` };
     }
 
     return {
-      error: `Jogador "${psnId}" ou jogo "${game}" não encontrado no banco de dados da PSN.`,
+      error: `Game "${game}" not found in project owner profile on PSN.`,
     };
   }
 }
