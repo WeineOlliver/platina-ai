@@ -78,12 +78,29 @@ export function createPlatinaMcpServer() {
     return {
       tools: [
         {
-          name: 'get_player_trophies',
-          description: 'Inspect earned and pending trophies for the project owner on PSN for a specific game.',
+          name: 'get_trophy_guide',
+          description: 'Get canonical trophy metadata and verified guide walkthrough by exact trophy name.',
           inputSchema: {
             type: 'object',
             properties: {
-              game: { type: 'string', description: 'Game title' },
+              game: { type: 'string', description: 'Game title or slug (e.g. "The Witcher 3: Wild Hunt")' },
+              trophy: { type: 'string', description: 'Official trophy name in English' },
+            },
+            required: ['game', 'trophy'],
+          },
+        },
+        {
+          name: 'list_trophies',
+          description: 'Query canonical trophy catalog via SQL with filters by type, DLC, location, or missable status.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              game: { type: 'string', description: 'Game title or slug' },
+              type: { type: 'string', enum: ['bronze', 'silver', 'gold', 'platinum'], description: 'Filter by trophy type' },
+              dlc: { type: 'string', description: 'Filter by DLC name or "Base Game"' },
+              location: { type: 'string', description: 'Filter by location' },
+              description_query: { type: 'string', description: 'Filter by words in description' },
+              missable: { type: 'boolean', description: 'Filter missable trophies only' },
             },
             required: ['game'],
           },
@@ -101,17 +118,6 @@ export function createPlatinaMcpServer() {
             required: ['query'],
           },
         },
-        {
-          name: 'get_next_step_briefing',
-          description: 'Generate a structured tactical briefing with missable trophy alerts for the project owner in the current game session.',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              game: { type: 'string', description: 'Game title' },
-            },
-            required: ['game'],
-          },
-        },
       ],
     };
   });
@@ -119,12 +125,37 @@ export function createPlatinaMcpServer() {
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
 
-    if (name === 'get_player_trophies') {
+    if (name === 'get_trophy_guide') {
       const game = String(args?.game || '');
-      const res = await fetch(`${INGESTION_SERVICE_URL}/api/v1/players/me/progress?game=${encodeURIComponent(game)}`);
+      const trophy = String(args?.trophy || '');
+      const res = await fetch(
+        `${INGESTION_SERVICE_URL}/api/v1/catalog/trophies/guide?game=${encodeURIComponent(game)}&trophy=${encodeURIComponent(trophy)}`
+      );
       if (!res.ok) {
         return {
-          content: [{ type: 'text', text: `Failed to fetch trophy progress: HTTP ${res.status}` }],
+          content: [{ type: 'text', text: `Failed to fetch trophy guide: HTTP ${res.status}` }],
+          isError: true,
+        };
+      }
+      const data = await res.json();
+      return {
+        content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
+      };
+    }
+
+    if (name === 'list_trophies') {
+      const game = String(args?.game || '');
+      const params = new URLSearchParams({ game });
+      if (args?.type) params.append('type', String(args.type));
+      if (args?.dlc) params.append('dlc', String(args.dlc));
+      if (args?.location) params.append('location', String(args.location));
+      if (args?.description_query) params.append('description_query', String(args.description_query));
+      if (args?.missable !== undefined) params.append('missable', String(args.missable));
+
+      const res = await fetch(`${INGESTION_SERVICE_URL}/api/v1/catalog/trophies?${params.toString()}`);
+      if (!res.ok) {
+        return {
+          content: [{ type: 'text', text: `Failed to list trophies: HTTP ${res.status}` }],
           isError: true,
         };
       }
@@ -147,25 +178,6 @@ export function createPlatinaMcpServer() {
       if (!res.ok) {
         return {
           content: [{ type: 'text', text: `Vector search query failed: HTTP ${res.status}` }],
-          isError: true,
-        };
-      }
-      const data = await res.json();
-      return {
-        content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
-      };
-    }
-
-    if (name === 'get_next_step_briefing') {
-      const game = String(args?.game || '');
-      const res = await fetch(`${API_SERVICE_URL}/api/v1/agent/next-step`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ game }),
-      });
-      if (!res.ok) {
-        return {
-          content: [{ type: 'text', text: `Failed to generate tactical briefing: HTTP ${res.status}` }],
           isError: true,
         };
       }

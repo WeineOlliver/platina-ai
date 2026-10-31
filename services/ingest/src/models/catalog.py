@@ -32,7 +32,7 @@ class TrophyModel(Base):
 
     id = Column(String(128), primary_key=True)
     game_id = Column(String(100), ForeignKey("games.id", ondelete="CASCADE"), nullable=False, index=True)
-    psn_trophy_id = Column(Integer, nullable=True)
+    psnprofiles_trophy_id = Column(Integer, nullable=True)
     name = Column(String(255), nullable=False)
     type = Column(String(20), nullable=False)
     description = Column(Text, nullable=True)

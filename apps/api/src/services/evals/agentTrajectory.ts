@@ -60,14 +60,6 @@ export function evaluateAgentTrajectory(trace: AgentTrajectoryTrace): Trajectory
         }
       }
     }
-
-    if (call.toolName === 'check_player_progress') {
-      const psnId = typeof call.args.psnId === 'string' ? call.args.psnId.trim() : '';
-      if (!psnId || psnId.length < 3) {
-        argScore -= 0.5;
-        argDeductions.push('psnId ausente ou inválido');
-      }
-    }
   }
 
   const finalArgScore = Number(Math.max(0.0, Math.min(1.0, argScore)).toFixed(2));

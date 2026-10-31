@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS games (
 CREATE TABLE IF NOT EXISTS trophies (
     id VARCHAR(128) PRIMARY KEY,
     game_id VARCHAR(100) NOT NULL REFERENCES games(id) ON DELETE CASCADE,
-    psn_trophy_id INT,
+    psnprofiles_trophy_id INT,
     name VARCHAR(255) NOT NULL,
     type VARCHAR(20) NOT NULL,
     description TEXT,
@@ -41,8 +41,3 @@ ALTER TABLE guide_chunks ADD COLUMN IF NOT EXISTS trophy_id VARCHAR(128) REFEREN
 
 CREATE INDEX IF NOT EXISTS idx_guide_chunks_game_id ON guide_chunks(game_id);
 CREATE INDEX IF NOT EXISTS idx_guide_chunks_trophy_id ON guide_chunks(trophy_id);
-
--- Add canonical trophy foreign key to player_trophies
-ALTER TABLE player_trophies ADD COLUMN IF NOT EXISTS trophy_id VARCHAR(128) REFERENCES trophies(id) ON DELETE SET NULL;
-
-CREATE INDEX IF NOT EXISTS idx_player_trophies_trophy_id ON player_trophies(trophy_id);

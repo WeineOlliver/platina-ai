@@ -25,7 +25,6 @@ graph TB
     subgraph API_Pod [" apps/api (Node.js 22 / Fastify / TypeScript) "]
       AgentRunner["ReAct Agent Runner<br/>(Tool Calling Engine)"]
       SSEHandler["SSE Streaming Handler<br/>(/chat & /agent/run)"]
-      Advisor["NextStepAdvisor<br/>(Missable Prioritizer)"]
       JWTAuth["JWT Authenticator<br/>(@fastify/jwt)"]
     end
 
@@ -36,7 +35,7 @@ graph TB
     subgraph Ingest_Pod [" services/ingest (Python 3.12 / FastAPI) "]
       Chunker["Semantic Markdown Chunker<br/>(Hierarchy & Missable Detection)"]
       VectorSearch["VectorSearchService<br/>(Hybrid Filter + Cosine Sim)"]
-      PlayerSvc["PlayerProgressService<br/>(Owner PSN State Inspector)"]
+      CatalogService["CatalogService<br/>(Canonical Game & Trophy Catalog)"]
     end
   end
 
@@ -47,7 +46,7 @@ graph TB
 
   %% Storage Tier
   subgraph Storage [" 🗄️ Storage Tier (Isolated Private Subnets) "]
-    RDS["PostgreSQL 16 + pgvector<br/>HNSW Cosine Vector Index (1536-dim)<br/>Player Catalog & Trophy Telemetry"]
+    RDS["PostgreSQL 16 + pgvector<br/>HNSW Cosine Vector Index (1536-dim)<br/>Canonical Trophy Catalog & Guide Vectors"]
     SecretsManager["AWS Secrets Manager<br/>(Rotated Master Credentials)"]
     ECR["Amazon ECR<br/>(Immutable & Scanned Images)"]
   end
@@ -59,8 +58,8 @@ graph TB
   ALB --> K8sService
   K8sService --> API_Pod
 
+  API_Pod -->|Tool Call: get_trophy_guide / list_trophies| Ingest_Pod
   API_Pod -->|Tool Call: search_trophy_guides| Ingest_Pod
-  API_Pod -->|Tool Call: check_player_progress| Ingest_Pod
   API_Pod -->|Chat Completions & Function Calling| Groq
 
   Ingest_Pod -->|pgvector Cosine Ops <=>| RDS
@@ -83,42 +82,32 @@ graph TB
 
 ## 2. Multi-Step Agent Execution Flow (ReAct Loop)
 
-> **Privacy & PSN Integration Note**: Integration with the PlayStation Network (PSN) is strictly optional and reads exclusively the project owner's profile via their personal NPSSO token using the community `psn-api` library. The system does not accept, search, or store third-party player identifiers or data.
+> **Privacy & Data Architecture Note**: Platina AI operates strictly without accessing, syncing, or storing third-party PlayStation Network accounts or personal player data. The project answers questions exclusively from verified community trophy guides (PowerPyx, PSNProfiles) and the canonical relational game trophy catalog.
 
-When a player asks: *"What is my next urgent step in Bloodborne?"*:
+When a player asks: *"How do I get the Hunter's Essence trophy in Bloodborne?"*:
 
 ```mermaid
 sequenceDiagram
   autonumber
-  actor User as 🎮 Project Owner / Client
+  actor User as 🎮 User / Client
   participant Fastify as ⚡ Fastify API (Node.js)
   participant LLM as 🧠 Groq LLM (120B Model)
   participant Ingest as 🐍 Python Microservice
   participant DB as 🐘 PostgreSQL (pgvector)
 
   User->>Fastify: POST /api/v1/agent/run (SSE stream requested)
-  Fastify->>LLM: Prompt with available Tools [check_player_progress, search_trophy_guides]
-  LLM-->>Fastify: tool_call: check_player_progress(game="Bloodborne")
-  Fastify->>User: SSE data: {"type": "tool_call", "name": "check_player_progress"}
+  Fastify->>LLM: Prompt with available Tools [get_trophy_guide, list_trophies, search_trophy_guides]
+  LLM-->>Fastify: tool_call: get_trophy_guide(game="Bloodborne", trophy="Hunter's Essence")
+  Fastify->>User: SSE data: {"type": "tool_call", "name": "get_trophy_guide"}
   
-  Fastify->>Ingest: GET /api/v1/players/me/progress?game=Bloodborne
-  Ingest->>DB: Query owner player, games, and pending missables
-  DB-->>Ingest: 50% done, Pending Missable: "Amigo dos Corvos (Eileen)"
-  Ingest-->>Fastify: Return owner progress JSON
-  Fastify->>User: SSE data: {"type": "tool_result", "data": {...}}
-
-  Fastify->>LLM: Append tool_result to message history
-  LLM-->>Fastify: tool_call: search_trophy_guides(query="Eileen the Crow quest missable", game="Bloodborne")
-  Fastify->>User: SSE data: {"type": "tool_call", "name": "search_trophy_guides"}
-
-  Fastify->>Ingest: POST /api/v1/ingest/search
-  Ingest->>DB: Cosine distance search <=> with HNSW index
-  DB-->>Ingest: Top-3 relevant guide chunks with missable warnings
-  Ingest-->>Fastify: Return verified guide snippets
+  Fastify->>Ingest: GET /api/v1/catalog/trophies/guide?game=Bloodborne&trophy=Hunter's%20Essence
+  Ingest->>DB: Query canonical trophy metadata and linked guide chunks
+  DB-->>Ingest: Return trophy record and verified walkthrough chunks
+  Ingest-->>Fastify: Return trophy guide JSON
   Fastify->>User: SSE data: {"type": "tool_result", "data": {...}}
 
   Fastify->>LLM: Append guide chunks to message history
-  LLM-->>Fastify: Final comprehensive answer citing PowerPyx guide
+  LLM-->>Fastify: Final comprehensive answer citing verified guide sources
   Fastify->>User: SSE data: {"type": "chunk", "content": "Attention! Talk to Eileen in Cathedral Ward before the Red Moon..."}
   Fastify->>User: SSE data: {"type": "done"}
 ```
@@ -158,9 +147,9 @@ graph LR
 
 1. **Polyglot Monorepo Separation:**
    - **Fastify (Node.js/TypeScript):** Chosen for lightweight non-blocking event-loop performance, ultra-fast SSE streaming, and type-safe Zod runtime schema isolation.
-   - **FastAPI (Python):** Chosen for native ecosystem compatibility with AI, data manipulation, and semantic vector operations.
+   - **FastAPI (Python):** Chosen for native ecosystem compatibility with data ingestion, HTML parsing, and semantic vector operations.
 2. **Decoupled Tool Calling (ReAct Loop):**
-   - The LLM dynamically selects tools on demand (`check_player_progress` and `search_trophy_guides`) rather than naively stuffing vector context into every prompt.
+   - The LLM dynamically selects tools on demand (`get_trophy_guide`, `list_trophies`, `search_trophy_guides`) rather than naively stuffing vector context into every prompt.
 3. **Open Model Context Protocol (MCP):**
    - A standalone package (`@platina-ai/mcp-server`) exposes trophy guides as **Resources** and agent workflows as **Tools** over standard `stdio`, allowing zero-code interoperability with Claude Desktop and Cursor.
 4. **Declarative Cloud Infrastructure & FinOps:**

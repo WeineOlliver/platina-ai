@@ -76,7 +76,7 @@ def parse_trophies_html(html_content: str, default_title: str = "Unknown Game") 
             href = a.get("href", "")
             parts = href.strip("/").split("/")
             m = re.match(r"^(\d+)-", parts[-1])
-            psn_trophy_id = int(m.group(1)) if m else None
+            psnprofiles_trophy_id = int(m.group(1)) if m else None
 
             # Detect trophy type (platinum, gold, silver, bronze)
             type_img = r.find("img", title=lambda t: bool(t and t.lower() in ("platinum", "gold", "silver", "bronze")))
@@ -107,7 +107,7 @@ def parse_trophies_html(html_content: str, default_title: str = "Unknown Game") 
 
             trophies.append({
                 "name": name,
-                "psn_trophy_id": psn_trophy_id,
+                "psnprofiles_trophy_id": psnprofiles_trophy_id,
                 "type": trophy_type,
                 "description": description,
                 "dlc": dlc,
@@ -336,8 +336,8 @@ async def import_catalog(
         res_trophies = await session.execute(stmt_trophies)
         existing_by_name = {t.name: t for t in res_trophies.scalars().all()}
 
-        raw_psn_missables = guide_data["missable_trophies"] if guide_data else set()
-        norm_psn_missables = {normalize_catalog_name(m) for m in raw_psn_missables}
+        raw_psnprofiles_missables = guide_data["missable_trophies"] if guide_data else set()
+        norm_psnprofiles_missables = {normalize_catalog_name(m) for m in raw_psnprofiles_missables}
         norm_ppx_missables = {normalize_catalog_name(m) for m in powerpyx_missables}
 
         loc_map = guide_data.get("trophy_locations", {}) if guide_data else {}
@@ -349,14 +349,14 @@ async def import_catalog(
         for item in trophies_data["trophies"]:
             name = item["name"]
             norm_name = normalize_catalog_name(name)
-            psn_id = item.get("psn_trophy_id")
+            trophy_ext_id = item.get("psnprofiles_trophy_id")
             trophy_type = item["type"]
             desc = item.get("description")
             dlc = item.get("dlc")
 
-            in_psn = norm_name in norm_psn_missables
+            in_psnprofiles = norm_name in norm_psnprofiles_missables
             in_ppx = norm_name in norm_ppx_missables
-            is_missable = in_psn or in_ppx
+            is_missable = in_psnprofiles or in_ppx
 
             loc = norm_loc_map.get(norm_name)
             if loc:
@@ -366,7 +366,7 @@ async def import_catalog(
 
             if name in existing_by_name:
                 t = existing_by_name[name]
-                t.psn_trophy_id = psn_id
+                t.psnprofiles_trophy_id = trophy_ext_id
                 t.type = trophy_type
                 t.description = desc
                 t.dlc = dlc
@@ -374,7 +374,7 @@ async def import_catalog(
                 if is_missable:
                     t.missable = True
                     sources = list(t.missable_sources or [])
-                    if in_psn and "psnprofiles" not in sources:
+                    if in_psnprofiles and "psnprofiles" not in sources:
                         sources.append("psnprofiles")
                     if in_ppx and "powerpyx" not in sources:
                         sources.append("powerpyx")
@@ -382,14 +382,14 @@ async def import_catalog(
             else:
                 trophy_id = f"{game_id}-{slugify(name)}"
                 sources: List[str] = []
-                if in_psn:
+                if in_psnprofiles:
                     sources.append("psnprofiles")
                 if in_ppx:
                     sources.append("powerpyx")
                 t = TrophyModel(
                     id=trophy_id,
                     game_id=game_id,
-                    psn_trophy_id=psn_id,
+                    psnprofiles_trophy_id=trophy_ext_id,
                     name=name,
                     type=trophy_type,
                     description=desc,

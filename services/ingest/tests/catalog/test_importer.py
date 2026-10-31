@@ -237,17 +237,17 @@ def test_parse_trophies_html():
     t1 = next(t for t in base_trophies if t["name"] == "Master Adventurer")
     assert t1["type"] == "platinum"
     assert t1["description"] == "Collect all trophies in the game."
-    assert t1["psn_trophy_id"] == 1
+    assert t1["psnprofiles_trophy_id"] == 1
 
     t2 = next(t for t in base_trophies if t["name"] == "First Steps")
     assert t2["type"] == "bronze"
     assert t2["description"] == "Complete the tutorial quest."
-    assert t2["psn_trophy_id"] == 2
+    assert t2["psnprofiles_trophy_id"] == 2
 
     t3 = next(t for t in base_trophies if t["name"] == "Missable Relic")
     assert t3["type"] == "silver"
     assert t3["description"] == "Find the ancient relic before leaving the starting island."
-    assert t3["psn_trophy_id"] == 3
+    assert t3["psnprofiles_trophy_id"] == 3
 
     # Hearts of Stone DLC
     hos = [t for t in trophies if t["dlc"] == "Hearts of Stone"]
@@ -304,7 +304,7 @@ async def test_import_catalog_idempotent(tmp_path):
         assert game.metadata_source == "psnprofiles"
 
         # Check trophies
-        stmt_trophies = select(TrophyModel).where(TrophyModel.game_id == game_id).order_by(TrophyModel.psn_trophy_id)
+        stmt_trophies = select(TrophyModel).where(TrophyModel.game_id == game_id).order_by(TrophyModel.psnprofiles_trophy_id)
         trophies = (await session.execute(stmt_trophies)).scalars().all()
         assert len(trophies) == 5
 

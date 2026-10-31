@@ -33,7 +33,6 @@ from sqlalchemy.orm import selectinload
 from src.database import get_db_session
 from src.models.catalog import GameModel, TrophyModel
 from src.models.chunk import GuideChunkModel
-from src.models.player import PlayerGameModel, PlayerModel, PlayerTrophyModel
 from src.schemas.chunk import IngestGuideRequest
 from src.schemas.search import SearchQueryRequest
 from src.services.chunker import chunker, build_context_prefix
@@ -41,7 +40,6 @@ from src.services.gwent_chunker import chunk_gwent_guide
 from src.services.embedding import embedding_service
 from src.services.entity_linker import link_chunks_to_trophies, get_canonical_game_id
 from src.catalog.importer import normalize_catalog_name
-from src.services.player import player_progress_service
 from src.services.scraper import scraper
 from src.services.search import vector_search_service
 
@@ -318,7 +316,6 @@ AGENT_SEMAPHORE = asyncio.Semaphore(1)
 
 async def evaluate_case(
     case: Dict[str, Any],
-    player_trophies: List[PlayerTrophyModel],
     canonical_trophies: Optional[List[Any]] = None,
     canonical_game: Optional[Any] = None,
 ) -> Dict[str, Any]:
@@ -583,9 +580,9 @@ async def evaluate_case(
             },
         }
 
-    # Route: SQL (catálogo / progresso)
+    # Route: SQL (catálogo canônico)
     if route == "sql":
-        pool = canonical_trophies if canonical_trophies is not None else player_trophies
+        pool = canonical_trophies or []
 
         if category == "contaminacao":
             # C03: Verificar se o catálogo do jogador para Witcher 3 traz troféus de Witcher 2
@@ -912,16 +909,8 @@ async def main(split: str = "dev"):
 
     print(f"\n[SPLIT: {split.upper()}] Cenários selecionados para avaliação: {len(filtered_cases)} de {len(cases)} totais")
 
-    # 3. Consulta troféus de Witcher 3 do banco via caminho de playerProgress e catálogo canônico
+    # 3. Consulta troféus de Witcher 3 do catálogo canônico
     async with get_db_session() as session:
-        stmt = (
-            select(PlayerTrophyModel)
-            .join(PlayerGameModel, PlayerTrophyModel.player_game_id == PlayerGameModel.id)
-            .where(PlayerGameModel.game_title.ilike("%The Witcher 3%"))
-        )
-        res = await session.execute(stmt)
-        player_trophies = res.scalars().all()
-
         stmt_canon = (
             select(TrophyModel)
             .where(TrophyModel.game_id == "the-witcher-3-wild-hunt")
@@ -941,13 +930,13 @@ async def main(split: str = "dev"):
 
     results: List[Dict[str, Any]] = []
     for dc in direct_cases:
-        res = await evaluate_case(dc, player_trophies, canonical_trophies, canonical_game)
+        res = await evaluate_case(dc, canonical_trophies, canonical_game)
         res["generated"] = bool(dc.get("generated", False) or str(dc.get("id", "")).startswith("GEN_"))
         results.append(res)
 
     print(f"Avaliando {len(agent_cases)} casos com Agente LLM...")
     for ac in agent_cases:
-        res = await evaluate_case(ac, player_trophies, canonical_trophies, canonical_game)
+        res = await evaluate_case(ac, canonical_trophies, canonical_game)
         res["generated"] = bool(ac.get("generated", False) or str(ac.get("id", "")).startswith("GEN_"))
         results.append(res)
         await asyncio.sleep(2.0)

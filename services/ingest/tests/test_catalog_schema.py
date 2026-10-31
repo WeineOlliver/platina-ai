@@ -4,7 +4,6 @@ from sqlalchemy import text, select, inspect
 from sqlalchemy.exc import IntegrityError
 from src.database import get_db_session
 from src.models.chunk import GuideChunkModel
-from src.models.player import PlayerTrophyModel, PlayerGameModel, PlayerModel
 from src.models.catalog import GameModel, TrophyModel
 
 
@@ -34,7 +33,7 @@ async def test_catalog_models_attributes():
     for attr in [
         "id",
         "game_id",
-        "psn_trophy_id",
+        "psnprofiles_trophy_id",
         "name",
         "type",
         "description",
@@ -50,21 +49,6 @@ async def test_catalog_models_attributes():
     # GuideChunkModel catalog FKs
     assert hasattr(GuideChunkModel, "game_id"), "GuideChunkModel must have 'game_id' attribute"
     assert hasattr(GuideChunkModel, "trophy_id"), "GuideChunkModel must have 'trophy_id' attribute"
-
-    # PlayerTrophyModel catalog FK and legacy columns
-    assert hasattr(PlayerTrophyModel, "trophy_id"), "PlayerTrophyModel must have 'trophy_id' attribute"
-    for legacy_col in [
-        "id",
-        "player_game_id",
-        "trophy_name",
-        "trophy_type",
-        "trophy_category",
-        "is_missable",
-        "is_unlocked",
-        "unlocked_at",
-        "chapter_or_location",
-    ]:
-        assert hasattr(PlayerTrophyModel, legacy_col), f"PlayerTrophyModel must keep legacy column '{legacy_col}'"
 
 
 @pytest.mark.anyio
@@ -104,7 +88,7 @@ async def test_catalog_database_schema():
         trophy_cols = {row[0]: row[1] for row in res.fetchall()}
         assert "id" in trophy_cols
         assert "game_id" in trophy_cols
-        assert "psn_trophy_id" in trophy_cols
+        assert "psnprofiles_trophy_id" in trophy_cols
         assert "name" in trophy_cols
         assert "type" in trophy_cols
         assert "description" in trophy_cols
@@ -127,19 +111,6 @@ async def test_catalog_database_schema():
         guide_chunk_cols = {row[0] for row in res.fetchall()}
         assert "game_id" in guide_chunk_cols
         assert "trophy_id" in guide_chunk_cols
-
-        # Check player_trophies new column
-        res = await session.execute(
-            text(
-                """
-                SELECT column_name
-                FROM information_schema.columns
-                WHERE table_name = 'player_trophies' AND column_name = 'trophy_id';
-                """
-            )
-        )
-        player_trophies_cols = {row[0] for row in res.fetchall()}
-        assert "trophy_id" in player_trophies_cols
 
 
 @pytest.mark.anyio
@@ -173,7 +144,7 @@ async def test_catalog_crud_and_relationships():
         trophy = TrophyModel(
             id=test_trophy_id,
             game_id=test_game_id,
-            psn_trophy_id=10,
+            psnprofiles_trophy_id=10,
             name="Card Collector",
             type="bronze",
             description="Acquire all gwent cards available in the base version of the game.",

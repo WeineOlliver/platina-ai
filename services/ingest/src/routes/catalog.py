@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.database import get_db_session
 from src.models.catalog import GameModel, TrophyModel
 from src.models.chunk import GuideChunkModel
-from src.models.player import PlayerModel, PlayerGameModel, PlayerTrophyModel
 from src.services.entity_linker import normalize_for_matching, get_canonical_game_id
 
 router = APIRouter(prefix="/api/v1/catalog", tags=["Catalog"])
@@ -76,7 +75,7 @@ async def get_trophy_guide(
                 "trophy": {
                     "id": matched_trophy.id,
                     "game_id": matched_trophy.game_id,
-                    "psn_trophy_id": matched_trophy.psn_trophy_id,
+                    "psnprofiles_trophy_id": matched_trophy.psnprofiles_trophy_id,
                     "name": matched_trophy.name,
                     "type": matched_trophy.type,
                     "description": matched_trophy.description,
@@ -133,7 +132,6 @@ async def list_catalog_trophies(
     location: Optional[str] = Query(None, description="Filter by location (e.g. 'Novigrad', 'Velen')"),
     description_query: Optional[str] = Query(None, description="Filter by description query using full-text search"),
     missable: Optional[bool] = Query(None, description="Filter missables only"),
-    missing_for_psn_id: Optional[str] = Query(None, description="Filter trophies pending for project owner (e.g. 'me')"),
 ) -> Dict[str, Any]:
     """
     SQL-only structured filtering of catalog trophies. Returns complete lists and chunk coverage counts.
@@ -185,20 +183,6 @@ async def list_catalog_trophies(
                     func.plainto_tsquery("english", clean_q)
                 )
             )
-
-        if missing_for_psn_id:
-            unlocked_subq = (
-                select(PlayerTrophyModel.trophy_id)
-                .join(PlayerGameModel, PlayerGameModel.id == PlayerTrophyModel.player_game_id)
-                .join(PlayerModel, PlayerModel.id == PlayerGameModel.player_id)
-                .where(
-                    PlayerModel.psn_id.ilike(missing_for_psn_id.strip()),
-                    PlayerGameModel.game_title.ilike(f"%{game_record.title}%"),
-                    PlayerTrophyModel.is_unlocked.is_(True),
-                    PlayerTrophyModel.trophy_id.is_not(None),
-                )
-            )
-            conditions.append(TrophyModel.id.notin_(unlocked_subq))
 
         stmt = select(TrophyModel).where(and_(*conditions)).order_by(TrophyModel.id.asc())
         trophies = (await session.execute(stmt)).scalars().all()

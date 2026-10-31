@@ -21,7 +21,7 @@ class TrophyParsed(BaseModel):
     type: str  # bronze, silver, gold, platinum
     description: str
     group: str = "Base Game"  # "Base Game" or DLC name (e.g. Hearts of Stone, Blood and Wine)
-    psn_trophy_id: Optional[int] = None
+    psnprofiles_trophy_id: Optional[int] = None
 
 
 class TrophyListParsed(BaseModel):
@@ -96,7 +96,7 @@ class LinkedTrophy(BaseModel):
     type: str
     description: str
     group: str = "Base Game"
-    psn_trophy_id: Optional[int] = None
+    psnprofiles_trophy_id: Optional[int] = None
     np_communication_id: Optional[str] = None
     aliases: List[str] = Field(default_factory=list)  # Stored for future localized names
     missable_sources: List[str] = Field(default_factory=list)  # List of source IDs claiming missable

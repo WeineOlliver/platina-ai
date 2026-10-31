@@ -376,7 +376,7 @@ async def test_multi_source_domain_fallback_handles_http_errors():
 async def test_parse_roadmap_dom_psnprofiles_structure():
     scraper_instance = TrophyGuideScraper()
 
-    psn_html = """
+    psnprofiles_html = """
     <html>
       <body>
         <div class="trophy-info">
@@ -408,7 +408,7 @@ async def test_parse_roadmap_dom_psnprofiles_structure():
     </html>
     """
 
-    res = scraper_instance.parse_roadmap_dom(psn_html, base_url="https://psnprofiles.com")
+    res = scraper_instance.parse_roadmap_dom(psnprofiles_html, base_url="https://psnprofiles.com")
 
     assert res["difficulty"] == "4/10"
     assert res["playthroughs"] == 2
@@ -539,74 +539,6 @@ async def test_fetch_game_guide_with_subpages_browser_fallback_on_403():
 
 
 @pytest.mark.anyio
-async def test_fetch_and_index_syncs_player_trophies_missables(async_client):
-    from src.database import get_db_session
-    from sqlalchemy import text
-    from unittest.mock import patch
-
-    game_title = "Sync Test Game"
-    player_id = "ply_sync_test"
-    player_game_id = "pg_sync_test"
-    trophy_id = "tr_sync_test_01"
-    trophy_name = "Crucial Missable Trophy"
-
-    # Setup DB rows
-    async with get_db_session() as session:
-        await session.execute(
-            text("INSERT INTO players (id, psn_id, email) VALUES (:pid, :psn, :email) ON CONFLICT DO NOTHING"),
-            {"pid": player_id, "psn": "sync_player", "email": "sync@test.com"},
-        )
-        await session.execute(
-            text("INSERT INTO player_games (id, player_id, game_title) VALUES (:gid, :pid, :game) ON CONFLICT DO NOTHING"),
-            {"gid": player_game_id, "pid": player_id, "game": game_title},
-        )
-        await session.execute(
-            text(
-                "INSERT INTO player_trophies (id, player_game_id, trophy_name, trophy_type, trophy_category, is_missable) "
-                "VALUES (:tid, :gid, :tname, 'bronze', 'standard', false) "
-                "ON CONFLICT (player_game_id, trophy_name) DO UPDATE SET is_missable = false, trophy_category = 'standard'"
-            ),
-            {"tid": trophy_id, "gid": player_game_id, "tname": trophy_name},
-        )
-
-    mock_guide_markdown = f"""# {game_title} Guide
-## Troféus Perdíveis (Missable Trophies)
-### {trophy_name}
-Atenção: Troféu perdível (missable)! Não avance antes de coletar.
-"""
-
-    mock_pages = [("Guide Title", mock_guide_markdown, "https://example.com/guide", f"<html><body>{mock_guide_markdown}</body></html>")]
-
-    try:
-        with patch("src.services.scraper.scraper.fetch_game_guide_with_subpages", return_value=mock_pages):
-            resp = await async_client.post(
-                "/api/v1/ingest/fetch-and-index",
-                json={"game": game_title, "force_reindex": True},
-            )
-            assert resp.status_code == 200
-            data = resp.json()
-            assert data["status"] == "indexed"
-            assert trophy_name in data.get("missables_synced", [])
-
-            # Verify in player_trophies table
-            async with get_db_session() as session:
-                res = await session.execute(
-                    text("SELECT is_missable, trophy_category FROM player_trophies WHERE id = :tid"),
-                    {"tid": trophy_id},
-                )
-                row = res.fetchone()
-                assert row is not None
-                assert row[0] is True, "is_missable should be updated to True"
-                assert row[1] == "missable", "trophy_category should be updated to 'missable'"
-    finally:
-        async with get_db_session() as session:
-            await session.execute(text("DELETE FROM player_trophies WHERE id = :tid"), {"tid": trophy_id})
-            await session.execute(text("DELETE FROM player_games WHERE id = :gid"), {"gid": player_game_id})
-            await session.execute(text("DELETE FROM players WHERE id = :pid"), {"pid": player_id})
-            await session.execute(text("DELETE FROM guide_chunks WHERE game ILIKE :game"), {"game": game_title})
-
-
-@pytest.mark.anyio
 async def test_fetch_and_index_syncs_missables_from_html_dom_classes(async_client):
     game_title = "HTML Missable Test Game"
     test_url = "https://www.powerpyx.com/html-missable-game-trophy-guide-roadmap/"
@@ -643,92 +575,6 @@ async def test_fetch_and_index_syncs_missables_from_html_dom_classes(async_clien
         finally:
             async with get_db_session() as session:
                 await session.execute(delete(GuideChunkModel).where(GuideChunkModel.game.ilike(game_title)))
-
-
-@pytest.mark.anyio
-async def test_missables_sync_does_not_update_unrelated_games_when_game_not_in_player_games(async_client):
-    from sqlalchemy import text
-
-    pid = "ply_shared_test"
-    gid1 = "pg_shared_game_1"
-    gid2 = "pg_shared_game_2"
-    tid1 = "tr_shared_1"
-    tid2 = "tr_shared_2"
-    trophy_name = "Common Shared Trophy"
-
-    # Setup 2 existing games with the same trophy name
-    async with get_db_session() as session:
-        await session.execute(
-            text("INSERT INTO players (id, psn_id, email) VALUES (:pid, :psn, :email) ON CONFLICT DO NOTHING"),
-            {"pid": pid, "psn": "shared_player", "email": "shared@test.com"},
-        )
-        await session.execute(
-            text("INSERT INTO player_games (id, player_id, game_title) VALUES (:gid, :pid, :game) ON CONFLICT DO NOTHING"),
-            {"gid": gid1, "pid": pid, "game": "Existing Game One"},
-        )
-        await session.execute(
-            text("INSERT INTO player_games (id, player_id, game_title) VALUES (:gid, :pid, :game) ON CONFLICT DO NOTHING"),
-            {"gid": gid2, "pid": pid, "game": "Existing Game Two"},
-        )
-        await session.execute(
-            text(
-                "INSERT INTO player_trophies (id, player_game_id, trophy_name, trophy_type, trophy_category, is_missable) "
-                "VALUES (:tid, :gid, :tname, 'bronze', 'standard', false) "
-                "ON CONFLICT (player_game_id, trophy_name) DO UPDATE SET is_missable = false, trophy_category = 'standard'"
-            ),
-            {"tid": tid1, "gid": gid1, "tname": trophy_name},
-        )
-        await session.execute(
-            text(
-                "INSERT INTO player_trophies (id, player_game_id, trophy_name, trophy_type, trophy_category, is_missable) "
-                "VALUES (:tid, :gid, :tname, 'bronze', 'standard', false) "
-                "ON CONFLICT (player_game_id, trophy_name) DO UPDATE SET is_missable = false, trophy_category = 'standard'"
-            ),
-            {"tid": tid2, "gid": gid2, "tname": trophy_name},
-        )
-
-    # Ingest a guide for a 3rd game that does NOT exist in player_games
-    unregistered_game = "Nonexistent Game Three"
-    mock_guide_md = f"""# {unregistered_game} Guide
-## Troféus Perdíveis (Missable Trophies)
-### {trophy_name}
-Atenção: Troféu perdível (missable)!
-"""
-    mock_pages = [("Guide Title", mock_guide_md, "https://example.com/guide3", f"<html><body>{mock_guide_md}</body></html>")]
-
-    try:
-        with patch("src.services.scraper.scraper.fetch_game_guide_with_subpages", return_value=mock_pages):
-            resp = await async_client.post(
-                "/api/v1/ingest/fetch-and-index",
-                json={"game": unregistered_game, "force_reindex": True},
-            )
-            assert resp.status_code == 200
-            data = resp.json()
-            assert data["trophies_updated"] == 0
-
-            # Verify neither existing game's trophy was modified
-            async with get_db_session() as session:
-                res1 = await session.execute(
-                    text("SELECT is_missable, trophy_category FROM player_trophies WHERE id = :tid"),
-                    {"tid": tid1},
-                )
-                row1 = res1.fetchone()
-                assert row1[0] is False, "Game 1 trophy should NOT be marked missable"
-                assert row1[1] == "standard"
-
-                res2 = await session.execute(
-                    text("SELECT is_missable, trophy_category FROM player_trophies WHERE id = :tid"),
-                    {"tid": tid2},
-                )
-                row2 = res2.fetchone()
-                assert row2[0] is False, "Game 2 trophy should NOT be marked missable"
-                assert row2[1] == "standard"
-    finally:
-        async with get_db_session() as session:
-            await session.execute(text("DELETE FROM player_trophies WHERE id IN (:tid1, :tid2)"), {"tid1": tid1, "tid2": tid2})
-            await session.execute(text("DELETE FROM player_games WHERE id IN (:gid1, :gid2)"), {"gid1": gid1, "gid2": gid2})
-            await session.execute(text("DELETE FROM players WHERE id = :pid"), {"pid": pid})
-            await session.execute(text("DELETE FROM guide_chunks WHERE game ILIKE :game"), {"game": unregistered_game})
 
 
 @pytest.mark.anyio

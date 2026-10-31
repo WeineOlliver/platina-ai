@@ -23,8 +23,6 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().optional(),
   INGESTION_SERVICE_URL: z.string().url().default('http://localhost:8000'),
   OBSERVABILITY_SAMPLING_RATE: z.coerce.number().min(0).max(1).default(0.1),
-  PSN_WORKER_NPSSO: z.string().optional(),
-  PSN_WORKER_EMAIL: z.string().optional(),
 });
 
 const parseEnv = () => {

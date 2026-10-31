@@ -8,7 +8,6 @@ export const listTrophiesParamsSchema = z.object({
   location: z.string().optional().describe('Filter by region/location (e.g. "Novigrad", "Velen", "White Orchard", "Skellige")'),
   description_query: z.string().optional().describe('English keyword filter on trophy description (e.g. "contract", "difficulty")'),
   missable: z.boolean().optional().describe('Filter missable trophies only (true/false)'),
-  missing_for_psn_id: z.string().optional().describe('Filter only trophies not yet unlocked by this player PSN ID'),
 });
 
 export type ListTrophiesParams = z.infer<typeof listTrophiesParamsSchema>;
@@ -38,7 +37,7 @@ export class ListTrophiesTool {
   static readonly name = 'list_trophies';
   readonly name = ListTrophiesTool.name;
   static readonly description =
-    'Consulta o catálogo canônico de troféus via SQL com filtros por tipo, DLC, localização, missable e troféus pendentes para um PSN ID. Retorna a lista completa de troféus e métricas de cobertura de guias. Use SEMPRE para contagens, listas completas de troféus e troféus perdíveis por região/DLC.';
+    'Consulta o catálogo canônico de troféus via SQL com filtros por tipo, DLC, localização, missable e busca por descrição (description_query). Retorna a lista completa de troféus e métricas de cobertura de guias. Use SEMPRE para contagens, listas completas de troféus e troféus perdíveis por região/DLC.';
 
   static readonly toolDefinition = {
     type: 'function' as const,
@@ -73,10 +72,6 @@ export class ListTrophiesTool {
             type: 'boolean',
             description: 'Filter missable trophies only',
           },
-          missing_for_psn_id: {
-            type: 'string',
-            description: 'Filter trophies still pending/unlocked for this PSN ID',
-          },
         },
         required: ['game'],
       },
@@ -103,7 +98,7 @@ export class ListTrophiesTool {
       };
     }
 
-    const { game, type, dlc, location, description_query, missable, missing_for_psn_id } = validated.data;
+    const { game, type, dlc, location, description_query, missable } = validated.data;
 
     try {
       const urlParams = new URLSearchParams({ game });
@@ -112,7 +107,6 @@ export class ListTrophiesTool {
       if (location) urlParams.append('location', location);
       if (description_query) urlParams.append('description_query', description_query);
       if (missable !== undefined) urlParams.append('missable', String(missable));
-      if (missing_for_psn_id) urlParams.append('missing_for_psn_id', missing_for_psn_id);
 
       const url = `${this.baseUrl}/api/v1/catalog/trophies?${urlParams.toString()}`;
       const response = await fetch(url);

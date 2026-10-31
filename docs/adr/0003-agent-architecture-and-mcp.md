@@ -8,7 +8,7 @@ Accepted
 ## Context
 As Platina AI matured from static RAG document injection into an interactive assistant, several architectural challenges emerged:
 1. **Dynamic Tool Execution vs. Static Prompt Stuffing:** Naive RAG pipelines query vector databases on every interaction, causing unnecessary latency and query costs for non-technical turns (e.g., greetings). The system needed an autonomous reasoning loop to invoke tools only when justified.
-2. **Multi-Step Problem Solving:** Answering queries like *"What should I do next in Bloodborne?"* requires a multi-step workflow: first inspecting live PSN save state, evaluating missable trophy risks, and subsequently retrieving relevant walkthrough sections.
+2. **Deterministic Catalog vs. Vector Search:** General walkthrough queries benefit from semantic vector search, but trophy requirements, counts, and missable listings require structured relational SQL queries. The project answers from trophy guides and the game trophy catalog; it does not access any PlayStation Network account or process third-party player personal data.
 3. **Safety & Infinite Recursion:** Agent loops calling LLMs iteratively risk runaway token usage and infinite loops if termination boundaries are not enforced.
 4. **Third-Party Interoperability:** Proprietary API endpoints lock users into proprietary frontends. Exposing tools via an emerging open standard would enable direct integration into native developer tools (Claude Desktop, Claude Code CLI, Cursor).
 
@@ -20,21 +20,21 @@ As Platina AI matured from static RAG document injection into an interactive ass
    - Enforced a hard recursion boundary of `maxSteps: 5` and wired process cancellation to `AbortSignal`.
 
 2. **Zod Runtime Schema Isolation:**
-   - Decoupled tool definition from execution. Each tool registers a JSON Schema descriptor for model planning and enforces strict Zod schema validation (`checkPlayerProgressParamsSchema`, `searchGuidesParamsSchema`) before executing backend code.
+   - Decoupled tool definition from execution. Each tool registers a JSON Schema descriptor for model planning and enforces strict Zod schema validation (`getTrophyGuideParamsSchema`, `listTrophiesParamsSchema`, `searchGuidesParamsSchema`) before executing backend code.
    - Any hallucinated parameters are trapped and returned as structured errors to the model rather than crashing internal microservices.
 
-3. **Proactive Advising Engine:**
-   - Created `/agent/next-step`, which prioritizes unearned trophies flagged with `is_missable: true` over general linear story progression.
-   - Outputs a deterministic, actionable briefing schema with session checklists and urgent warnings.
+3. **Canonical Relational Catalog & Entity Linking:**
+   - Grounded queries in canonical game and trophy records in PostgreSQL, linked to verified community walkthrough chunks (PowerPyx, PSNProfiles) with zero external account dependencies.
 
 4. **Standalone MCP Server (`@platina-ai/mcp-server`):**
    - Built a dedicated Model Context Protocol server using `@modelcontextprotocol/sdk` communicating over standard input/output (`stdio`).
-   - Exposed read-only guides as **MCP Resources** (`platina://guides/{game}`) and operations as **MCP Tools** (`get_player_trophies`, `search_trophy_guide`, `get_next_step_briefing`).
+   - Exposed read-only guides as **MCP Resources** (`platina://guides/{game}`) and operations as **MCP Tools** (`get_trophy_guide`, `list_trophies`, `search_trophy_guide`).
 
 ## Consequences
 
 - **Positive:**
-  - Multi-hop reasoning enables intelligent trophy guidance tailored to the player's exact save file.
+  - High factual precision: multi-hop reasoning combines exact SQL catalog inspection with verified vector guide chunks.
+  - Zero personal data footprint: operates entirely on publicly verified game guides and trophy metadata without PlayStation Network credentials or telemetry.
   - Intermediate SSE events provide a responsive user experience during multi-step reasoning.
   - Zero-code external interoperability: developers can query Platina AI directly from Claude Desktop or terminal agents via standard MCP configuration.
   - Robust bounds against runaway API billing.

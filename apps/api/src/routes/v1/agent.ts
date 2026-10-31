@@ -1,16 +1,9 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { platinaAgentRunner } from '../../services/agent/runner.js';
-import { nextStepAdvisor } from '../../services/agent/nextStep.js';
-
-const nextStepQuerySchema = z.object({
-  game: z.string().min(2, 'Nome do jogo é obrigatório'),
-  psnId: z.string().optional(),
-});
 
 const agentQuerySchema = z.object({
   message: z.string().trim().min(1, 'A mensagem não pode ser vazia'),
-  psnId: z.string().optional(),
   game: z.string().optional(),
   history: z
     .array(
@@ -24,33 +17,15 @@ const agentQuerySchema = z.object({
 });
 
 export const agentRoutes: FastifyPluginAsync = async (app) => {
-  // Proactive Next Step recommendation endpoint
-  app.post('/agent/next-step', async (request, reply) => {
-    const validation = nextStepQuerySchema.safeParse(request.body);
-    if (!validation.success) {
-      return reply.badRequest(validation.error.message);
-    }
-
-    const { game, psnId } = validation.data;
-    try {
-      const advice = await nextStepAdvisor.generateNextStepAdvice(game, psnId || 'me');
-      return reply.status(200).send(advice);
-    } catch (err: unknown) {
-      request.log.error({ err }, 'Erro ao gerar recomendação de próximo passo');
-      const msg = err instanceof Error ? err.message : 'Falha interna';
-      return reply.internalServerError(msg);
-    }
-  });
   app.post('/agent/run', async (request, reply) => {
     const validation = agentQuerySchema.safeParse(request.body);
     if (!validation.success) {
       return reply.badRequest(validation.error.message);
     }
 
-    const { message, psnId, game, history, lang } = validation.data;
-    request.log.info({ message, psnId, game, historyLength: history?.length, lang }, '📨 Executando agent run');
+    const { message, game, history, lang } = validation.data;
+    request.log.info({ message, game, historyLength: history?.length, lang }, '📨 Executando agent run');
     const promptWithContext = [
-      psnId ? (lang === 'en' ? `Player PSN ID: ${psnId}` : `PSN ID do jogador: ${psnId}`) : null,
       game ? (lang === 'en' ? `Game: ${game}` : `Jogo: ${game}`) : null,
       lang === 'en' ? `User message: ${message}` : `Mensagem do usuário: ${message}`,
     ]
@@ -81,7 +56,6 @@ export const agentRoutes: FastifyPluginAsync = async (app) => {
         signal: abortController.signal,
         ...(history ? { history } : {}),
         ...(game ? { game } : {}),
-        ...(psnId ? { psnId } : {}),
         lang,
       });
 

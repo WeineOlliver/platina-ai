@@ -25,7 +25,7 @@ In massive games like *The Witcher 3: Wild Hunt*, *Bloodborne*, *Elden Ring*, an
 Generic chatbots fail because they hallucinate quest prerequisites and cannot inspect game state. **Platina AI** provides:
 1. **Targeted for Trophy Hunters:** Structured tracking of missable warnings, point-of-no-return alerts, and tactical cleanup roadmaps.
 2. **Canonical Catalog & Entity Linking:** Exact relational catalog of games and trophies linked to verified guide chunks, preventing hallucinations.
-3. **Owner PSN Telemetry:** Optional live trophy synchronization for the project owner's profile via NPSSO (`psn-api`), comparing unlocked trophies against pending missables.
+3. **Zero Personal Data & Privacy:** Operates entirely from publicly verified trophy guides and the canonical game catalog; does not require, access, or store any PlayStation Network accounts or personal player data.
 4. **Universal Interoperability via MCP:** Exposes guides and tools to developer environments (Claude Desktop, Cursor) via the open **Model Context Protocol (MCP)** standard.
 
 ---
@@ -50,7 +50,6 @@ graph TB
     subgraph APITier [" apps/api (Node.js 22 / Fastify / TypeScript) "]
       AgentRunner["ReAct Agent Runner<br/>(Tool Calling Engine)"]
       SSEHandler["SSE Stream Handler<br/>(X-Accel-Buffering: no)"]
-      Advisor["NextStepAdvisor<br/>(Missable Prioritizer)"]
     end
 
     subgraph MCPTier [" packages/mcp-server "]
@@ -60,7 +59,7 @@ graph TB
     subgraph IngestTier [" services/ingest (Python 3.12 / FastAPI) "]
       Chunker["Semantic Chunker<br/>(Markdown Hierarchy)"]
       VectorSearch["VectorSearchService<br/>(Hybrid Filter + Cosine Sim)"]
-      PlayerSvc["PlayerProgressService<br/>(PSN State Inspector)"]
+      CatalogSvc["CatalogService<br/>(Relational Game & Trophy Catalog)"]
     end
   end
 
@@ -81,7 +80,7 @@ graph TB
   K8sService --> APITier
 
   APITier -->|Tool: search_trophy_guides| IngestTier
-  APITier -->|Tool: check_player_progress| IngestTier
+  APITier -->|Tool: get_trophy_guide / list_trophies| IngestTier
   APITier -->|Chat Completions & Function Calling| Groq
 
   IngestTier -->|Cosine Ops <=>| RDS
@@ -99,7 +98,7 @@ graph TB
 | Capability | Implementation Details | Architecture Highlights |
 | :--- | :--- | :--- |
 | **Autonomous ReAct Agent** | `PlatinaAgentRunner` in Fastify alternating between reasoning, tool calling, and observation over SSE frames (`tool_call`, `tool_result`, `chunk`, `done`). | Guards against infinite loops (`maxSteps: 5`) and supports mid-stream `AbortSignal` cancellation. |
-| **Proactive Advising** | `POST /api/v1/agent/next-step` compares player telemetry against missable warnings and returns a structured gameplay checklist. | Enforced JSON schema output via Zod with session time estimations and source citations. |
+| **Canonical Catalog & SQL Filtering** | Structured relational lookup (`list_trophies`, `get_trophy_guide`) querying canonical trophies, DLC, locations, and missables directly via SQL. | Deterministic counts and complete trophy lists without LLM hallucination or omission. |
 | **Semantic Ingestion & RAG** | Python FastAPI service splitting guides by Markdown headers with sliding character overlap (200 chars). | 1536-dimensional L2-normalized embeddings stored in PostgreSQL 16 `pgvector` with HNSW cosine indexing (`vector_cosine_ops`). |
 | **Model Context Protocol (MCP)** | Dedicated `@platina-ai/mcp-server` package exposing guides as **Resources** (`platina://guides/{game}`) and workflows as **Tools**. | Connects directly to Claude Desktop, Claude Code CLI, and Cursor via standard `stdio` JSON-RPC. |
 | **Production Cloud & IaC** | 3-tier multi-AZ VPC, PostgreSQL RDS with pgvector, ECR registries, k3s on Graviton, and declarative Helm releases in OpenTofu/Terraform. | Strict security group chaining (`ALB` -> `App` -> `Database`) with zero hardcoded credentials in git. |
@@ -153,22 +152,22 @@ docker compose up --build
 - **PostgreSQL pgvector:** `localhost:5432` (Database: `platina_rag`)
 
 ### Option B: Test the ReAct Agent in the Terminal
-Run an autonomous multi-step reasoning query testing player progress and vector guide retrieval:
+Run an autonomous multi-step reasoning query testing structured SQL catalog lookup and vector guide retrieval:
 
 ```bash
 curl -sN -X POST http://localhost:3000/api/v1/agent/run \
   -H "Content-Type: application/json" \
   -d '{
-    "message": "Qual o meu próximo passo urgente na platina de Bloodborne?",
+    "message": "How do I get the Hunter\'s Essence trophy in Bloodborne?",
     "game": "Bloodborne"
   }'
 ```
 
-### Option C: Get Proactive Next-Step Advice (JSON Output)
+### Option C: Query Canonical Trophy Catalog via SQL
+Query the canonical catalog for missable trophies directly:
+
 ```bash
-curl -s -X POST http://localhost:3000/api/v1/agent/next-step \
-  -H "Content-Type: application/json" \
-  -d '{"game": "Bloodborne"}' | jq .
+curl -s "http://localhost:8000/api/v1/catalog/trophies?game=The%20Witcher%203:%20Wild%20Hunt&missable=true" | jq .
 ```
 
 ---

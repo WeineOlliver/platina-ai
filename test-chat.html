@@ -486,13 +486,13 @@
     <header>
       <div class="header-left">
         <h1 id="headerTitle">🏆 Platina AI</h1>
-        <p id="headerSubtitle">Agente ReAct Autônomo com RAG Híbrido e Sincronização PSN</p>
+        <p id="headerSubtitle">Agente ReAct Autônomo com RAG Híbrido e Catálogo Canônico</p>
       </div>
       <div class="header-right">
         <button class="btn-lang" id="btnLangToggle" onclick="toggleLanguage()">🌐 EN</button>
         <div class="player-pill">
           <span class="status-dot" id="statusDot"></span>
-          <span id="playerPillText">Conta PSN: <strong>OlliverW9</strong></span>
+          <span id="playerPillText">Status: <strong>Online</strong></span>
         </div>
       </div>
     </header>
@@ -505,15 +505,11 @@
       <button class="btn-new-tab" id="btnNewTab" onclick="createNewSession()">+ Nova Platina</button>
     </div>
 
-    <!-- CONTROLES DA SESSÃO ATIVA (JOGO E PSN ID) -->
+    <!-- CONTROLES DA SESSÃO ATIVA (JOGO) -->
     <div class="session-header-bar">
       <div class="session-field">
         <label for="gameInput">🎮 Jogo Ativo:</label>
         <input type="text" id="gameInput" placeholder="Ex: Grand Theft Auto V, The Witcher 3: Wild Hunt" oninput="handleGameChange(this.value)" />
-      </div>
-      <div class="session-field" style="max-width: 280px;">
-        <label for="psnIdInput">👤 PSN Profile:</label>
-        <input type="text" id="psnIdInput" value="Project Owner (me)" readonly disabled title="Monitors strictly the project owner account via NPSSO" />
       </div>
     </div>
 
@@ -542,7 +538,7 @@
         <span id="toggleIcon">▼ Ver chamadas de ferramentas (Tools)</span>
       </div>
       <div class="details-content" id="detailsContent">
-        <div style="color: #6e7681;">Nenhuma ferramenta executada ainda. Envie uma mensagem acima para ver o agente chamando a PSN e o banco vetorial em segundo plano.</div>
+        <div style="color: #6e7681;">Nenhuma ferramenta executada ainda. Envie uma mensagem acima para ver o agente consultando o catálogo e o banco vetorial em segundo plano.</div>
       </div>
     </div>
   </div>
@@ -560,13 +556,12 @@
       pt: {
         title: 'Platina AI — Assistente de Platinas PlayStation',
         headerTitle: '🏆 Platina AI',
-        subtitle: 'Agente ReAct Autônomo com RAG Híbrido e Sincronização PSN',
-        psnAccount: 'Conta PSN:',
+        subtitle: 'Agente ReAct Autônomo com RAG Híbrido e Catálogo Canônico',
+        statusOnline: 'Status:',
         newTab: '+ Nova Platina',
         defaultTabTitle: 'Nova Platina',
         gameInputLabel: '🎮 Jogo Ativo:',
         gameInputPlaceholder: 'Ex: Grand Theft Auto V, The Witcher 3: Wild Hunt',
-        psnIdLabel: '👤 PSN ID:',
         textareaPlaceholder: 'Digite sua mensagem para o Platina AI (pressione Enter para enviar)...',
         sendBtn: 'Enviar',
         logSummaryPrefix: '⚙️ Execução Interna do Agente',
@@ -577,7 +572,7 @@
         logSummaryDone: (count) => `⚙️ Execução concluída (${count} ferramenta(s) executada(s))`,
         toolDetailsToggleView: '▼ Ver chamadas de ferramentas (Tools)',
         toolDetailsToggleHide: '▲ Ocultar chamadas de ferramentas',
-        emptyLogs: 'Nenhuma ferramenta executada ainda nesta sessão. Envie uma mensagem acima para ver o agente chamando a PSN e o banco vetorial em segundo plano.',
+        emptyLogs: 'Nenhuma ferramenta executada ainda nesta sessão. Envie uma mensagem acima para ver o agente consultando o catálogo e o banco vetorial em segundo plano.',
         welcomeTitle: 'Olá, Caçador de Troféus! 🏆',
         welcomeSubtitle: 'Qual jogo você deseja consultar ou platinar hoje?',
         you: 'Você',
@@ -587,13 +582,12 @@
       en: {
         title: 'Platina AI — PlayStation Trophy Hunting Assistant',
         headerTitle: '🏆 Platina AI',
-        subtitle: 'Autonomous ReAct Agent with Hybrid RAG & PSN Sync',
-        psnAccount: 'PSN Account:',
+        subtitle: 'Autonomous ReAct Agent with Hybrid RAG & Canonical Catalog',
+        statusOnline: 'Status:',
         newTab: '+ New Game',
         defaultTabTitle: 'New Game',
         gameInputLabel: '🎮 Active Game:',
         gameInputPlaceholder: 'e.g. The Witcher 3: Wild Hunt, Grand Theft Auto V',
-        psnIdLabel: '👤 PSN ID:',
         textareaPlaceholder: 'Type your message for Platina AI (press Enter to send)...',
         sendBtn: 'Send',
         logSummaryPrefix: '⚙️ Internal Agent Execution',
@@ -604,7 +598,7 @@
         logSummaryDone: (count) => `⚙️ Execution completed (${count} tool(s) executed)`,
         toolDetailsToggleView: '▼ View Tool Calls (Tools)',
         toolDetailsToggleHide: '▲ Hide Tool Calls (Tools)',
-        emptyLogs: 'No tools executed yet in this session. Send a message above to see the agent calling PSN and vector database.',
+        emptyLogs: 'No tools executed yet in this session. Send a message above to see the agent querying the catalog and vector database.',
         welcomeTitle: 'Hello, Trophy Hunter! 🏆',
         welcomeSubtitle: 'Which game would you like to platinum today?',
         you: 'You',
@@ -624,22 +618,11 @@
       gfm: true
     });
 
-    function getPsnId() {
-      const psnInput = document.getElementById('psnIdInput');
-      return (psnInput && psnInput.value.trim()) || localStorage.getItem('platina_psn_id') || 'OlliverW9';
-    }
-
-    function handlePsnIdChange(val) {
-      const psnId = val.trim() || 'OlliverW9';
-      localStorage.setItem('platina_psn_id', psnId);
-      updatePlayerPill();
-    }
-
     function updatePlayerPill() {
       const playerPillText = document.getElementById('playerPillText');
       if (playerPillText) {
         const t = I18N[currentLang] || I18N.pt;
-        playerPillText.innerHTML = `${t.psnAccount} <strong>${escapeHtml(getPsnId())}</strong>`;
+        playerPillText.innerHTML = `${t.statusOnline} <strong>Online</strong>`;
       }
     }
 
@@ -665,9 +648,6 @@
 
       const gameLabel = document.querySelector('label[for="gameInput"]');
       if (gameLabel) gameLabel.textContent = t.gameInputLabel;
-
-      const psnLabel = document.querySelector('label[for="psnIdInput"]');
-      if (psnLabel) psnLabel.textContent = t.psnIdLabel;
 
       const userInput = document.getElementById('userInput');
       if (userInput) userInput.placeholder = t.textareaPlaceholder;
@@ -728,9 +708,6 @@
         activeSessionId = sessions[0].id;
       }
 
-      const storedPsnId = localStorage.getItem('platina_psn_id') || 'OlliverW9';
-      const psnInput = document.getElementById('psnIdInput');
-      if (psnInput) psnInput.value = storedPsnId;
       updatePlayerPill();
     }
 
@@ -1082,7 +1059,6 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             message: text,
-            psnId: getPsnId(),
             game: session.game,
             history: session.history,
             lang: currentLang

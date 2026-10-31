@@ -28,7 +28,7 @@ def test_trophy_list_parsed_roundtrip():
         type="bronze",
         description="Defeat all Iris von Everec's Nightmares simultaneously.",
         group="Hearts of Stone",
-        psn_trophy_id=60,
+        psnprofiles_trophy_id=60,
     )
     trophy_list = TrophyListParsed(
         game_title="The Witcher 3: Wild Hunt",
@@ -44,7 +44,7 @@ def test_trophy_list_parsed_roundtrip():
     assert len(restored.trophies) == 1
     assert restored.trophies[0].name == "When It’s Many Against One…"
     assert restored.trophies[0].group == "Hearts of Stone"
-    assert restored.trophies[0].psn_trophy_id == 60
+    assert restored.trophies[0].psnprofiles_trophy_id == 60
 
 
 def test_guide_parsed_roundtrip():
@@ -117,7 +117,7 @@ def test_linked_game_roundtrip_with_deterministic_ids():
                 type="bronze",
                 description="Defeat all Iris von Everec's Nightmares.",
                 group="Hearts of Stone",
-                psn_trophy_id=60,
+                psnprofiles_trophy_id=60,
                 aliases=[],
                 missable_sources=["powerpyx_guide"],
             )

@@ -14,7 +14,7 @@ export interface TrophyGuideResult {
   trophy?: {
     id: string;
     game_id?: string;
-    psn_trophy_id?: number | null;
+    psnprofiles_trophy_id?: number | null;
     name: string;
     type: string;
     description?: string | null;

@@ -28,7 +28,3 @@ CREATE INDEX IF NOT EXISTS idx_guide_chunks_embedding_hnsw
 ON guide_chunks 
 USING hnsw (embedding vector_cosine_ops)
 WITH (m = 16, ef_construction = 64);
-
--- Trophy categories schema extension (applied to player_trophies when initialized)
-ALTER TABLE IF EXISTS player_trophies ADD COLUMN IF NOT EXISTS trophy_category VARCHAR(32) DEFAULT 'standard';
-CREATE INDEX IF NOT EXISTS idx_player_trophies_category ON player_trophies(trophy_category);

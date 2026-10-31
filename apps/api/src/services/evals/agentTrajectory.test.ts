@@ -69,8 +69,8 @@ describe('Agent Trajectory & Tool Execution Evaluation Suite', () => {
           stepNumber: 1,
           toolCalls: [
             {
-              toolName: 'check_player_progress',
-              args: { psnId: 'OlliverHunter', game: 'Grand Theft Auto V' },
+              toolName: 'get_trophy_guide',
+              args: { game: 'Grand Theft Auto V', trophy: 'San Andreas Sightseer' },
             },
           ],
         },
@@ -78,8 +78,8 @@ describe('Agent Trajectory & Tool Execution Evaluation Suite', () => {
           stepNumber: 2,
           toolCalls: [
             {
-              toolName: 'check_player_progress',
-              args: { psnId: 'OlliverHunter', game: 'Grand Theft Auto V' },
+              toolName: 'get_trophy_guide',
+              args: { game: 'Grand Theft Auto V', trophy: 'San Andreas Sightseer' },
             },
           ],
         },

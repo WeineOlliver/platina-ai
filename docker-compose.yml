@@ -15,8 +15,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
-      - ./infra/postgres/02_player_progress.sql:/docker-entrypoint-initdb.d/02_player_progress.sql:ro
-      - ./infra/postgres/03_seed_player.sql:/docker-entrypoint-initdb.d/03_seed_player.sql:ro
+      - ./infra/postgres/12_canonical_catalog.sql:/docker-entrypoint-initdb.d/12_canonical_catalog.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-platina} -d ${POSTGRES_DB:-platina_rag}"]
       interval: 5s

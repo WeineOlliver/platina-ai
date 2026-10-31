@@ -11,7 +11,6 @@ from src.config import settings
 from src.database import get_db_session
 from src.models.chunk import GuideChunkModel
 from src.models.catalog import GameModel
-from src.models.player import PlayerGameModel, PlayerTrophyModel
 from src.schemas.chunk import IngestGuideRequest, DocumentChunk, FetchAndIndexRequest
 from src.schemas.search import SearchQueryRequest, SearchResponse
 from src.services.chunker import chunker, build_context_prefix
@@ -148,15 +147,15 @@ async def fetch_and_index_guide(request: FetchAndIndexRequest):
 
         # Also index psnprofiles_guide_witcher3.html alongside PowerPyx when available
         if snapshots_dir.exists():
-            psn_guide_file = snapshots_dir / "psnprofiles_guide_witcher3.html"
-            if psn_guide_file.exists() and "witcher" in request.game.lower():
-                psn_html = psn_guide_file.read_text(encoding="utf-8", errors="ignore")
-                psn_md = scraper._html_to_markdown(psn_html)
+            psnprofiles_guide_file = snapshots_dir / "psnprofiles_guide_witcher3.html"
+            if psnprofiles_guide_file.exists() and "witcher" in request.game.lower():
+                psnprofiles_html = psnprofiles_guide_file.read_text(encoding="utf-8", errors="ignore")
+                psnprofiles_md = scraper._html_to_markdown(psnprofiles_html)
                 pages.append((
                     "The Witcher 3: Wild Hunt — PSNProfiles Trophy Guide",
-                    psn_md,
+                    psnprofiles_md,
                     snapshot_url_map.get("psnprofiles_guide_witcher3.html", "https://psnprofiles.com/guide/2842-the-witcher-3-wild-hunt-trophy-guide"),
-                    psn_html,
+                    psnprofiles_html,
                 ))
 
         if not pages:
@@ -243,7 +242,7 @@ async def fetch_and_index_guide(request: FetchAndIndexRequest):
                 )
                 session.add(record)
 
-        # 6. Extract missable trophies from parsed pages & roadmap DOM, then update player_trophies
+        # 6. Extract missable trophies from parsed pages & roadmap DOM
         discovered_missables: set[str] = set()
         for page_title, page_markdown, page_url, page_html in pages:
             dom_data = scraper.parse_roadmap_dom(page_html, base_url=page_url)
@@ -256,36 +255,6 @@ async def fetch_and_index_guide(request: FetchAndIndexRequest):
                 if scraper._is_valid_trophy_name(norm):
                     discovered_missables.add(norm)
 
-        updated_count = 0
-        if discovered_missables:
-            async with get_db_session() as session:
-                game_clean = request.game.strip()
-                pg_stmt = select(PlayerGameModel.id).where(
-                    (PlayerGameModel.game_title.ilike(game_clean))
-                    | (PlayerGameModel.game_title.ilike(f"%{game_clean}%"))
-                )
-                pg_res = await session.execute(pg_stmt)
-                game_ids = [r[0] for r in pg_res.fetchall()]
-
-                if not game_ids:
-                    logger.warning("Nenhum player_game encontrado para o jogo '%s'; pulando sync de missáveis.", request.game)
-                    updated_count = 0
-                else:
-                    lower_names = [m.lower().strip() for m in discovered_missables]
-                    update_stmt = (
-                        update(PlayerTrophyModel)
-                        .where(
-                            func.lower(PlayerTrophyModel.trophy_name).in_(lower_names),
-                            PlayerTrophyModel.player_game_id.in_(game_ids),
-                        )
-                        .values(
-                            is_missable=True,
-                            trophy_category="missable"
-                        )
-                    )
-                    res = await session.execute(update_stmt)
-                    updated_count = res.rowcount or 0
-
         return {
             "status": "indexed",
             "game": request.game,
@@ -293,7 +262,7 @@ async def fetch_and_index_guide(request: FetchAndIndexRequest):
             "pages_indexed": len(pages),
             "source_url": canonical_url,
             "missables_synced": list(discovered_missables),
-            "trophies_updated": updated_count,
+            "trophies_updated": 0,
         }
     except Exception as e:
         if isinstance(e, HTTPException):

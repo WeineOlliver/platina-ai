@@ -1,13 +1,6 @@
 import Groq from 'groq-sdk';
 import { env } from '../../config/env.js';
 import {
-  playerProgressTool,
-  PlayerProgressTool,
-  checkPlayerProgressParamsSchema,
-  type CheckPlayerProgressParams,
-  type PlayerProgressResult,
-} from './tools/playerProgress.js';
-import {
   getTrophyGuideTool,
   GetTrophyGuideTool,
   getTrophyGuideParamsSchema,
@@ -52,7 +45,6 @@ export interface RunAgentOptions {
   signal?: AbortSignal;
   history?: Array<{ role: 'user' | 'assistant'; content: string }> | undefined;
   game?: string;
-  psnId?: string;
   lang?: 'en' | 'pt';
   sessionId?: string;
 }
@@ -120,61 +112,6 @@ function extractGameFromText(text: string): string | undefined {
   return undefined;
 }
 
-function addPlayerProgressToSources(
-  pData: Partial<PlayerProgressResult>,
-  collectedGuideSources: Array<{ content: string; title: string }>,
-  lang: 'en' | 'pt' = 'pt'
-) {
-  const isEn = lang === 'en';
-  const summaryParts: string[] = [];
-  if (pData.game) summaryParts.push(isEn ? `Game: ${pData.game}` : `Jogo: ${pData.game}`);
-  if (pData.pending_missable_trophies?.length) {
-    summaryParts.push(
-      isEn
-        ? `Pending missable trophies: ${pData.pending_missable_trophies.map((t) => t.trophy_name).join(', ')}`
-        : `Troféus perdíveis pendentes: ${pData.pending_missable_trophies.map((t) => t.trophy_name).join(', ')}`
-    );
-  }
-  if (pData.unearned_trophies_summary?.length) {
-    summaryParts.push(
-      isEn
-        ? `Pending unearned trophies list:\n${pData.unearned_trophies_summary.slice(0, 10).join('\n')}`
-        : `Lista de troféus pendentes:\n${pData.unearned_trophies_summary.slice(0, 10).join('\n')}`
-    );
-  }
-  if (summaryParts.length > 0) {
-    collectedGuideSources.push({
-      title: isEn ? `PSN Progress (${pData.game || 'General'})` : `Progresso PSN (${pData.game || 'Geral'})`,
-      content: summaryParts.join('\n'),
-    });
-  }
-
-  const gameName = pData.game || (isEn ? 'General' : 'Geral');
-  if (pData.quick_cleanup_trophies?.length) {
-    collectedGuideSources.push({
-      title: isEn ? `PSN Progress (${gameName}) - Quick Cleanup Trophies` : `Progresso PSN (${gameName}) - Troféus Rápidos (Limpeza)`,
-      content: pData.quick_cleanup_trophies
-        .map(
-          (t) =>
-            `- ${t.trophy_name}${t.trophy_type ? ` [${t.trophy_type}]` : ''}${t.chapter_or_location ? `: ${t.chapter_or_location}` : ''}`
-        )
-        .join('\n'),
-    });
-  }
-
-  if (pData.heavy_grind_trophies?.length) {
-    collectedGuideSources.push({
-      title: isEn ? `PSN Progress (${gameName}) - Heavy Grind Trophies` : `Progresso PSN (${gameName}) - Troféus de Grind Pesado`,
-      content: pData.heavy_grind_trophies
-        .map(
-          (t) =>
-            `- ${t.trophy_name}${t.trophy_type ? ` [${t.trophy_type}]` : ''}${t.chapter_or_location ? `: ${t.chapter_or_location}` : ''}`
-        )
-        .join('\n'),
-    });
-  }
-}
-
 // Insight: Agent ReAct Loop (Reasoning + Acting).
 // The agent alternates between LLM generation and tool execution.
 // If the LLM generates `tool_calls`, we execute the requested tools locally,
@@ -192,7 +129,6 @@ export class PlatinaAgentRunner {
 
   getAvailableTools() {
     return [
-      PlayerProgressTool.toolDefinition,
       GetTrophyGuideTool.toolDefinition,
       ListTrophiesTool.toolDefinition,
       GetGameOverviewTool.toolDefinition,
@@ -205,13 +141,6 @@ export class PlatinaAgentRunner {
     args: Record<string, unknown>,
     context?: { sessionGame?: string | undefined }
   ): Promise<unknown> {
-    if (name === PlayerProgressTool.name) {
-      const parsed = checkPlayerProgressParamsSchema.safeParse(args);
-      if (!parsed.success) {
-        throw new Error(`Invalid arguments for ${PlayerProgressTool.name}: ${parsed.error.message}`);
-      }
-      return await playerProgressTool.execute(parsed.data);
-    }
     if (name === GetTrophyGuideTool.name) {
       const parsed = getTrophyGuideParamsSchema.safeParse(args);
       if (!parsed.success) {
@@ -323,31 +252,16 @@ Se o usuário perguntar sobre um troféu específico, mantenha o layout tático 
 Orçamento de Resposta (Obrigatório):
 Sua resposta final deve ter no total MENOS DE 180 PALAVRAS.`);
 
-    const targetPsnId = options.psnId?.trim();
-    const targetGame = (options.game || (targetPsnId ? extractGameFromText(userMessage) : undefined))?.trim();
+    const targetGame = options.game?.trim();
     let detectedGame = targetGame || extractGameFromText(userMessage);
-    const shouldPrefetch = Boolean(targetPsnId && targetGame);
-
-    const prefetchPromptAddition = shouldPrefetch
-      ? (isEn
-        ? `\n\nImmediate Execution Directive (Single Roundtrip):
-The progress for the project owner in "${targetGame}" has already been queried and injected via the "check_player_progress" tool.
-DO NOT execute the "check_player_progress" tool again.
-DIRECTLY generate the greeting and tactical briefing (or status response) in a single turn based on already available data.`
-        : `\n\nDiretriz de Execução Imediata (Single Roundtrip):
-O progresso do dono do projeto em "${targetGame}" já foi consultado e os dados estão injetados na conversa via ferramenta "check_player_progress".
-NÃO execute a ferramenta "check_player_progress" novamente.
-Gere DIRETAMENTE a saudação e o briefing tático (ou resposta de status) em 1 único turno com base nos dados já disponíveis.`)
-      : '';
 
     const systemPrompt = isEn
       ? `You are Platina AI Agent, an autonomous PlayStation trophy hunting specialist.
 You have access to tools to:
-1. "check_player_progress": check earned and pending trophies for the project owner on PSN.
-2. "get_trophy_guide": look up a specific trophy in the canonical catalog to get its metadata and exact guide walkthrough (no vector search).
-3. "list_trophies": structured SQL query for lists, counts, missable trophies by location/DLC, or description keywords (description_query).
-4. "get_game_overview": get platinum overview stats (difficulty, hours, playthroughs, type and DLC counts).
-5. "search_trophy_guides": search verified excerpts in the trophy guide vector database for vague queries or quest walkthroughs.
+1. "get_trophy_guide": look up a specific trophy in the canonical catalog to get its metadata and exact guide walkthrough (no vector search).
+2. "list_trophies": structured SQL query for lists, counts, missable trophies by location/DLC, or description keywords (description_query).
+3. "get_game_overview": get platinum overview stats (difficulty, hours, playthroughs, type and DLC counts).
+4. "search_trophy_guides": search verified excerpts in the trophy guide vector database for vague queries or quest walkthroughs.
 
 Agent Guidelines & Language Architecture:
 - ALL tool arguments (query, game, trophies, quests) MUST be written in English. Always use official English names for trophies, quests, and characters.
@@ -360,20 +274,17 @@ Agent Guidelines & Language Architecture:
   - For difficulty, platinum hours, playthroughs, or trophy counts by type/DLC, ALWAYS call "get_game_overview".
   - For vague queries, story points of no return, or quests without a cited trophy name, use "search_trophy_guides".
 - IMPORTANT Query Rule: Only use an official trophy or quest name in a tool query when the user actually cited that name. If the user only described a requirement (e.g. "Qual troféu é de matar vaca?"), describe the requirement in English (e.g. query: "kill cows"), NEVER guess or invent a nonexistent trophy name.
-- If the user asks what to do next or checks trophy progress in a game, call "check_player_progress" with the game title to inspect the owner's actual progress.
 - When searching guides with "search_trophy_guides", ALWAYS send clean, concise English keywords (e.g. query: "Card Collector", "Masterminds", "Kifflom"), NEVER concatenate long descriptions or words like "silver" or "bronze".${isDeepWalkthrough ? ' In detailed mode, pass limit: 8 to obtain comprehensive context.' : ''}
 - Gwent Cards Domain Rule: Card Collector strictly requires the 120 unique cards from the base game. 195 is the total counting duplicates; DLC cards do not count towards the trophy. When answering about card counts, explicitly state "120 unique base game cards for the trophy" and, if mentioning 195 or DLC, explain the distinction. Never state a number without this context.
-- If player progress was identified and no additional guide search is required, respond tactically using "check_player_progress" data.
-- Do not make more than 2 tool calls in the same response. Be direct, practical, cite sources, and respond in clear, professional English.${prefetchPromptAddition}
+- Do not make more than 2 tool calls in the same response. Be direct, practical, cite sources, and respond in clear, professional English.
 
 ${personaInstructions}`
       : `Você é o Platina AI Agent, um assistente gamer autônomo especialista em platinas PlayStation.
 Você tem acesso a ferramentas para:
-1. "check_player_progress": consultar os troféus já conquistados e pendentes do dono do projeto na PSN.
-2. "get_trophy_guide": consultar um troféu específico no catálogo canônico obtendo metadados e guia ordenado (sem busca vetorial).
-3. "list_trophies": consulta estruturada SQL para listas, contagens, troféus perdíveis por região/DLC ou palavras na descrição (description_query).
-4. "get_game_overview": obter panorama de platina (dificuldade, tempo em horas, jogadas necessárias e contagens por tipo/DLC).
-5. "search_trophy_guides": buscar trechos verificados no banco vetorial de guias para buscas vagas ou walkthroughs de quests.
+1. "get_trophy_guide": consultar um troféu específico no catálogo canônico obtendo metadados e guia ordenado (sem busca vetorial).
+2. "list_trophies": consulta estruturada SQL para listas, contagens, troféus perdíveis por região/DLC ou palavras na descrição (description_query).
+3. "get_game_overview": obter panorama de platina (dificuldade, tempo em horas, jogadas necessárias e contagens por tipo/DLC).
+4. "search_trophy_guides": buscar trechos verificados no banco vetorial de guias para buscas vagas ou walkthroughs de quests.
 
 Diretrizes do Agente e Arquitetura de Idioma:
 - OBRIGATÓRIO: TODOS os argumentos das ferramentas (query, game, troféus, missões) devem ser escritos em INGLÊS. Traduza a pergunta do usuário para termos em inglês antes de chamar qualquer ferramenta.
@@ -385,10 +296,9 @@ Diretrizes do Agente e Arquitetura de Idioma:
   - Perguntas vagas, pontos de não retorno de história ou contratos sem nome exato por "search_trophy_guides".
 - REGRA CRÍTICA DE QUERY: Só use nome oficial de troféu ou quest na query quando o usuário tiver citado esse nome. Se ele só descreveu o requisito (ex: "Qual troféu é de matar vaca?"), a query descreve o requisito em inglês (ex: query: "kill cows"), NUNCA adivinhe ou invente um nome de troféu inexistente.
 - A resposta final destinada ao usuário deve ser escrita em português (o idioma da sessão/pergunta).
-- Se o usuário perguntar o que precisa fazer a seguir ou quiser consultar o progresso, chame "check_player_progress" com o jogo.
 - Para buscar no banco de guias com "search_trophy_guides", envie termos concisos e limpos em inglês.${isDeepWalkthrough ? ' No modo detalhado, passe limit: 8 para obter contexto abrangente.' : ''}
 - Regra de Domínio de Cartas de Gwent: O troféu Card Collector exige estritamente as 120 cartas únicas do jogo base. 195 é o total contando cartas duplicadas; cartas de DLC não contam para o troféu. Ao responder sobre quantidade de cartas, deixe explícito "120 cartas únicas do jogo base para o troféu" e, se citar 195 ou DLC, explique a diferença. Nunca dê um número sem esse contexto.
-- Não execute mais de 2 chamadas de ferramentas na mesma resposta. Seja direto, prático e cite as fontes.${prefetchPromptAddition}
+- Não execute mais de 2 chamadas de ferramentas na mesma resposta. Seja direto, prático e cite as fontes.
 
 ${personaInstructions}`;
 
@@ -420,7 +330,6 @@ ${personaInstructions}`;
       /^(1|2|a|b)$/i.test(userMessage.trim());
 
     const isGameOrTrophyQuery =
-      !shouldPrefetch &&
       !isPureChoiceOrGreeting &&
       (Boolean(targetGame || detectedGame || options.game) ||
         /(trof[eé]u|trophy|achievement|conquista|platina|platinar|quest|miss[aã]o|missable|perd[ií]vel|guia|guide|jogo|game|boss|dlc|gwent|card|carta)/i.test(userMessage));
@@ -467,64 +376,6 @@ ${personaInstructions}`;
       }
     };
 
-    if (shouldPrefetch && targetGame) {
-      if (options.signal?.aborted) return;
-
-      yield {
-        type: 'tool_call',
-        toolName: PlayerProgressTool.name,
-        toolArgs: { game: targetGame },
-      };
-
-      let prefetchResult: unknown;
-      try {
-        prefetchResult = await this.executeTool(PlayerProgressTool.name, {
-          game: targetGame,
-        });
-      } catch (err: unknown) {
-        prefetchResult = { error: err instanceof Error ? err.message : String(err) };
-      }
-
-      yield {
-        type: 'tool_result',
-        toolName: PlayerProgressTool.name,
-        toolResult: prefetchResult,
-      };
-
-      if (prefetchResult && typeof prefetchResult === 'object') {
-        const pData = prefetchResult as Partial<PlayerProgressResult>;
-        if (pData.game || pData.unearned_trophies_summary?.length || pData.pending_missable_trophies?.length) {
-          hasSuccessfulContextToolCall = true;
-        }
-        addPlayerProgressToSources(
-          pData,
-          collectedGuideSources,
-          lang
-        );
-      }
-
-      const prefetchCallId = `call_prefetch_progress_${Date.now()}`;
-      messages.push({
-        role: 'assistant',
-        content: null,
-        tool_calls: [
-          {
-            id: prefetchCallId,
-            type: 'function',
-            function: {
-              name: PlayerProgressTool.name,
-              arguments: JSON.stringify({ game: targetGame }),
-            },
-          },
-        ],
-      });
-      messages.push({
-        role: 'tool',
-        tool_call_id: prefetchCallId,
-        content: JSON.stringify(prefetchResult),
-      });
-    }
-
     const verifyAndStreamAnswer = async (
       rawContent: string,
       currentMessages: Groq.Chat.ChatCompletionMessageParam[]
@@ -544,8 +395,6 @@ ${personaInstructions}`;
       }
 
       const isChoiceOrGreeting =
-        shouldPrefetch ||
-        Boolean(options.psnId) ||
         /^(1|2|a|b|sim|nao|ok|quero|ola|oi|rota 1|rota 2|yes|no|option 1|option 2|route 1|route 2|hello|hi)/i.test(userMessage.trim()) ||
         /^(1|2|a|b)$/i.test(userMessage.trim()) ||
         userMessage.includes('Mensagem do usuário: 1') ||
@@ -676,8 +525,8 @@ ${personaInstructions}`;
                       {
                         role: 'user',
                         content: isEn
-                          ? 'Error: Invalid tool call name. Available tools are "check_player_progress", "get_trophy_guide", "list_trophies", "get_game_overview", and "search_trophy_guides". Please retry.'
-                          : 'Erro: Chamada de ferramenta com nome inválido. As ferramentas permitidas são "check_player_progress", "get_trophy_guide", "list_trophies", "get_game_overview" e "search_trophy_guides". Reenvie a chamada válida.',
+                          ? 'Error: Invalid tool call name. Available tools are "get_trophy_guide", "list_trophies", "get_game_overview", and "search_trophy_guides". Please retry.'
+                          : 'Erro: Chamada de ferramenta com nome inválido. As ferramentas permitidas são "get_trophy_guide", "list_trophies", "get_game_overview" e "search_trophy_guides". Reenvie a chamada válida.',
                       },
                     ],
                     tools: this.getAvailableTools(),
@@ -921,17 +770,6 @@ ${personaInstructions}`;
               }
             } catch {}
           }
-        }
-
-        if (toolName === PlayerProgressTool.name && resultData && typeof resultData === 'object') {
-          const pData = resultData as Partial<PlayerProgressResult>;
-          if (pData.game || pData.unearned_trophies_summary?.length || pData.pending_missable_trophies?.length) {
-            hasSuccessfulContextToolCall = true;
-          }
-          if (pData.game) {
-            detectedGame = detectedGame || pData.game;
-          }
-          addPlayerProgressToSources(pData, collectedGuideSources, lang);
         }
 
         if (toolName === GetTrophyGuideTool.name && resultData && typeof resultData === 'object') {
