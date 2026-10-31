@@ -32,8 +32,8 @@ async def record_demo():
 
         page = await context.new_page()
 
-        print("Navigating to http://localhost:3000/ui ...")
-        await page.goto("http://localhost:3000/ui")
+        print("Navigating to http://localhost:3001/ui ...")
+        await page.goto("http://localhost:3001/ui")
         await page.wait_for_selector("#chatBox")
 
         # 1. Wait for page load and toggle to English mode
@@ -87,7 +87,7 @@ async def record_demo():
         await asyncio.sleep(2.0)
 
         # 6. Type and send step-by-step walkthrough question in English
-        prompt_3 = "Can you give me the step-by-step walkthrough for each missable trophy?"
+        prompt_3 = "How to unlock the Card Collector trophy step by step?"
         print(f"User asks follow-up: '{prompt_3}'")
         await type_and_send(page, prompt_3, typing_delay=12)
 
@@ -119,7 +119,7 @@ def convert_to_mp4_and_gif(raw_video_path):
         FFMPEG_BIN, "-y",
         "-i", raw_video_path,
         "-c:v", "libx264",
-        "-crf", "20",
+        "-crf", "22",
         "-preset", "slow",
         "-pix_fmt", "yuv420p",
         "-movflags", "+faststart",
@@ -131,7 +131,7 @@ def convert_to_mp4_and_gif(raw_video_path):
     subprocess.run([
         FFMPEG_BIN, "-y",
         "-i", raw_video_path,
-        "-vf", "fps=14,scale=960:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=128[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3",
+        "-vf", "fps=10,scale=800:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=96[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3",
         gif_out
     ], check=True)
 
@@ -139,11 +139,11 @@ def convert_to_mp4_and_gif(raw_video_path):
     subprocess.run([
         FFMPEG_BIN, "-y",
         "-i", raw_video_path,
-        "-vf", "fps=8,scale=640:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=64[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3",
+        "-vf", "fps=6,scale=560:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=48[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3",
         gif_light_out
     ], check=True)
 
-    print(f"SUCCESS!\nMP4: {mp4_out}\nGIF: {gif_out}\nLight GIF: {gif_light_out}")
+    print(f"SUCCESS!\nMP4: {mp4_out} ({os.path.getsize(mp4_out)} bytes)\nGIF: {gif_out} ({os.path.getsize(gif_out)} bytes)\nLight GIF: {gif_light_out} ({os.path.getsize(gif_light_out)} bytes)")
     return mp4_out, gif_out, gif_light_out
 
 if __name__ == "__main__":
