@@ -71,6 +71,7 @@ async def test_chunker_rejects_empty_payload(async_client):
 
 
 @pytest.mark.anyio
+@pytest.mark.integration
 async def test_index_guide_stores_in_pgvector(async_client):
     response = await async_client.post(
         "/api/v1/ingest/index",
@@ -88,6 +89,7 @@ async def test_index_guide_stores_in_pgvector(async_client):
 
 
 @pytest.mark.anyio
+@pytest.mark.integration
 async def test_semantic_search_retrieves_relevant_chunk(async_client):
     # Search specifically for Eileen the Crow
     response = await async_client.post(
@@ -108,6 +110,7 @@ async def test_semantic_search_retrieves_relevant_chunk(async_client):
 
 
 @pytest.mark.anyio
+@pytest.mark.integration
 async def test_semantic_search_hybrid_missable_filter(async_client):
     response = await async_client.post(
         "/api/v1/ingest/search",
@@ -125,6 +128,7 @@ async def test_semantic_search_hybrid_missable_filter(async_client):
 
 
 @pytest.mark.anyio
+@pytest.mark.integration
 async def test_reindex_purges_stale_chunks_and_updates(async_client):
     updated_guide = """# Guia Atualizado - Bloodborne
 

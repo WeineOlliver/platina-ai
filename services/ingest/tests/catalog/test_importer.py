@@ -273,6 +273,7 @@ def test_parse_guide_html():
 
 
 @pytest.mark.anyio
+@pytest.mark.integration
 async def test_import_catalog_idempotent(tmp_path):
     """Verify full catalog import and idempotent upsert into database."""
     game_id = "test-synthetic-adventure"

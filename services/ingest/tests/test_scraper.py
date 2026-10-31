@@ -7,6 +7,8 @@ from src.models.chunk import GuideChunkModel
 from sqlalchemy import delete, select, func
 from src.services.scraper import TrophyGuideScraper, scraper
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def anyio_backend():

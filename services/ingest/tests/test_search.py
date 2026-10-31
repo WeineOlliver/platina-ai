@@ -28,7 +28,7 @@ async def async_client():
         yield client
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 async def setup_test_guide(async_client):
     """Seed the database with known chunks for search testing."""
     await async_client.post(
@@ -52,7 +52,8 @@ async def test_search_schema_supports_min_similarity():
 
 
 @pytest.mark.anyio
-async def test_exact_keyword_matching_bm25_surfaces_term_when_cosine_lower(async_client):
+@pytest.mark.integration
+async def test_exact_keyword_matching_bm25_surfaces_term_when_cosine_lower(async_client, setup_test_guide):
     """
     Exact keyword search:
     BM25 full-text match must surface the exact keyword chunk 'Masterminds'
@@ -76,7 +77,8 @@ async def test_exact_keyword_matching_bm25_surfaces_term_when_cosine_lower(async
 
 
 @pytest.mark.anyio
-async def test_semantic_matching_surfaces_relevant_chunk(async_client):
+@pytest.mark.integration
+async def test_semantic_matching_surfaces_relevant_chunk(async_client, setup_test_guide):
     """
     Semantic search:
     Vector cosine similarity retrieves relevant chunk when querying conceptually.
@@ -99,7 +101,8 @@ async def test_semantic_matching_surfaces_relevant_chunk(async_client):
 
 
 @pytest.mark.anyio
-async def test_cutoff_filtering_drops_completely_unrelated_queries(async_client):
+@pytest.mark.integration
+async def test_cutoff_filtering_drops_completely_unrelated_queries(async_client, setup_test_guide):
     """
     Threshold cutoff:
     Completely unrelated queries having no semantic or keyword match must return empty results.
@@ -119,7 +122,8 @@ async def test_cutoff_filtering_drops_completely_unrelated_queries(async_client)
 
 
 @pytest.mark.anyio
-async def test_custom_min_similarity_threshold_filtering(async_client):
+@pytest.mark.integration
+async def test_custom_min_similarity_threshold_filtering(async_client, setup_test_guide):
     """
     Assert that setting an ultra-high min_similarity cutoff (e.g. 0.99)
     drops candidates that would otherwise pass with default 0.65.

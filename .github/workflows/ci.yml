@@ -44,9 +44,29 @@ jobs:
       run:
         working-directory: services/ingest
 
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: platina_rag
+          POSTGRES_USER: platina
+          POSTGRES_PASSWORD: change_me
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      - name: Initialize Database Schema
+        run: |
+          PGPASSWORD=change_me psql -h localhost -U platina -d platina_rag -f ../../infra/postgres/init.sql
+          PGPASSWORD=change_me psql -h localhost -U platina -d platina_rag -f ../../infra/postgres/12_canonical_catalog.sql
 
       - name: Install uv
         uses: astral-sh/setup-uv@v3
@@ -67,6 +87,7 @@ jobs:
           POSTGRES_DB: platina_rag
           POSTGRES_USER: platina
           POSTGRES_PASSWORD: change_me
+          DATABASE_URL: postgresql://platina:change_me@localhost:5432/platina_rag
 
   test-iac:
     name: Infrastructure as Code (Helm & Terraform)

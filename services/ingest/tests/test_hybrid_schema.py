@@ -3,6 +3,8 @@ from sqlalchemy import text, select, func
 from src.database import get_db_session
 from src.models.chunk import GuideChunkModel
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def anyio_backend():

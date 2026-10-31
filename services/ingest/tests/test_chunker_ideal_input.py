@@ -2,6 +2,8 @@ import pytest
 from httpx import AsyncClient, ASGITransport
 from src.main import create_app
 
+pytestmark = pytest.mark.integration
+
 SAMPLE_EVAL_GUIDE = """## Guia Completo de Troféus - Elden Ring
 Este é o sumário e introdução aos requisitos da platina.
 

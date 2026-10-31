@@ -4,6 +4,8 @@ from src.main import create_app
 from src.schemas.search import SearchQueryRequest
 from src.services.search import vector_search_service
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def anyio_backend():

@@ -30,6 +30,7 @@ async def test_search_response_schema_latency_fields():
 
 
 @pytest.mark.anyio
+@pytest.mark.integration
 async def test_search_endpoint_returns_latency_metrics(async_client):
     """
     Search endpoint must return retrieval_latency_ms and reranker_latency_ms >= 0.0.
@@ -52,6 +53,7 @@ async def test_search_endpoint_returns_latency_metrics(async_client):
 
 
 @pytest.mark.anyio
+@pytest.mark.integration
 async def test_vector_search_service_computes_latency_metrics():
     """
     Direct service invocation returns SearchResponse with populated latency metrics >= 0.0.

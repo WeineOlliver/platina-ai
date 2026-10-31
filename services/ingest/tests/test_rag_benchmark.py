@@ -2,6 +2,8 @@ import pytest
 from httpx import AsyncClient, ASGITransport
 from src.main import create_app
 
+pytestmark = pytest.mark.integration
+
 # Golden dataset guides covering Bloodborne, Elden Ring, and Grand Theft Auto V
 GOLD_GUIDE_BLOODBORNE = """# Guia Completo de Troféus - Bloodborne
 

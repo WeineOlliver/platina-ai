@@ -52,6 +52,7 @@ async def test_catalog_models_attributes():
 
 
 @pytest.mark.anyio
+@pytest.mark.integration
 async def test_catalog_database_schema():
     """Verify tables and columns exist in PostgreSQL database."""
     async with get_db_session() as session:
@@ -114,6 +115,7 @@ async def test_catalog_database_schema():
 
 
 @pytest.mark.anyio
+@pytest.mark.integration
 async def test_catalog_crud_and_relationships():
     """Verify ORM insert, relationships, and foreign key cascades."""
     test_game_id = "test-game-witcher-3"

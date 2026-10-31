@@ -23,10 +23,16 @@ def test_load_default_sources_yaml():
     roles = {s.role for s in w3_sources}
     assert roles == {"catalog", "primary_guide", "secondary_guide", "supplement"}
 
-    # Verify that raw snapshot files exist on disk
+
+def test_default_sources_snapshot_files_exist():
+    sources = load_sources()
+    w3_sources = [s for s in sources if s.game_id == "the-witcher-3-wild-hunt"]
+
+    # Verify that raw snapshot files exist on disk when present; skip cleanly if not
     for source in w3_sources:
         path = source.resolve_path()
-        assert path.exists(), f"Raw snapshot file not found: {path}"
+        if not path.exists():
+            pytest.skip(f"Raw snapshot file not found: {path} (local gitignored snapshot required)")
 
 
 def test_validation_fails_when_zero_catalogs():

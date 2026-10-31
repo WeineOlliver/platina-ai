@@ -6,7 +6,7 @@ readme = "README.md"
 authors = [
     { name = "Weine Oliveira", email = "weineolliver@gmail.com" }
 ]
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = [
     "asyncpg>=0.32.0",
     "beautifulsoup4>=4.15.0",
@@ -34,3 +34,6 @@ build-backend = "uv_build"
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+markers = [
+    "integration: tests requiring external services (PostgreSQL database or network)",
+]
