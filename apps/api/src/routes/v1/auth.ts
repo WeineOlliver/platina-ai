@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
+import { env } from '../../config/env.js';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -21,7 +22,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
     // For demonstration and initial portfolio testing:
     // In production with database, this verifies bcrypt/argon2 hash against PostgreSQL.
-    if (password !== 'platina123') {
+    if (password !== (env.DEMO_USER_PASSWORD || 'change_me')) {
       return reply.unauthorized('Invalid email or password');
     }
 

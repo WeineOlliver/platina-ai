@@ -100,7 +100,7 @@ describe('Platina AI API - App Suite', () => {
         url: '/api/v1/auth/login',
         payload: {
           email: 'hunter@platina.ai',
-          password: 'platina123',
+          password: 'change_me',
         },
       });
 
@@ -127,7 +127,7 @@ describe('Platina AI API - App Suite', () => {
         url: '/api/v1/auth/login',
         payload: {
           email: 'arthur.morgan@van-der-linde.com',
-          password: 'platina123',
+          password: 'change_me',
         },
       });
       const { token } = loginRes.json();

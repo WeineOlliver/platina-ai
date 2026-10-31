@@ -8,7 +8,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-platina}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-platina123}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
       POSTGRES_DB: ${POSTGRES_DB:-platina_rag}
     ports:
       - "5432:5432"
@@ -35,7 +35,7 @@ services:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_USER: ${POSTGRES_USER:-platina}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-platina123}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
       POSTGRES_DB: ${POSTGRES_DB:-platina_rag}
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-fastembed}
       EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-384}

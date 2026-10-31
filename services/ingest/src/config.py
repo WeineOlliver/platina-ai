@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "info"
 
     # Database & Vector Store (Configured in upcoming milestones)
-    DATABASE_URL: str = "postgresql://platina:platina123@localhost:5432/platina_rag"
+    DATABASE_URL: str = "postgresql://platina:change_me@localhost:5432/platina_rag"
 
     # Embedding model configuration
     EMBEDDING_PROVIDER: str = "local"

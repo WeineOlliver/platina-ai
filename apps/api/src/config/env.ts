@@ -15,6 +15,7 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default('*'),
   JWT_SECRET: z.string().min(16).default('platina-ai-development-super-secret-key-32chars'),
   JWT_EXPIRES_IN: z.string().default('7d'),
+  DEMO_USER_PASSWORD: z.string().default('change_me'),
   AI_PROVIDER: z.enum(['mock', 'groq', 'anthropic', 'openai']).default('groq'),
   GROQ_API_KEY: z.string().optional(),
   GROQ_MODEL: z.string().default('openai/gpt-oss-120b'),

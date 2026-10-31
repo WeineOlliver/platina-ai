@@ -19,7 +19,7 @@ postgres:
   auth:
     database: platina_rag
     username: platina
-    password: platina123
+    password: change_me
   resources:
     limits:
       cpu: 500m
