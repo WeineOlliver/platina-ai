@@ -18,15 +18,19 @@
 
 ## 🎮 Overview
 
-**Platina AI** is an autonomous assistant built specifically for **PlayStation trophy hunters and completionists**. 
+**Platina AI** is an assistant for **PlayStation trophy hunters**, focused on **missable trophies and platinum roadmaps, starting with *The Witcher 3: Wild Hunt***.
+
+The application calls hosted LLM APIs (Groq) without training, fine-tuning, or serving models. It combines structured SQL queries against a canonical trophy catalog with semantic retrieval over verified community guide walkthroughs to provide accurate, grounded assistance.
 
 In massive games like *The Witcher 3: Wild Hunt*, *Bloodborne*, *Elden Ring*, and *Grand Theft Auto V*, players face **irreversible missable trophies**: advancing past a story milestone or failing a sidequest lock out the Platinum trophy permanently, forcing a 40+ to 100+ hour replay.
 
-Generic chatbots fail because they hallucinate quest prerequisites and cannot inspect game state. **Platina AI** provides:
+Generic chatbots fail because they hallucinate quest prerequisites and cannot inspect canonical game data. **Platina AI** provides:
 1. **Targeted for Trophy Hunters:** Structured tracking of missable warnings, point-of-no-return alerts, and tactical cleanup roadmaps.
 2. **Canonical Catalog & Entity Linking:** Exact relational catalog of games and trophies linked to verified guide chunks, preventing hallucinations.
-3. **Zero Personal Data & Privacy:** Operates entirely from publicly verified trophy guides and the canonical game catalog; does not require, access, or store any PlayStation Network accounts or personal player data.
-4. **Universal Interoperability via MCP:** Exposes guides and tools to developer environments (Claude Desktop, Cursor) via the open **Model Context Protocol (MCP)** standard.
+3. **Hosted LLM Orchestration:** Calls hosted Groq LLM inference endpoints with strict schema constraints without hosting or training models locally.
+4. **Zero Personal Data & Privacy:** Operates entirely from publicly verified trophy guides and the canonical game catalog; does not require, access, or store any PlayStation Network accounts or personal player data.
+5. **Universal Interoperability via MCP:** Exposes guides and tools to developer environments (Claude Desktop, Cursor) via the open **Model Context Protocol (MCP)** standard.
+6. **Detailed Planned Work:** Planned features and pipeline phases are documented in [ROADMAP.md](ROADMAP.md).
 
 ---
 
@@ -114,7 +118,7 @@ graph TB
 - **Protocol Interoperability:** `@modelcontextprotocol/sdk` (Model Context Protocol).
 - **Containerization & K8s:** Multi-stage Docker (`node:22-alpine`, `python:3.12-slim`), Docker Compose, Helm v2, Kind, k3s.
 - **Cloud Infrastructure as Code:** OpenTofu / Terraform (AWS S3 remote backend, DynamoDB locks, VPC, RDS, ECR, AWS Budgets).
-- **CI/CD & Testing:** GitHub Actions, Vitest (110+ unit & benchmark tests), Pytest (110 unit, entity linking, and RAG evaluation tests).
+- **CI/CD & Testing:** GitHub Actions, Vitest (106 unit & integration tests), Pytest (95 unit, entity linking, and pipeline regression tests).
 
 ---
 
@@ -186,12 +190,13 @@ Key architectural trade-offs are documented following standard ADR conventions i
 
 ## 🗺️ Engineering Roadmap
 
-Planned architectural improvements, infrastructure expansions, and upcoming milestones (40h+ of scoped work) are tracked in **[ROADMAP.md](ROADMAP.md)**:
-- Canonical ingestion engine v2 with Pydantic contracts and multi-game expansion
-- Terraform module decomposition (`modules/vpc`, `modules/rds`, `modules/compute`, `modules/ecr`)
-- Production Helm chart hardening (HPA, PDBs, automated ACM TLS termination)
-- CI/CD automation pipeline (matrix testing, vulnerability scanning, and automated Kubernetes releases)
-- Agent response caching and SSE backpressure handling
+Planned architectural improvements, ingestion pipeline phases, and upcoming milestones (71h of scoped work) are tracked in **[ROADMAP.md](ROADMAP.md)**:
+- Canonical ingestion pipeline v2 (isolated parsers, entity linking, per-game configuration)
+- Regression test suite expansion to 200+ test cases across all query routes
+- Multi-game catalog expansion (*Grand Theft Auto V*, *Bloodborne*, *Elden Ring*)
+- Data-driven retrieval tuning, tool-calling hardening, and caching
+- Terraform module decomposition and production Helm chart hardening
+- Automated matrix CI and GitOps delivery pipelines
 
 ---
 
